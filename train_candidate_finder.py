@@ -155,13 +155,15 @@ class View:
             print("#####----CANDIDATES-----#####")
 
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
+        confident_region_sites = []
         if self.confident_tree is not None:
             for i, site in enumerate(labeled_sites):
                 start_site = site[1]
                 stop_site = site[2]
                 in_confident = self.in_confident_check(start_site, stop_site)
-                labeled_sites[i] = labeled_sites[i] + [in_confident]
-
+                if in_confident is True:
+                    confident_region_sites.append(site)
+            labeled_sites = confident_region_sites
         self.write_bed(start_position, end_position, labeled_sites)
 
     def test(self):
@@ -176,12 +178,13 @@ class View:
         print("TOTAL TIME ELAPSED: ", end_time-start_time)
 
 
-def parallel_run(chr_name, bam_file, ref_file, output_dir, vcf_file, start_position, end_position):
+def parallel_run(chr_name, bam_file, ref_file, confident_tree, output_dir, vcf_file, start_position, end_position):
     """
     Run this method in parallel
     :param chr_name: Chromosome name
     :param bam_file: Bam file path
     :param ref_file: Ref file path
+    :param confident_tree: A confident region tree for querying purpose
     :param output_dir: Output directory
     :param vcf_file: VCF file path
     :param start_position: Start position
@@ -192,20 +195,22 @@ def parallel_run(chr_name, bam_file, ref_file, output_dir, vcf_file, start_posit
     # create a view object
     view_ob = View(chromosome_name=chr_name,
                    bam_file_path=bam_file,
-                   reference_file_path=ref_file,
+                   ref_file_path=ref_file,
                    output_file_path=output_dir,
-                   vcf_file_path=vcf_file)
+                   vcf_file_path=vcf_file,
+                   confident_tree=confident_tree)
 
     # return the results
     view_ob.parse_region(start_position, end_position)
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, confident_tree, vcf_file, output_dir, max_threads):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
     :param bam_file: Bam file
     :param ref_file: Ref file
+    :param confident_tree: A confident region tree for querying purpose
     :param vcf_file: VCF file
     :param output_dir: Output directory
     :param max_threads: Maximum number of threads
@@ -225,7 +230,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         # parse window of the segment. Use a 1000 overlap for corner cases.
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        args = (chr_name, bam_file, ref_file, output_dir, vcf_file, start_position, end_position)
+        args = (chr_name, bam_file, ref_file, confident_tree, output_dir, vcf_file, start_position, end_position)
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
@@ -249,13 +254,14 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads):
+def genome_level_parallelization(bam_file, ref_file, vcf_file, confident_tree, output_dir_path, max_threads):
     """
     This method calls chromosome_level_parallelization for each chromosome.
     :param bam_file: BAM file path
     :param ref_file: Reference file path
     :param vcf_file: VCF file path
-    :param output_dir: Output directory
+    :param confident_tree: A confident region tree for querying purpose
+    :param output_dir_path: Output directory
     :param max_threads: Maximum number of threads to create in chromosome level
     :return: Saves a bed file
     """
@@ -265,7 +271,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
 
     chr_list = ["chr4"]
 
-    # each chormosome in list
+    # each chromosome in list
     for chr in chr_list:
         sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr) + " PROCESSES" + "\n")
         start_time = time.time()
@@ -274,7 +280,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
         output_dir = create_output_dir_for_chromosome(output_dir_path, chr)
 
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr, bam_file, ref_file, vcf_file, output_dir, max_threads)
+        chromosome_level_parallelization(chr, bam_file, ref_file, confident_tree, vcf_file, output_dir, max_threads)
 
         end_time = time.time()
         sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr) + " PROCESSES" + "\n")
@@ -289,7 +295,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
         # here we dumped all the bed files
         path_to_dir = output_dir_path + chr + "/"
 
-        concatenated_file_name = output_dir + chr + ".bed"
+        concatenated_file_name = output_dir_path + chr + ".bed"
 
         filemanager_object = FileManager()
         # get all bed file paths from the directory
@@ -354,6 +360,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--confident_bed",
         type=str,
+        default='',
         required=True,
         help="Confident bed file path."
     )
@@ -381,20 +388,25 @@ if __name__ == '__main__':
         help="Path to output directory."
     )
 
-    FLAGS, unparsed = parser.parse_known_args()
+    FLAGS, not_parsed = parser.parse_known_args()
     FLAGS.output_dir = handle_output_directory(FLAGS.output_dir)
 
+    if FLAGS.confident_bed != '':
+        confident_tree_build = build_chromosomal_interval_trees(FLAGS.confident_bed)
+    else:
+        confident_tree_build = None
+
     if FLAGS.test is True:
-        chromosomal_tree = build_chromosomal_interval_trees(FLAGS.confident_bed)
         view = View(chromosome_name=FLAGS.chromosome_name,
                     bam_file_path=FLAGS.bam,
                     ref_file_path=FLAGS.ref,
                     output_file_path=FLAGS.output_dir,
                     vcf_file_path=FLAGS.vcf,
-                    confident_tree=chromosomal_tree)
+                    confident_tree=confident_tree_build)
         view.test()
     elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref,
+        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, confident_tree_build,
                                          FLAGS.vcf, FLAGS.output_dir, FLAGS.max_threads)
     else:
-        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir, FLAGS.max_threads)
+        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, confident_tree_build, FLAGS.output_dir,
+                                     FLAGS.max_threads)
