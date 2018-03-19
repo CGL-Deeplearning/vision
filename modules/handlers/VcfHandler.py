@@ -167,7 +167,7 @@ class VCFFileProcessor:
         elif len(ref) > len(alt):
             return 'DEL'
         else:
-            raise ValueError('INVALID GENOTYPE CLASS \n' + rec)
+            raise ValueError('INVALID GENOTYPE CLASS \n' + str(rec))
 
     @staticmethod
     def get_genotype_type(genotype):
