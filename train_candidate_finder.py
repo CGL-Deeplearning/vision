@@ -1,22 +1,23 @@
 import argparse
 import math
 import time
-import csv
 import os
 import sys
+import csv
 import multiprocessing
 
 from modules.core.CandidateFinder import CandidateFinder
+from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.BamHandler import BamHandler
 from modules.handlers.FastaHandler import FastaHandler
+from modules.handlers.VcfHandler import VCFFileProcessor
+from modules.handlers.TsvHandler import TsvHandler
+from modules.core.IntervalTree import IntervalTree
 from modules.handlers.TextColor import TextColor
 from modules.handlers.FileManager import FileManager
-from modules.core.IntervalTree import IntervalTree
-from modules.handlers.TsvHandler import TsvHandler
+
 """
-candidate_finder finds possible variant sites in given bam file.
-This script selects candidates for variant calling. 
-It walks through the genome, looks at mismatches and records candidates.
+This script is responsible of creating candidate sites with true genotypes for neural network training.
 
 It requires three parameters:
 - bam_file_path: path to a bam file
@@ -24,7 +25,7 @@ It requires three parameters:
 - vcf_file_path: path to a VCF file for true genotype labeling
 
 Creates:
-- Bed files containing candidate sites.
+- Bed files containing candidate sites and their true genotypes for training.
 
 
 Also, the terms "window" and "region" are NOT interchangeable.
@@ -33,6 +34,7 @@ Window: A window in genomic region where there can be multiple alleles
 
 A region can have multiple windows and each window belongs to a region.
 """
+
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 
@@ -61,15 +63,29 @@ class View:
     """
     Works as a main class and handles user interaction with different modules.
     """
-    def __init__(self, chromosome_name, bam_file_path, reference_file_path, confident_tree, output_file_path):
+    def __init__(self, chromosome_name, bam_file_path, ref_file_path, output_file_path, vcf_file_path, confident_tree):
         # --- initialize handlers ---
         self.bam_handler = BamHandler(bam_file_path)
-        self.fasta_handler = FastaHandler(reference_file_path)
+        self.fasta_handler = FastaHandler(ref_file_path)
         self.output_dir = output_file_path
+        self.vcf_handler = VCFFileProcessor(file_path=vcf_file_path)
         self.confident_tree = confident_tree[chromosome_name]
-
         # --- initialize parameters ---
         self.chromosome_name = chromosome_name
+
+    def write_bed(self, start, end, candidate_list):
+        """
+        Create a bed output of all candidates found in the region
+        :param start: Candidate region start
+        :param end: Candidate region end
+        :param candidate_list: List of candidates to write in the bed file
+        :return:
+        """
+        file_name = self.output_dir + self.chromosome_name + '_' + str(start) + '_' + str(end) + ".bed"
+        with open(file_name, 'w', newline='\n') as tsvfile:
+            writer = csv.writer(tsvfile, delimiter='\t')
+            for record in candidate_list:
+                writer.writerow(record)
 
     def in_confident_check(self, start, stop):
         """
@@ -85,19 +101,33 @@ class View:
             return True
         return False
 
-    def write_bed(self, start, end, candidate_list):
+    def get_labeled_candidate_sites(self, selected_candidate_list, start_pos, end_pos, filter_hom_ref=False):
         """
-        Create a bed output of all candidates found in the region
-        :param start: Candidate region start
-        :param end: Candidate region end
-        :param candidate_list: List of selected candidates
-        :return:
+        Takes a dictionary of allele data and compares with a VCF to determine which candidate alleles are supported.
+        :param selected_candidate_list: List of all selected candidates with their alleles
+        :param filter_hom_ref: whether to ignore hom_ref VCF records during candidate validation
+        :param start_pos: start position of the region
+        :param end_pos: end position of the region
+        :return: labeled_sites: the parsed candidate list with the following structure for each entry:
+
+        [chromosome_name, start, stop, is_insert, ref_seq, alt1, alt2, gt1, gt2]
         """
-        file_name = self.output_dir + "Candidate" + '_' + self.chromosome_name + '_' + str(start) + '_' + str(end) + ".bed"
-        with open(file_name, 'w', newline='\n') as tsvfile:
-            writer = csv.writer(tsvfile, delimiter='\t')
-            for record in candidate_list:
-                writer.writerow(record)
+        # get dictionary of variant records for full region
+        self.vcf_handler.populate_dictionary(contig=self.chromosome_name,
+                                             start_pos=start_pos,
+                                             end_pos=end_pos,
+                                             hom_filter=filter_hom_ref)
+
+        # get separate positional variant dictionaries for IN, DEL, and SNP
+        positional_variants = self.vcf_handler.get_variant_dictionary()
+
+        allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler)
+
+        labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
+                                                             positional_vcf=positional_variants,
+                                                             candidate_sites=selected_candidate_list)
+
+        return labeled_sites
 
     def parse_region(self, start_position, end_position):
         """
@@ -106,12 +136,10 @@ class View:
         :param end_position: End position of the region
         :return:
         """
-        # get the reads that fall in that region
         reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
                                            start=start_position,
                                            stop=end_position)
 
-        # create candidate finder object
         candidate_finder = CandidateFinder(reads=reads,
                                            fasta_handler=self.fasta_handler,
                                            chromosome_name=self.chromosome_name,
@@ -120,23 +148,21 @@ class View:
 
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-
-        if self.confident_tree is not None:
-            confident_labeled = []
-            for candidate in selected_candidates:
-                pos_st = candidate[1]
-                pos_end = candidate[2]
-                in_conf = self.in_confident_check(pos_st, pos_end)
-                if in_conf is True:
-                    confident_labeled.append(candidate)
-            selected_candidates = confident_labeled
-
         if DEBUG_PRINT_CANDIDATES:
+            print("#####----CANDIDATES-----#####")
             for candidate in selected_candidates:
                 print(candidate)
+            print("#####----CANDIDATES-----#####")
 
-        # labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-        self.write_bed(start_position, end_position, selected_candidates)
+        labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
+        if self.confident_tree is not None:
+            for i, site in enumerate(labeled_sites):
+                start_site = site[1]
+                stop_site = site[2]
+                in_confident = self.in_confident_check(start_site, stop_site)
+                labeled_sites[i] = labeled_sites[i] + [in_confident]
+
+        self.write_bed(start_position, end_position, labeled_sites)
 
     def test(self):
         """
@@ -144,12 +170,13 @@ class View:
         :return:
         """
         start_time = time.time()
+        # self.parse_region(start_position=121400000, end_position=121600000)
         self.parse_region(start_position=100000, end_position=200000)
         end_time = time.time()
         print("TOTAL TIME ELAPSED: ", end_time-start_time)
 
 
-def parallel_run(chr_name, bam_file, ref_file, output_dir, start_position, end_position):
+def parallel_run(chr_name, bam_file, ref_file, output_dir, vcf_file, start_position, end_position):
     """
     Run this method in parallel
     :param chr_name: Chromosome name
@@ -166,18 +193,20 @@ def parallel_run(chr_name, bam_file, ref_file, output_dir, start_position, end_p
     view_ob = View(chromosome_name=chr_name,
                    bam_file_path=bam_file,
                    reference_file_path=ref_file,
-                   output_file_path=output_dir)
+                   output_file_path=output_dir,
+                   vcf_file_path=vcf_file)
 
     # return the results
     view_ob.parse_region(start_position, end_position)
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir, max_threads):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
     :param bam_file: Bam file
     :param ref_file: Ref file
+    :param vcf_file: VCF file
     :param output_dir: Output directory
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
@@ -196,7 +225,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir, m
         # parse window of the segment. Use a 1000 overlap for corner cases.
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        args = (chr_name, bam_file, ref_file, output_dir, start_position, end_position)
+        args = (chr_name, bam_file, ref_file, output_dir, vcf_file, start_position, end_position)
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
@@ -220,20 +249,21 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_threads):
+def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads):
     """
     This method calls chromosome_level_parallelization for each chromosome.
     :param bam_file: BAM file path
     :param ref_file: Reference file path
-    :param output_dir_path: Output directory
+    :param vcf_file: VCF file path
+    :param output_dir: Output directory
     :param max_threads: Maximum number of threads to create in chromosome level
     :return: Saves a bed file
     """
-    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
-    #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
+    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
+    #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
     program_start_time = time.time()
 
-    chr_list = ["chr19"]
+    chr_list = ["chr4"]
 
     # each chormosome in list
     for chr in chr_list:
@@ -244,7 +274,7 @@ def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_thread
         output_dir = create_output_dir_for_chromosome(output_dir_path, chr)
 
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr, bam_file, ref_file, output_dir, max_threads)
+        chromosome_level_parallelization(chr, bam_file, ref_file, vcf_file, output_dir, max_threads)
 
         end_time = time.time()
         sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr) + " PROCESSES" + "\n")
@@ -259,7 +289,7 @@ def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_thread
         # here we dumped all the bed files
         path_to_dir = output_dir_path + chr + "/"
 
-        concatenated_file_name = output_dir_path + chr + ".bed"
+        concatenated_file_name = output_dir + chr + ".bed"
 
         filemanager_object = FileManager()
         # get all bed file paths from the directory
@@ -268,8 +298,6 @@ def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_thread
         filemanager_object.concatenate_files(file_paths, concatenated_file_name)
         # delete all temporary files
         filemanager_object.delete_files(file_paths)
-        # remove the directory
-        os.rmdir(path_to_dir)
 
     program_end_time = time.time()
     sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
@@ -306,32 +334,39 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.register("type", "bool", lambda v: v.lower() == "true")
     parser.add_argument(
-        "--bam",
-        type=str,
-        required=True,
-        help="BAM file containing reads of interest."
-    )
-    parser.add_argument(
         "--ref",
         type=str,
         required=True,
         help="Reference corresponding to the BAM file."
     )
     parser.add_argument(
+        "--bam",
+        type=str,
+        required=True,
+        help="BAM file containing reads of interest."
+    )
+    parser.add_argument(
+        "--vcf",
+        type=str,
+        required=True,
+        help="VCF file path."
+    )
+    parser.add_argument(
+        "--confident_bed",
+        type=str,
+        required=True,
+        help="Confident bed file path."
+    )
+    parser.add_argument(
         "--chromosome_name",
         type=str,
-        help="Desired chromosome number E.g.: 3"
+        help="Desired chromosome name E.g.: chr3"
     )
     parser.add_argument(
         "--max_threads",
         type=int,
         default=5,
         help="Number of maximum threads for this region."
-    )
-    parser.add_argument(
-        "--confident_bed",
-        type=str,
-        help="Path to confident BED file"
     )
     parser.add_argument(
         "--test",
@@ -342,7 +377,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="candidate_finder_output/",
+        default="train_bed_output/",
         help="Path to output directory."
     )
 
@@ -353,11 +388,13 @@ if __name__ == '__main__':
         chromosomal_tree = build_chromosomal_interval_trees(FLAGS.confident_bed)
         view = View(chromosome_name=FLAGS.chromosome_name,
                     bam_file_path=FLAGS.bam,
-                    reference_file_path=FLAGS.ref,
+                    ref_file_path=FLAGS.ref,
                     output_file_path=FLAGS.output_dir,
+                    vcf_file_path=FLAGS.vcf,
                     confident_tree=chromosomal_tree)
         view.test()
     elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.output_dir, FLAGS.max_threads)
+        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref,
+                                         FLAGS.vcf, FLAGS.output_dir, FLAGS.max_threads)
     else:
-        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.output_dir, FLAGS.max_threads)
+        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir, FLAGS.max_threads)

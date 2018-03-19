@@ -342,7 +342,7 @@ class CandidateFinder:
                 filtered_list.append((allele, count, frequency))
         return filtered_list
 
-    def _get_record(self, pos, alt1, alt2, ref):
+    def _get_record(self, pos, alt1, alt2, ref, ref_count):
         """
         Given alternate alleles, return a record that we can save in bed file
         :param pos: Genomic position
@@ -355,7 +355,10 @@ class CandidateFinder:
         alt1_seq, alt1_type = alt1_tuple
         pos_end = pos
         if alt2 == '.':
-            return [pos, pos_end, ref, alt1_seq, '.', alt1_count, 0, alt1_freq, 0]
+            if alt1_type == DELETE_ALLELE:
+                ref, alt1_seq = alt1_seq, ref
+                pos_end = pos + len(ref) - 1
+            return [pos, pos_end, ref, alt1_seq, '.', alt1_type, 0, ref_count, alt1_count, 0, alt1_freq, 0]
         alt2_tuple, alt2_count, alt2_freq = alt2
         alt2_seq, alt2_type = alt2_tuple
         pos_end = pos
@@ -375,7 +378,7 @@ class CandidateFinder:
             alt1_seq = alt1_seq + ref[1:]
             pos_end = pos + len(ref) - 1
 
-        return [pos, pos_end, ref, alt1_seq, alt2_seq, alt1_count, alt2_count, alt1_freq, alt2_freq]
+        return [pos, pos_end, ref, alt1_seq, alt2_seq, alt1_type, alt2_type, ref_count, alt1_count, alt2_count, alt1_freq, alt2_freq]
 
     def parse_reads_and_select_candidates(self, reads):
         """
@@ -397,6 +400,9 @@ class CandidateFinder:
             ref = self.reference_dictionary[pos]
 
             all_allele_dictionary = self.positional_allele_dictionary[pos]
+            all_mismatch_count = 0
+            for allele in all_allele_dictionary:
+                all_mismatch_count += all_allele_dictionary[allele]
 
             # pick the top 2 most frequent allele
             allele_frequency_list = list(sorted(all_allele_dictionary.items(), key=operator.itemgetter(1), reverse=True))[:PLOIDY]
@@ -409,7 +415,8 @@ class CandidateFinder:
                 continue
             mq_rms = round(math.sqrt(self.rms_mq[pos]/self.coverage[pos]), 3) if self.coverage[pos] > 0 else 0
             dp = self.coverage[pos]
-            candidate_record = [self.chromosome_name] + self._get_record(pos, alt1, alt2, ref) + [mq_rms] + [dp]
+            ref_count = self.coverage[pos] - all_mismatch_count
+            candidate_record = [self.chromosome_name] + self._get_record(pos, alt1, alt2, ref, ref_count) + [mq_rms] + [dp]
             selected_allele_list.append(candidate_record)
 
         return selected_allele_list

@@ -85,15 +85,9 @@ class View:
             return True
         return False
 
-    def write_bed(self, start, end, candidate_list):
-        """
-        Create a bed output of all candidates found in the region
-        :param start: Candidate region start
-        :param end: Candidate region end
-        :param candidate_list: List of selected candidates
-        :return:
-        """
-        file_name = self.output_dir + "Candidate" + '_' + self.chromosome_name + '_' + str(start) + '_' + str(end) + ".bed"
+    @staticmethod
+    def write_bed(output_dir, chromosome_name, candidate_list):
+        file_name = output_dir + chromosome_name + "_candidates" + ".bed"
         with open(file_name, 'w', newline='\n') as tsvfile:
             writer = csv.writer(tsvfile, delimiter='\t')
             for record in candidate_list:
@@ -136,7 +130,8 @@ class View:
                 print(candidate)
 
         # labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-        self.write_bed(start_position, end_position, selected_candidates)
+        # self.write_bed(start_position, end_position, selected_candidates)
+        return selected_candidates
 
     def test(self):
         """
@@ -149,7 +144,7 @@ class View:
         print("TOTAL TIME ELAPSED: ", end_time-start_time)
 
 
-def parallel_run(chr_name, bam_file, ref_file, output_dir, start_position, end_position):
+def parallel_run(chr_name, bam_file, ref_file, confident_tree, output_dir, start_position, end_position):
     """
     Run this method in parallel
     :param chr_name: Chromosome name
@@ -161,18 +156,19 @@ def parallel_run(chr_name, bam_file, ref_file, output_dir, start_position, end_p
     :param end_position: End position
     :return:
     """
-
     # create a view object
     view_ob = View(chromosome_name=chr_name,
                    bam_file_path=bam_file,
                    reference_file_path=ref_file,
-                   output_file_path=output_dir)
+                   output_file_path=output_dir,
+                   confident_tree=confident_tree)
 
     # return the results
-    view_ob.parse_region(start_position, end_position)
+    candidate_list = view_ob.parse_region(start_position, end_position)
+    return candidate_list
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir, max_threads):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, confident_tree, output_dir, max_threads):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
@@ -191,19 +187,29 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir, m
 
     # chunk the chromosome into 1000 pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
-
+    args_list = []
+    all_selected_candidates = []
     for i in range(chunks):
         # parse window of the segment. Use a 1000 overlap for corner cases.
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        args = (chr_name, bam_file, ref_file, output_dir, start_position, end_position)
+        args = (chr_name, bam_file, ref_file, confident_tree, output_dir, start_position, end_position)
+        args_list.append(args)
+        if len(args_list) == max_threads:
+            p = multiprocessing.Pool(processes=max_threads)
+            data = p.starmap(parallel_run, args_list)
+            p.close()
+            data = [item for sublist in data for item in sublist]
+            all_selected_candidates.extend(data)
+            args_list = []
+    if len(args_list):
+        p = multiprocessing.Pool(processes=max_threads)
+        data = p.starmap(parallel_run, args_list)
+        p.close()
+        data = [item for sublist in data for item in sublist]
+        all_selected_candidates.extend(data)
 
-        p = multiprocessing.Process(target=parallel_run, args=args)
-        p.start()
-
-        while True:
-            if len(multiprocessing.active_children()) < max_threads:
-                break
+    return all_selected_candidates
 
 
 def create_output_dir_for_chromosome(output_dir, chr_name):
@@ -331,6 +337,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--confident_bed",
         type=str,
+        default='',
         help="Path to confident BED file"
     )
     parser.add_argument(
@@ -348,9 +355,12 @@ if __name__ == '__main__':
 
     FLAGS, unparsed = parser.parse_known_args()
     FLAGS.output_dir = handle_output_directory(FLAGS.output_dir)
+    if FLAGS.confident_bed != '':
+        chromosomal_tree = build_chromosomal_interval_trees(FLAGS.confident_bed)
+    else:
+        chromosomal_tree = None
 
     if FLAGS.test is True:
-        chromosomal_tree = build_chromosomal_interval_trees(FLAGS.confident_bed)
         view = View(chromosome_name=FLAGS.chromosome_name,
                     bam_file_path=FLAGS.bam,
                     reference_file_path=FLAGS.ref,
@@ -358,6 +368,8 @@ if __name__ == '__main__':
                     confident_tree=chromosomal_tree)
         view.test()
     elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.output_dir, FLAGS.max_threads)
+        all_candidates = chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref,
+                                                          chromosomal_tree, FLAGS.output_dir, FLAGS.max_threads)
+        View.write_bed(FLAGS.output_dir, FLAGS.chromosome_name, all_candidates)
     else:
         genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.output_dir, FLAGS.max_threads)
