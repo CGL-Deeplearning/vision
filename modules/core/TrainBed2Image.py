@@ -1,7 +1,7 @@
 from modules.core.ImageCreator import ImageCreator
 from modules.handlers.BamHandler import BamHandler
 from modules.handlers.FastaHandler import FastaHandler
-import os
+
 
 class TrainBed2ImageAPI:
     """
@@ -29,10 +29,8 @@ class TrainBed2ImageAPI:
 
         start_position = int(pos_start)
 
-        reads = bam_handler.get_reads(chr_name, start_position, start_position + 1)
+        reads = bam_handler.get_reads(chr_name, start_position, start_position+1)
         image_creator = ImageCreator(fasta_handler, reads, chr_name, start_position, alts)
 
         image_array, image_shape = image_creator.create_image(start_position, ref, alts)
-        image_creator.save_image_as_png(image_array, output_dir, file_name)
-
         return image_array, image_shape

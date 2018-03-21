@@ -1,6 +1,6 @@
 import numpy as np
-from PIL import Image
 from scipy import misc
+from modules.handlers.ImageChannels import imageChannels
 
 """
 This script creates pileup images given a vcf record, bam alignment file and reference fasta file.
@@ -12,213 +12,19 @@ imageChannels: Handles how many channels to create for each base and their struc
 MAX_COLOR_VALUE = 254.0
 BASE_QUALITY_CAP = 40.0
 MAP_QUALITY_CAP = 60.0
-MAP_QUALITY_FILTER = 10.0
+MAP_QUALITY_FILTER = 5.0
 MIN_DELETE_QUALITY = 20.0
 MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
 DELETE_CIGAR_CODE = 2
-
-
-class imageChannels:
-    """
-    Handles how many channels to create for each base and their way of construction.
-    """
-
-    def __init__(self, pileup_attributes, ref_base, is_supporting):
-        """
-        Initialize a base with it's attributes
-        :param pileup_attributes: Attributes of a pileup base
-        :param ref_base: Reference base corresponding to that pileup base
-        """
-        self.pileup_base = pileup_attributes[0]
-        self.base_qual = pileup_attributes[1]
-        self.map_qual = pileup_attributes[2]
-        self.cigar_code = pileup_attributes[3]
-        self.is_rev = pileup_attributes[4]
-        self.ref_base = ref_base
-        self.is_match = True if self.ref_base == self.pileup_base else False
-        self.is_supporting = is_supporting
-
-    @staticmethod
-    def get_base_color(base):
-        """
-        Get color based on a base.
-        - Uses different band of the same channel.
-        :param base:
-        :return:
-        """
-        if base == 'A':
-            return 254.0
-        if base == 'C':
-            return 100.0
-        if base == 'G':
-            return 180.0
-        if base == 'T':
-            return 30.0
-        if base == '*' or 'N':
-            return 5.0
-
-    @staticmethod
-    def get_base_quality_color(base_quality):
-        """
-        Get a color spectrum given base quality
-        :param base_quality: value of base quality
-        :return:
-        """
-        c_q = min(base_quality, BASE_QUALITY_CAP)
-        color = MAX_COLOR_VALUE * c_q / BASE_QUALITY_CAP
-        return color
-
-    @staticmethod
-    def get_map_quality_color(map_quality):
-        """
-        Get a color spectrum given mapping quality
-        :param map_quality: value of mapping quality
-        :return:
-        """
-        c_q = min(map_quality, MAP_QUALITY_CAP)
-        color = MAX_COLOR_VALUE * c_q / MAP_QUALITY_CAP
-        return color
-
-    @staticmethod
-    def get_strand_color(is_rev):
-        """
-        Get color for forward and reverse reads
-        :param is_rev: True if read is reversed
-        :return:
-        """
-        if is_rev is True:
-            return 240
-        else:
-            return 70
-
-    @staticmethod
-    def get_match_ref_color(is_match):
-        """
-        Get color for base matching to reference
-        :param is_match: If true, base matches to reference
-        :return:
-        """
-        if is_match is True:
-            return MAX_COLOR_VALUE * 0.2
-        else:
-            return MAX_COLOR_VALUE * 1.0
-
-    @staticmethod
-    def get_alt_support_color(is_in_support):
-        """
-        Get support color
-        :param is_in_support: Boolean value of support
-        :return:
-        """
-        if is_in_support is True:
-            return MAX_COLOR_VALUE * 1.0
-        else:
-            return MAX_COLOR_VALUE * 0.6
-
-    @staticmethod
-    def get_cigar_color(cigar_code):
-        """
-        ***NOT USED YET***
-        :param is_in_support:
-        :return:
-        """
-        if cigar_code == 0:
-            return MAX_COLOR_VALUE
-        if cigar_code == 1:
-            return MAX_COLOR_VALUE * 0.6
-        if cigar_code == 2:
-            return MAX_COLOR_VALUE * 0.3
-
-    @staticmethod
-    def get_empty_channels():
-        """
-        Get empty channel values
-        :return:
-        """
-        return [0, 0, 0, 0, 0, 0, 0]
-
-    def get_channels(self):
-        """
-        Get a bases's channel construction
-        :return: [color spectrum of channels based on base attributes]
-        """
-        base_color = self.get_base_color(self.pileup_base)
-        base_quality_color = imageChannels.get_base_quality_color(self.base_qual)
-        map_quality_color = imageChannels.get_map_quality_color(self.map_qual)
-        strand_color = imageChannels.get_strand_color(self.is_rev)
-        match_color = imageChannels.get_match_ref_color(self.is_match)
-        support_color = imageChannels.get_alt_support_color(self.is_supporting)
-        cigar_color = imageChannels.get_cigar_color(self.cigar_code)
-        return [base_color, base_quality_color, map_quality_color, strand_color, match_color, support_color, cigar_color]
-
-    @staticmethod
-    def get_channels_for_ref(base):
-        """
-        Get a reference bases's channel construction
-        :param base: Reference base
-        :return: [color spectrum of channels based on some default values]
-        """
-        cigar_code = MATCH_CIGAR_CODE if base != '*' else INSERT_CIGAR_CODE
-        base_color = imageChannels.get_base_color(base)
-        base_quality_color = imageChannels.get_base_quality_color(BASE_QUALITY_CAP)
-        map_quality_color = imageChannels.get_map_quality_color(60)
-        strand_color = imageChannels.get_strand_color(is_rev=False)
-        match_color = imageChannels.get_match_ref_color(is_match=True)
-        support_color = imageChannels.get_alt_support_color(is_in_support=True)
-        cigar_color = imageChannels.get_cigar_color(cigar_code)
-        return [base_color, base_quality_color, map_quality_color, strand_color, match_color, support_color, cigar_color]
-
-    # RGB image creator
-    # ---ONLY USED FOR TESTING--- #
-    @staticmethod
-    def get_empty_rgb_channels():
-        return [0, 0, 0, 255]
-
-    @staticmethod
-    def get_color_for_base_rgb(ref, base):
-        if ref == base and ref != '*':
-            return 255, 255, 255
-        elif base == 'A':
-            return 255, 0, 0
-        elif base == 'C':
-            return 255, 255, 0
-        elif base == 'T':
-            return 0, 0, 255
-        elif base == 'G':
-            return 0, 255, 0
-        else:
-            return 255, 0, 255
-
-    def get_channels_only_rgb(self):
-        base_color = self.get_base_color(self.pileup_base)
-        base_quality_color = imageChannels.get_base_quality_color(self.base_qual)
-        map_quality_color = imageChannels.get_map_quality_color(self.map_qual)
-        strand_color = imageChannels.get_strand_color(self.is_rev)
-        match_color = imageChannels.get_match_ref_color(self.is_match)
-        support_color = imageChannels.get_alt_support_color(self.is_supporting)
-        r, g, b = self.get_color_for_base_rgb(self.ref_base, self.pileup_base)
-
-        return [r, g, b, support_color]
-
-    @staticmethod
-    def get_channels_for_ref_only_rgb(base):
-        base_color = imageChannels.get_base_color(base)
-        base_quality_color = imageChannels.get_base_quality_color(60)
-        map_quality_color = imageChannels.get_map_quality_color(60)
-        strand_color = imageChannels.get_strand_color(is_rev=False)
-        get_match_color = imageChannels.get_match_ref_color(is_match=True)
-        r, g, b = imageChannels.get_color_for_base_rgb('', base)
-        support_color = imageChannels.get_alt_support_color(is_in_support=True)
-
-        return [r, g, b, support_color]
+IMAGE_DEPTH_THRESHOLD = 300
 
 
 class ImageCreator:
     """
-    Processes a pileup around a positoin
+    Processes a pileup around a position
     """
-    def __init__(self, ref_object, pileupcolumns, contig, pos, alts):
+    def __init__(self, ref_object, reads, contig, pos, alts):
         """
         Initialize PileupProcessor object with required dictionaries
         :param ref_object: pysam FastaFile object that contains the reference
@@ -229,18 +35,18 @@ class ImageCreator:
         :param alt: Alternate allele
         """
         self.ref_object = ref_object
-        self.pileupcolumns = pileupcolumns
+        self.reads = reads
         self.contig = contig
         self.pos = pos
         self.alt = alts
         # [genomic_position] = [max_insert_length]
-        self.insert_length_dictionary = {} # used
+        self.insert_length_dictionary = {}
         # [read_id] = {{genomic_position}->base}
-        self.read_dictionary = {} # used
+        self.read_dictionary = {}
         # [read_id] = {{genomic_position}->insert_bases}
-        self.read_insert_dictionary = {} #used
+        self.read_insert_dictionary = {}
         # List of Read ids in a genomic position
-        self.reads_aligned_to_pos = {}
+        self.reads_aligned_to_pos = []
         # genomic_position_1, genomic_position_2...
         self.position_list = [] # used
         self.leftmost_genomic_position = -1
@@ -248,7 +54,7 @@ class ImageCreator:
         self.genomic_position_projection = {}
         self.reference_base_projection = {}
         self.ref_sequence = ''
-        self.process_pileup()
+        self.parse_reads()
         self.project_genomic_positions()
 
     def project_genomic_positions(self):
@@ -265,8 +71,9 @@ class ImageCreator:
         ref_seq, error_val = self.ref_object.get_ref_of_region(self.contig,
                                                     ":"+str(self.leftmost_genomic_position+1)+ "-"
                                                     + str(self.rightmost_genomic_position+1))
+
         if error_val == 1:
-            print("ERROR IN FETCHING REFERENCE: ", self.contig, self.pos, self.alt, self.genotype)
+            print("ERROR IN FETCHING REFERENCE: ", self.contig, self.pos, self.alt)
 
         ref_seq_with_insert = ''
         idx = 0
@@ -313,19 +120,16 @@ class ImageCreator:
         if self.rightmost_genomic_position < 0 or genomic_position > self.rightmost_genomic_position:
             self.rightmost_genomic_position = genomic_position
 
-        if genomic_position not in self.reads_aligned_to_pos:
-            self.reads_aligned_to_pos[genomic_position] = []
-
         if read_id not in self.read_dictionary:
             self.read_dictionary[read_id] = {}
-            self.read_dictionary[read_id][genomic_position] =''
+            self.read_dictionary[read_id][genomic_position] = ''
 
         if is_insert:
             if genomic_position not in self.insert_length_dictionary:
                 self.insert_length_dictionary[genomic_position] = 0
             if read_id not in self.read_insert_dictionary:
                 self.read_insert_dictionary[read_id] = {}
-                self.read_insert_dictionary[read_id][genomic_position] =''
+                self.read_insert_dictionary[read_id][genomic_position] = ''
 
     def save_info_of_a_position(self, genomic_position, read_id, base, base_qual, map_qual, is_rev, cigar_code, is_in):
         """
@@ -349,83 +153,235 @@ class ImageCreator:
                                                                   len(base))
 
     @staticmethod
-    def get_attributes_to_save_indel( pileupcolumn, pileupread):
-        insert_start = pileupread.query_position + 1
-        insert_end = insert_start + pileupread.indel
-
-        return pileupcolumn.pos, \
-               pileupread.alignment.query_name, \
-               pileupread.alignment.query_sequence[insert_start:insert_end], \
-               pileupread.alignment.query_qualities[insert_start:insert_end], \
-               pileupread.alignment.mapping_quality, \
-               pileupread.alignment.is_reverse, \
-               INSERT_CIGAR_CODE # CIGAR OPERATION IS INSERT
+    def get_attributes_to_save_indel(position, read, read_qs, read_seq):
+        return position, \
+               read.query_name, \
+               read_seq, \
+               read_qs, \
+               read.mapping_quality, \
+               read.is_reverse, \
+               INSERT_CIGAR_CODE
 
     @staticmethod
-    def get_attributes_to_save(pileupcolumn, pileupread):
-        if pileupread.is_del:
-            return pileupcolumn.pos, \
-                   pileupread.alignment.query_name,\
+    def get_attributes_to_save(position, start_pos, read, read_qs, read_seq, is_del):
+        if is_del:
+            return position, \
+                   read.query_name,\
                    '*', \
-                   MIN_DELETE_QUALITY,\
-                   pileupread.alignment.mapping_quality, \
-                   pileupread.alignment.is_reverse, \
-                   DELETE_CIGAR_CODE # CIGAR OPERATION DELETE
+                   MIN_DELETE_QUALITY, \
+                   read.mapping_quality, \
+                   read.is_reverse, \
+                   DELETE_CIGAR_CODE
         else:
-            return pileupcolumn.pos, \
-                   pileupread.alignment.query_name, \
-                   pileupread.alignment.query_sequence[pileupread.query_position],  \
-                   pileupread.alignment.query_qualities[pileupread.query_position], \
-                   pileupread.alignment.mapping_quality, \
-                   pileupread.alignment.is_reverse, \
-                   MATCH_CIGAR_CODE  # CIGAR OPERATION MATCH
+            return position, \
+                   read.query_name, \
+                   read_seq[position-start_pos], \
+                   read_qs[position-start_pos], \
+                   read.mapping_quality, \
+                   read.is_reverse, \
+                   MATCH_CIGAR_CODE
 
     @staticmethod
     def save_image_as_png(pileup_array, save_dir, file_name):
         pileupArray2d = pileup_array.reshape((pileup_array.shape[0], -1))
         misc.imsave(save_dir + file_name + ".png", pileupArray2d, format="PNG")
 
-    def process_pileup(self):
-        for pileupcolumn in self.pileupcolumns:
-            self.position_list.append(pileupcolumn.pos)
-            self.reads_aligned_to_pos[pileupcolumn.pos] = []
-            for pileupread in pileupcolumn.pileups:
-                self.reads_aligned_to_pos[pileupcolumn.pos].append(pileupread.alignment.query_name)
+    @staticmethod
+    def get_read_stop_position(read):
+        """
+        Returns the stop position of the reference to where the read stops aligning
+        :param read: The read
+        :return: stop position of the reference where the read last aligned
+        """
+        ref_alignment_stop = read.reference_end
 
-                if pileupread.indel > 0:
-                    gen_pos, read_id, base, base_qual, map_qual, is_rev, cigar_code = \
-                        self.get_attributes_to_save_indel(pileupcolumn, pileupread)
-                    self.save_info_of_a_position(gen_pos, read_id, base, base_qual, map_qual, is_rev, cigar_code, is_in=True)
+        # only find the position if the reference end is fetched as none from pysam API
+        if ref_alignment_stop is None:
+            positions = read.get_reference_positions()
 
-                gen_pos, read_id, base, base_qual, map_qual, is_rev, cigar_code = \
-                    self.get_attributes_to_save(pileupcolumn, pileupread)
-                self.save_info_of_a_position(gen_pos, read_id, base, base_qual, map_qual, is_rev, cigar_code, is_in=False)
+            # find last entry that isn't None
+            i = len(positions) - 1
+            ref_alignment_stop = positions[-1]
+            while i > 0 and ref_alignment_stop is None:
+                i -= 1
+                ref_alignment_stop = positions[i]
 
-    def create_text_pileup(self, query_pos):
-        left_most_pos = -1
-        for read_id in self.reads_aligned_to_pos[query_pos]:
-            read_list = []
-            aligned_positions = sorted(self.read_dictionary[read_id].keys())
-            if left_most_pos < 0:
-                left_most_pos = aligned_positions[0]
-            left_most_pos = min(left_most_pos, aligned_positions[0])
-            inserts_in_between = sum(self.insert_length_dictionary[val] if val in self.insert_length_dictionary.keys() else 0 for val in range(left_most_pos, aligned_positions[0]))
-            padding = aligned_positions[0] - left_most_pos + inserts_in_between
-            for pad in range(padding):
-                read_list.append(' ')
-            for pos in aligned_positions:
-                read_list.append((self.read_dictionary[read_id][pos][0]))
-                if pos in self.insert_length_dictionary.keys() and self.insert_length_dictionary[pos] > 0:
-                    this_has_insert = read_id in self.read_insert_dictionary and pos in self.read_insert_dictionary[read_id]
-                    inserted_bases = 0
-                    if this_has_insert is True:
-                        for base in self.read_insert_dictionary[read_id][pos][0]:
-                            read_list.append(base)
-                            inserted_bases += 1
-                    for i in range(inserted_bases, self.insert_length_dictionary[pos]):
-                        read_list.append('*')
+        return ref_alignment_stop
 
-            print(''.join(read_list))
+    def parse_match(self, alignment_position, length, read_sequence, read, read_qs):
+        """
+        Process a cigar operation that is a match
+        :param alignment_position: Position where this match happened
+        :param read_sequence: Read sequence
+        :param ref_sequence: Reference sequence
+        :param length: Length of the operation
+        :return:
+
+        This method updates the candidates dictionary.
+        """
+        start = alignment_position
+        stop = start + length
+        for i in range(start, stop):
+            gen_pos, read_id, base, base_q, map_q, is_rev, cigar_code = \
+                self.get_attributes_to_save(i, start, read, read_qs, read_sequence, False)
+            self.save_info_of_a_position(gen_pos, read_id, base, base_q, map_q, is_rev, cigar_code, is_in=False)
+
+    def parse_delete(self, alignment_position, length, read):
+        """
+        Process a cigar operation that is a delete
+        :param alignment_position: Alignment position
+        :param length: Length of the delete
+        :param ref_sequence: Reference sequence of delete
+        :return:
+
+        This method updates the candidates dictionary.
+        """
+        # actual delete position starts one after the anchor
+
+        start = alignment_position + 1
+        stop = start + length
+        for i in range(start, stop):
+            gen_pos, read_id, base, base_q, map_q, is_rev, cigar_code = \
+                self.get_attributes_to_save(i, start, read, [], '', True)
+            self.save_info_of_a_position(gen_pos, read_id, base, base_q, map_q, is_rev, cigar_code, is_in=False)
+
+    def parse_insert(self, alignment_position, read_sequence, read, read_qs):
+        """
+        Process a cigar operation where there is an insert
+        :param alignment_position: Position where the insert happened
+        :param read_sequence: The insert read sequence
+        :return:
+
+        This method updates the candidates dictionary. Mostly by adding read IDs to the specific positions.
+        """
+        gen_pos, read_id, base, base_qual, map_qual, is_rev, cigar_code = \
+            self.get_attributes_to_save_indel(alignment_position, read, read_qs, read_sequence)
+
+        self.save_info_of_a_position(gen_pos, read_id, base, base_qual, map_qual, is_rev, cigar_code, is_in=True)
+
+    def parse_cigar_tuple(self, cigar_code, length, alignment_position, read_sequence, read, read_qs):
+        """
+        Parse through a cigar operation to find possible candidate variant positions in the read
+        :param cigar_code: Cigar operation code
+        :param length: Length of the operation
+        :param alignment_position: Alignment position corresponding to the reference
+        :param ref_sequence: Reference sequence
+        :param read_sequence: Read sequence
+        :return:
+
+        cigar key map based on operation.
+        details: http://pysam.readthedocs.io/en/latest/api.html#pysam.AlignedSegment.cigartuples
+        0: "MATCH",
+        1: "INSERT",
+        2: "DELETE",
+        3: "REFSKIP",
+        4: "SOFTCLIP",
+        5: "HARDCLIP",
+        6: "PAD"
+        """
+        # get what kind of code happened
+        ref_index_increment = length
+        read_index_increment = length
+
+        # deal different kinds of operations
+        if cigar_code == 0:
+            # match
+            self.parse_match(alignment_position=alignment_position,
+                             length=length,
+                             read_sequence=read_sequence,
+                             read=read,
+                             read_qs=read_qs)
+        elif cigar_code == 1:
+            # insert
+            # alignment position is where the next alignment starts, for insert and delete this
+            # position should be the anchor point hence we use a -1 to refer to the anchor point
+            self.parse_insert(alignment_position=alignment_position-1,
+                              read_sequence=read_sequence,
+                              read=read,
+                              read_qs=read_qs)
+            ref_index_increment = 0
+        elif cigar_code == 2 or cigar_code == 3:
+            # delete or ref_skip
+            # alignment position is where the next alignment starts, for insert and delete this
+            # position should be the anchor point hence we use a -1 to refer to the anchor point
+            self.parse_delete(alignment_position=alignment_position-1,
+                              length=length,
+                              read=read)
+            read_index_increment = 0
+        elif cigar_code == 4:
+            # soft clip
+            ref_index_increment = 0
+            # print("CIGAR CODE ERROR SC")
+        elif cigar_code == 5:
+            # hard clip
+            ref_index_increment = 0
+            read_index_increment = 0
+            # print("CIGAR CODE ERROR HC")
+        elif cigar_code == 6:
+            # pad
+            ref_index_increment = 0
+            read_index_increment = 0
+            # print("CIGAR CODE ERROR PAD")
+        else:
+            raise("INVALID CIGAR CODE: %s" % cigar_code)
+
+        return ref_index_increment, read_index_increment
+
+    def find_read_candidates(self, read):
+        """
+        This method finds candidates given a read. We walk through the cigar string to find these candidates.
+        :param read: Read from which we need to find the variant candidate positions.
+        :return:
+
+        Read candidates use a set data structure to find all positions in the read that has a possible variant.
+        """
+        ref_alignment_start = read.reference_start
+        ref_alignment_stop = self.get_read_stop_position(read)
+
+        if self.leftmost_genomic_position == -1 or ref_alignment_start < self.leftmost_genomic_position:
+            self.leftmost_genomic_position = ref_alignment_start
+
+        if self.rightmost_genomic_position == -1 or ref_alignment_stop > self.rightmost_genomic_position:
+            self.rightmost_genomic_position = ref_alignment_stop
+
+        cigar_tuples = read.cigartuples
+        read_sequence = read.query_sequence
+        read_qualities = read.query_qualities
+
+        # read_index: index of read sequence
+        # ref_index: index of reference sequence
+        read_index = 0
+        ref_index = 0
+
+        for cigar in cigar_tuples:
+            cigar_code = cigar[0]
+            length = cigar[1]
+            # get the sequence segments that are effected by this operation
+            read_sequence_segment = read_sequence[read_index:read_index+length]
+            read_qualities_segment = read_qualities[read_index:read_index + length]
+
+            # send the cigar tuple to get attributes we got by this operation
+            ref_index_increment, read_index_increment = \
+                self.parse_cigar_tuple(cigar_code=cigar_code,
+                                       length=length,
+                                       alignment_position=ref_alignment_start+ref_index,
+                                       read_sequence=read_sequence_segment,
+                                       read_qs=read_qualities_segment,
+                                       read=read)
+
+            # increase the read index iterator
+            read_index += read_index_increment
+            ref_index += ref_index_increment
+
+    def parse_reads(self):
+        for i, read in enumerate(self.reads):
+            # check if the read is usable
+            if read.mapping_quality >= MAP_QUALITY_FILTER and read.is_secondary is False \
+                    and read.is_supplementary is False and read.is_unmapped is False:
+                self.find_read_candidates(read=read)
+                self.reads_aligned_to_pos.append(read.query_name)
+            if i > IMAGE_DEPTH_THRESHOLD:
+                break
 
     def check_for_support(self, read_id, ref, alt, poi):
         genomic_start_position = poi
@@ -469,53 +425,6 @@ class ImageCreator:
                     read_insert_list[pos].append(read_attribute_tuple)
         return read_list, read_insert_list, is_supporting
 
-    def get_reference_row_rgb(self, image_width):
-        image_row = [imageChannels.get_empty_rgb_channels() for i in range(image_width)]
-        for i in range(0, min(len(self.ref_sequence), image_width)):
-            image_row[i] = imageChannels.get_channels_for_ref_only_rgb(self.ref_sequence[i])
-        return image_row
-
-    def create_image_rgb(self, query_pos, image_height, image_width, ref_band, ref, alt):
-        in_support = 0
-        not_in_support = 0
-        whole_image = []
-        for i in range(ref_band):
-            whole_image.append(self.get_reference_row_rgb(image_width))
-
-        for read_id in self.reads_aligned_to_pos[query_pos]:
-            row_list, row_insert_list, is_supporting = self.get_row(read_id, query_pos, ref, alt)
-            in_support = in_support + 1 if is_supporting is True else in_support
-            not_in_support = not_in_support + 1 if is_supporting is False else not_in_support
-
-            image_row = [imageChannels.get_empty_rgb_channels() for i in range(image_width)]
-
-            for position in sorted(row_list):
-                imagechannels_object = imageChannels(row_list[position][0], self.reference_base_projection[position],
-                                                     is_supporting)
-                if self.genomic_position_projection[position] < image_width:
-                    image_row[self.genomic_position_projection[position]] = imagechannels_object.get_channels_only_rgb()
-
-                if position in row_insert_list.keys():
-                    insert_ref = 0
-                    for bases in row_insert_list[position]:
-                        for base_idx in range(len(bases[0])):
-                            insert_ref += 1
-                            attribute_tuple = (bases[0][base_idx], bases[1][base_idx], bases[2], bases[3])
-                            imagechannels_object = imageChannels(attribute_tuple, '*', is_supporting)
-                            if self.genomic_position_projection[position] + insert_ref < image_width:
-                                image_row[self.genomic_position_projection[position] + insert_ref] = \
-                                    imagechannels_object.get_channels_only_rgb()
-
-            whole_image.append(image_row)
-
-        empty_rows_to_add = image_height - len(whole_image)
-        for i in range(empty_rows_to_add):
-            whole_image.append([imageChannels.get_empty_rgb_channels() for i in range(image_width)])
-
-        image_array = np.array(whole_image).astype(np.uint8)
-        img = Image.fromarray(image_array)
-        return img, in_support, not_in_support
-
     # TEST FIVE CHANNELS
     def get_reference_row(self, image_width):
         image_row = [imageChannels.get_empty_channels() for i in range(image_width)]
@@ -534,7 +443,7 @@ class ImageCreator:
         for i in range(ref_band):
             whole_image.append(self.get_reference_row(image_width))
 
-        for read_id in self.reads_aligned_to_pos[query_pos]:
+        for read_id in self.reads_aligned_to_pos:
             row_list, row_insert_list, is_supporting = self.get_row(read_id, query_pos, ref, alt)
 
             image_row = [imageChannels.get_empty_channels() for i in range(image_width)]
@@ -570,4 +479,3 @@ class ImageCreator:
 
         image_array = np.array(whole_image).astype(np.uint8)
         return image_array, image_array.shape
-
