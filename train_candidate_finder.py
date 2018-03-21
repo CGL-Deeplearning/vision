@@ -265,11 +265,11 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, confident_tree, o
     :param max_threads: Maximum number of threads to create in chromosome level
     :return: Saves a bed file
     """
-    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
-    #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
+    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
+                "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
     program_start_time = time.time()
 
-    chr_list = ["chr19"]
+    # chr_list = ["chr19"]
 
     # each chromosome in list
     for chr in chr_list:
