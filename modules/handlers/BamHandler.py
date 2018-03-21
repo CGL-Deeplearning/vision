@@ -32,6 +32,18 @@ class BamHandler:
         # return pileup columns
         return pileup_columns
 
+    def get_pileupcolumns_aligned_to_a_site(self, contig, pos):
+        """
+        Return a AlignmentFile.pileup object given a site
+        :param contig: Contig [ex. chr3]
+        :param pos: Position [ex 100001]
+        :return: pysam.AlignmentFile.pileup object
+        """
+        # get pileup columns
+        pileup_columns = self.bamFile.pileup(contig, pos, pos+1)
+        # return pileup columns
+        return pileup_columns
+
     def get_reads(self, chromosome_name, start, stop):
         """
         Return reads that map to a given site

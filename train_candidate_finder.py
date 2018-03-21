@@ -173,7 +173,7 @@ class View:
         """
         start_time = time.time()
         # self.parse_region(start_position=121400000, end_position=121600000)
-        self.parse_region(start_position=100000, end_position=200000)
+        self.parse_region(start_position=100000, end_position=400000)
         end_time = time.time()
         print("TOTAL TIME ELAPSED: ", end_time-start_time)
 
@@ -269,7 +269,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, confident_tree, o
     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
     program_start_time = time.time()
 
-    chr_list = ["chr3"]
+    chr_list = ["chr19"]
 
     # each chromosome in list
     for chr in chr_list:

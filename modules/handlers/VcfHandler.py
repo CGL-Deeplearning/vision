@@ -160,7 +160,7 @@ class VCFFileProcessor:
         :param alt: Alternate allele
         :return:
         """
-        if len(ref) == 1 and len(alt) == 1:
+        if len(ref) == len(alt):
             return 'SNP'
         elif len(ref) < len(alt):
             return 'IN'

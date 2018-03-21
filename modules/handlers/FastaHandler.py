@@ -39,3 +39,19 @@ class FastaHandler:
         :return: Length of the chromosome reference sequence
         """
         return self.fasta.get_reference_length(chromosome_name)
+
+    def get_ref_of_region(self, contig, site):
+        """
+        Return a string containing reference of a site
+        :param contig: Contig [ex chr3]
+        :param site: Site [ex 100000-200000]
+        :return:
+        """
+        ret_val = ""
+        error_val = 0
+        try:
+            ret_val = self.fasta.fetch(region=contig+site).upper()
+        except:
+            print("ERROR IN REF FETCH: ", contig, site)
+            error_val = 1
+        return ret_val, error_val
