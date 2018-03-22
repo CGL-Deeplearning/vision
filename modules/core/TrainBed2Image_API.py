@@ -3,6 +3,7 @@ from modules.handlers.BamHandler import BamHandler
 from modules.handlers.FastaHandler import FastaHandler
 import os
 
+
 class TrainBed2ImageAPI:
     """
     Works as a main class and handles user interaction with different modules.

@@ -200,7 +200,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, records, outp
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
-    chunks = 2000
+    chunks = 64
     index_now = 0
     i = 0
     total_progress = 0

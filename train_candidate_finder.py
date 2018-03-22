@@ -303,7 +303,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, confident_tree, o
         # dump all bed files into one
         filemanager_object.concatenate_files(file_paths, concatenated_file_name)
         # delete all temporary files
-        filemanager_object.delete_files(file_paths)
+        filemanager_object.delete_files(path_to_dir)
 
     program_end_time = time.time()
     sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
