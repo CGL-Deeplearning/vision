@@ -229,7 +229,7 @@ def generate_images(bam_file, ref_file, candidate_bed, output_dir, max_threads):
     program_start_time = time.time()
 
     chr_list = train_set.keys()
-    for chr_name in train_set:
+    for chr_name in sorted(train_set.keys()):
         sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
         sys.stderr.write(TextColor.BLUE + "TOTAL " + str(len(train_set[chr_name])) + " RECORDS" + "\n")
 
