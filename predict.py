@@ -79,7 +79,7 @@ def get_genotype_for_multiple_allele(records):
     chrm = ''
     rec_alt1 = '.'
     rec_alt2 = '.'
-    alt_probs = {}
+    alt_probs = defaultdict(list)
     for record in records:
         chrm = record[0]
         ref = record[3]
@@ -93,7 +93,14 @@ def get_genotype_for_multiple_allele(records):
             alt_probs['both'] = (record[7:])
         else:
             alt_probs[alt1] = (record[7:])
-    print(records)
+
+    if rec_alt1 not in alt_probs:
+        alt_probs[rec_alt1] = (0, 0, 0)
+    if rec_alt2 not in alt_probs:
+        alt_probs[rec_alt2] = (0, 0, 0)
+    if 'both' not in alt_probs:
+        alt_probs['both'] = (0, 0, 0)
+
     p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
     p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
     p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
