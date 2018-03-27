@@ -42,7 +42,7 @@ def generate_pileup(contig, bam_file, ref_file, records, output_dir, thread_name
 
         # label of the image and save the image
         smry.write(os.path.abspath(output_dir + file_name) + ".png," + str(label) + ',' + ','.join(
-            map(str, img_shape)) + ',' + str(rec_type) + '\n')
+            map(str, img_shape)) + ',' + str(rec_type) + ',' + str('\t'.join(rec)) + '\n')
 
     # sys.stderr.write(TextColor.PURPLE + "FINISHED: " + thread_name + " TIME: " + str(time.time()-st_time) + "\n" + TextColor.END)
 

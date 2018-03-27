@@ -48,6 +48,7 @@ class PileupDataset(Dataset):
         self.window = tmp_df[3]
         self.channels = tmp_df[4]
         self.type_str = tmp_df[5]
+        self.rec = tmp_df[6]
 
     def __getitem__(self, index):
         file = self.X_train[index]
@@ -63,7 +64,8 @@ class PileupDataset(Dataset):
         label = torch.from_numpy(self.y_train[index])
         pic_name = self.X_train[index]
         type_str = self.type_str[index] # SNP, INDEL
-        return img, label, pic_name, type_str
+        rec = self.rec[index]
+        return img, label, pic_name, type_str, rec
 
     def __len__(self):
         return len(self.X_train.index)
