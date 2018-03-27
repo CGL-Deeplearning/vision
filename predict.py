@@ -166,6 +166,15 @@ def get_vcf_record(vcf_file, chrm, st_pos, end_pos, ref, alts, genotype, phred_q
     return vcf_record
 
 
+def fix_allele_field(alleles):
+    if len(alleles) > 1:
+        if len(alleles[0]) > 1 and len(alleles[1]) == 1:
+            return [alleles[0]]
+        if len(alleles[1]) > 1 and len(alleles[0]) == 1:
+            return [alleles[1]]
+    return alleles
+
+
 def produce_vcf(prediction_dict):
     header = get_vcf_header()
     vcf = VariantFile('./outputs/pred.vcf', 'w', header=header)
@@ -185,8 +194,15 @@ def produce_vcf(prediction_dict):
         all_calls.append((chrm, int(st_pos), int(end_pos), ref, alt_field, genotype, phred_qual, phred_gq))
 
     all_calls.sort(key=operator.itemgetter(1))
+    current_pos = 0
+    last_pos = 0
     for record in all_calls:
         chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
+        current_pos = st_pos
+        if current_pos <= last_pos:
+            continue
+        alt_field = fix_allele_field(alt_field)
+        last_pos = current_pos + len(ref)
         # print(chrm, pos, ref, alt_field, genotype, val)
         vcf_rec = get_vcf_record(vcf, chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq)
         # print(vcf_rec)
