@@ -93,6 +93,7 @@ def get_genotype_for_multiple_allele(records):
             alt_probs['both'] = (record[7:])
         else:
             alt_probs[alt1] = (record[7:])
+    print(records)
     p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
     p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
     p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
