@@ -364,7 +364,7 @@ if __name__ == '__main__':
         "--confident_bed",
         type=str,
         default='',
-        required=True,
+        required=False,
         help="Confident bed file path."
     )
     parser.add_argument(
