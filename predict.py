@@ -109,7 +109,6 @@ def get_genotype_for_multiple_allele(records):
     p12 = min(max(alt_probs[rec_alt1][0], alt_probs[rec_alt1][1]), max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]),
               alt_probs['both'][2])
     prob_list = [p00, p01, p11, p02, p22, p12]
-    print(prob_list)
     normalized_list = [float(i) / sum(prob_list) for i in prob_list]
     prob_list = [float(i) / max(normalized_list) for i in normalized_list]
     genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
