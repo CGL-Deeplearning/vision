@@ -152,18 +152,18 @@ def get_prediction_set_from_bed(candidate_bed):
     sys.stderr.write(TextColor.BLUE + "Raw class distribution\n"+TextColor.END)
     print_class_distribution(train_set, class_count)
 
-    for chr_name in train_set:
-        downsample_rate = get_downsample_rate(class_count[chr_name]['0'], class_count[chr_name]['1'], class_count[chr_name]['2'])
-        if downsample_rate >= 1:
-            continue
-        downsampled_list = []
-        for prediction in train_set[chr_name]:
-            alt2 = prediction[5]
-            gt = prediction[7]
-            if gt == '0' and alt2 == '.' and select_or_not(downsample_rate) is False:
-                continue
-            downsampled_list.append(prediction)
-        train_set[chr_name] = downsampled_list
+    # for chr_name in train_set:
+    #     downsample_rate = get_downsample_rate(class_count[chr_name]['0'], class_count[chr_name]['1'], class_count[chr_name]['2'])
+    #     if downsample_rate >= 1:
+    #         continue
+    #     downsampled_list = []
+    #     for prediction in train_set[chr_name]:
+    #         alt2 = prediction[5]
+    #         gt = prediction[7]
+    #         if gt == '0' and alt2 == '.' and select_or_not(downsample_rate) is False:
+    #             continue
+    #         downsampled_list.append(prediction)
+    #     train_set[chr_name] = downsampled_list
 
     sys.stderr.write(TextColor.BLUE + "Downsampled class distribution\n" + TextColor.END)
     print_class_distribution(train_set, class_count)
@@ -200,7 +200,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, records, outp
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
-    chunks = 1000
+    chunks = 64
     index_now = 0
     i = 0
     total_progress = 0
@@ -327,7 +327,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="train_image_output/",
+        default="outputs/train_image_output/",
         help="Path to output directory."
     )
     FLAGS, unparsed = parser.parse_known_args()

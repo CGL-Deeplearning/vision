@@ -106,13 +106,16 @@ def get_genotype_for_multiple_allele(records):
     p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
     p02 = min(alt_probs[rec_alt2][1], alt_probs['both'][1])
     p22 = min(alt_probs[rec_alt2][2], alt_probs['both'][2])
-    p12 = alt_probs['both'][2]
+    p12 = min(max(alt_probs[rec_alt1][0], alt_probs[rec_alt1][1]), max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]),
+              alt_probs['both'][2])
     prob_list = [p00, p01, p11, p02, p22, p12]
+    print(prob_list)
     normalized_list = [float(i) / sum(prob_list) for i in prob_list]
     prob_list = [float(i) / max(normalized_list) for i in normalized_list]
     genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
     gq, index = max([(v, i) for i, v in enumerate(prob_list)])
     qual = sum(prob_list) - p00
+
     return chrm, st_pos, end_pos, ref, [rec_alt1, rec_alt2], genotype_list[index], qual, gq
 
 
@@ -129,6 +132,18 @@ def get_vcf_header():
     header = VariantHeader()
     items = [('ID', "PASS"),
              ('Description', "All filters passed")]
+    header.add_meta(key='FILTER', items=items)
+    items = [('ID', "refCall"),
+             ('Description', "Call is homozygous")]
+    header.add_meta(key='FILTER', items=items)
+    items = [('ID', "lowGQ"),
+             ('Description', "Low genotype quality")]
+    header.add_meta(key='FILTER', items=items)
+    items = [('ID', "lowQUAL"),
+             ('Description', "Low variant call quality")]
+    header.add_meta(key='FILTER', items=items)
+    items = [('ID', "conflictPos"),
+             ('Description', "Overlapping record")]
     header.add_meta(key='FILTER', items=items)
     items = [('ID', "GT"),
              ('Number', 1),
@@ -156,28 +171,53 @@ def get_genotype_tuple(genotype):
     return tuple(split_values)
 
 
-def get_vcf_record(vcf_file, chrm, st_pos, end_pos, ref, alts, genotype, phred_qual, phred_gq):
+def get_vcf_record(vcf_file, chrm, st_pos, end_pos, ref, alts, genotype, phred_qual, phred_gq, filter):
     alleles = tuple([ref]) + tuple(alts)
     genotype = get_genotype_tuple(genotype)
     end_pos = int(end_pos)+1
     st_pos = int(st_pos)
     vcf_record = vcf_file.new_record(contig=chrm, start=st_pos, stop=end_pos, id='.', qual=phred_qual,
-                                     filter='PASS', alleles=alleles, GT=genotype, GQ=phred_gq)
+                                     filter=filter, alleles=alleles, GT=genotype, GQ=phred_gq)
     return vcf_record
 
 
-def fix_allele_field(alleles):
-    if len(alleles) > 1:
-        if len(alleles[0]) > 1 and len(alleles[1]) == 1:
-            return [alleles[0]]
-        if len(alleles[1]) > 1 and len(alleles[0]) == 1:
-            return [alleles[1]]
-    return alleles
+def get_filter(record, last_end):
+    chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
+    if st_pos <= last_end:
+        return 'conflictPos'
+    if genotype == '0/0':
+        return 'refCall'
+    if phred_qual < 0:
+        return 'lowQUAL'
+    if phred_gq < 0:
+        return 'lowGQ'
+    return 'PASS'
+
+
+def get_proper_alleles(record):
+    chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
+    gts = genotype.split('/')
+    refined_alt = []
+    refined_gt = genotype
+    if gts[0] == '1' or gts[1] == '1':
+        refined_alt.append(alt_field[0])
+    if gts[0] == '2' or gts[1] == '2':
+        refined_alt.append(alt_field[1])
+    if gts[0] == '0' and gts[1] == '0':
+        refined_alt.append('.')
+    if genotype == '0/2':
+        refined_gt = '0/1'
+    if genotype == '2/2':
+        refined_gt = '1/1'
+
+    record = chrm, st_pos, end_pos, ref, refined_alt, refined_gt, phred_qual, phred_gq
+
+    return record
 
 
 def produce_vcf(prediction_dict):
     header = get_vcf_header()
-    vcf = VariantFile('./outputs/pred.vcf', 'w', header=header)
+    vcf = VariantFile('chr19_pred.vcf', 'w', header=header)
     all_calls = []
     for pos in sorted(prediction_dict.keys()):
         records = prediction_dict[pos]
@@ -185,8 +225,7 @@ def produce_vcf(prediction_dict):
             chrm, st_pos, end_pos, ref, alt_field, genotype, qual, gq = get_genotype_for_multiple_allele(records)
         else:
             chrm, st_pos, end_pos, ref, alt_field, genotype, qual, gq = get_genotype_for_single_allele(records)
-        if genotype == '0/0':
-             continue
+
         phred_qual = min(60, -10 * np.log10(1 - qual) if 1-qual >= 0.0000000001 else 60)
         phred_qual = math.ceil(phred_qual * 100.0) / 100.0
         phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000000001 else 60)
@@ -194,17 +233,15 @@ def produce_vcf(prediction_dict):
         all_calls.append((chrm, int(st_pos), int(end_pos), ref, alt_field, genotype, phred_qual, phred_gq))
 
     all_calls.sort(key=operator.itemgetter(1))
-    current_pos = 0
-    last_pos = 0
+    last_end = 0
     for record in all_calls:
-        chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
-        current_pos = st_pos
-        if current_pos <= last_pos:
-            continue
-        alt_field = fix_allele_field(alt_field)
-        last_pos = current_pos + len(ref)
+        rec_filter = get_filter(record, last_end)
         # print(chrm, pos, ref, alt_field, genotype, val)
-        vcf_rec = get_vcf_record(vcf, chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq)
+        record = get_proper_alleles(record)
+        chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
+        if genotype != '0/0':
+            last_end = end_pos
+        vcf_rec = get_vcf_record(vcf, chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq, rec_filter)
         # print(vcf_rec)
         vcf.write(vcf_rec)
 

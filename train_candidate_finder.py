@@ -173,7 +173,7 @@ class View:
         """
         start_time = time.time()
         # self.parse_region(start_position=121400000, end_position=121600000)
-        self.parse_region(start_position=100000, end_position=200000)
+        self.parse_region(start_position=3477260, end_position=3477269)
         end_time = time.time()
         print("TOTAL TIME ELAPSED: ", end_time-start_time)
 
@@ -385,7 +385,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="train_bed_output/",
+        default="outputs/train_bed_output/",
         help="Path to output directory."
     )
 
