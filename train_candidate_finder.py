@@ -69,7 +69,7 @@ class View:
         self.fasta_handler = FastaHandler(ref_file_path)
         self.output_dir = output_file_path
         self.vcf_handler = VCFFileProcessor(file_path=vcf_file_path)
-        self.confident_tree = confident_tree[chromosome_name]
+        self.confident_tree = confident_tree[chromosome_name] if confident_tree is not None else None
         # --- initialize parameters ---
         self.chromosome_name = chromosome_name
 
