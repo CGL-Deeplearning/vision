@@ -18,12 +18,12 @@ Other data structures:
 Merged_windows is constructed from candidate_positions. If two positions fall within
 MERGE_WINDOW_DISTANCE we merge them in a single window.
 """
-DEFAULT_MIN_MAP_QUALITY = 5
+DEFAULT_MIN_MAP_QUALITY = 10
 MERGE_WINDOW_DISTANCE = 0
 MERGE_WINDOW_OFFSET = 0
-MIN_MISMATCH_THRESHOLD = 0
-MIN_MISMATCH_PERCENT_THRESHOLD = 0
-MIN_COVERAGE_THRESHOLD = 3
+MIN_MISMATCH_THRESHOLD = 2
+MIN_MISMATCH_PERCENT_THRESHOLD = 2
+MIN_COVERAGE_THRESHOLD = 5
 PLOIDY = 2
 MATCH_ALLELE = 0
 MISMATCH_ALLELE = 1
@@ -211,7 +211,6 @@ class CandidateFinder:
         ref_sequence = self.fasta_handler.get_sequence(chromosome_name=self.chromosome_name,
                                                        start=ref_alignment_start,
                                                        stop=ref_alignment_stop)
-
         for i, ref_base in enumerate(ref_sequence):
             self._update_reference_dictionary(ref_alignment_start + i, ref_base)
 
@@ -219,19 +218,26 @@ class CandidateFinder:
         # ref_index: index of reference sequence
         read_index = 0
         ref_index = 0
-
+        # we don't wat leading indels in a read
+        found_valid_cigar = False
         for cigar in cigar_tuples:
             cigar_code = cigar[0]
             length = cigar[1]
+
             # get the sequence segments that are effected by this operation
             ref_sequence_segment = ref_sequence[ref_index:ref_index+length]
             read_sequence_segment = read_sequence[read_index:read_index+length]
 
+            if (cigar_code == 1 or cigar_code == 2) and found_valid_cigar is False:
+                read_index += length
+                continue
+
+            found_valid_cigar = True
             # send the cigar tuple to get attributes we got by this operation
             ref_index_increment, read_index_increment = \
                 self.parse_cigar_tuple(cigar_code=cigar_code,
                                        length=length,
-                                       alignment_position=ref_alignment_start+ref_index,
+                                       alignment_position=read.reference_start+ref_index,
                                        ref_sequence=ref_sequence_segment,
                                        read_sequence=read_sequence_segment)
 
@@ -391,6 +397,7 @@ class CandidateFinder:
             if read.mapping_quality >= DEFAULT_MIN_MAP_QUALITY and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False:
                 self.find_read_candidates(read=read)
+
         # print('Read processing time', time.time()-start_time)
         selected_allele_list = []
         for pos in range(self.region_start_position, self.region_end_position):
