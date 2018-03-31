@@ -152,18 +152,18 @@ def get_prediction_set_from_bed(candidate_bed):
     sys.stderr.write(TextColor.BLUE + "Raw class distribution\n"+TextColor.END)
     print_class_distribution(train_set, class_count)
 
-    # for chr_name in train_set:
-    #     downsample_rate = get_downsample_rate(class_count[chr_name]['0'], class_count[chr_name]['1'], class_count[chr_name]['2'])
-    #     if downsample_rate >= 1:
-    #         continue
-    #     downsampled_list = []
-    #     for prediction in train_set[chr_name]:
-    #         alt2 = prediction[5]
-    #         gt = prediction[7]
-    #         if gt == '0' and alt2 == '.' and select_or_not(downsample_rate) is False:
-    #             continue
-    #         downsampled_list.append(prediction)
-    #     train_set[chr_name] = downsampled_list
+    for chr_name in train_set:
+        downsample_rate = get_downsample_rate(class_count[chr_name]['0'], class_count[chr_name]['1'], class_count[chr_name]['2'])
+        if downsample_rate >= 1:
+            continue
+        downsampled_list = []
+        for prediction in train_set[chr_name]:
+            alt2 = prediction[5]
+            gt = prediction[7]
+            if gt == '0' and alt2 == '.' and select_or_not(downsample_rate) is False:
+                continue
+            downsampled_list.append(prediction)
+        train_set[chr_name] = downsampled_list
 
     sys.stderr.write(TextColor.BLUE + "Downsampled class distribution\n" + TextColor.END)
     print_class_distribution(train_set, class_count)
