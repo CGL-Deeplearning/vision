@@ -399,6 +399,10 @@ if __name__ == '__main__':
         confident_tree_build = build_chromosomal_interval_trees(FLAGS.confident_bed)
     else:
         confident_tree_build = None
+    if confident_tree_build is not None:
+        sys.stderr.write(TextColor.YELLOW + "CONFIDENT TREE LOADED\n" + TextColor.END)
+    else:
+        sys.stderr.write(TextColor.RED + "CONFIDENT BED IS NULL\n" + TextColor.END)
 
     if FLAGS.test is True:
         view = View(chromosome_name=FLAGS.chromosome_name,
