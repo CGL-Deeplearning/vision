@@ -119,10 +119,10 @@ def print_class_distribution(train_set, class_count):
         hom += class_count[chr_name]['0']
         het += class_count[chr_name]['1']
         hom_alt += class_count[chr_name]['2']
-    m_fac = round(100/(hom + het + hom_alt) if hom + het + hom_alt else 0, 3)
-    sys.stderr.write(TextColor.GREEN + "Total hom records:\t\t" + str(hom) + "\t" + str(round(hom * m_fac, 2)) + "\n")
-    sys.stderr.write("Total het records:\t\t" + str(het) + "\t" + str(round(het * m_fac, 2)) + "\n")
-    sys.stderr.write("Total hom_alt records:\t\t" + str(hom_alt) + "\t" + str(round(hom_alt * m_fac, 2)) + "\n" + TextColor.END)
+    m_fac = 100/(hom + het + hom_alt) if hom + het + hom_alt else 0
+    sys.stderr.write(TextColor.GREEN + "Total hom records:\t\t" + str(hom) + "\t" + str(hom * m_fac) + "\n")
+    sys.stderr.write("Total het records:\t\t" + str(het) + "\t" + str(het * m_fac) + "\n")
+    sys.stderr.write("Total hom_alt records:\t\t" + str(hom_alt) + "\t" + str(hom_alt * m_fac) + "\n" + TextColor.END)
 
 
 def get_prediction_set_from_bed(candidate_bed):
