@@ -359,7 +359,7 @@ class ImageCreator:
             cigar_code = cigar[0]
             length = cigar[1]
 
-            if (cigar_code == 1 or cigar_code == 2) and found_valid_cigar is False:
+            if (cigar_code != 0) and found_valid_cigar is False:
                 read_index += length
                 continue
 
@@ -428,12 +428,9 @@ class ImageCreator:
                     read_insert_list[pos].append(self.read_insert_dictionary[read_id][pos])
 
                 for i in range(inserted_bases, self.insert_length_dictionary[pos]):
-                    try:
-                        read_attribute_tuple = ('*', [BASE_QUALITY_CAP], self.read_dictionary[read_id][pos][2],
-                                                INSERT_CIGAR_CODE, self.read_dictionary[read_id][pos][4])
-                        read_insert_list[pos].append(read_attribute_tuple)
-                    except:
-                        print('READ ERROR TUPLE ERROR IN: ', pos, read_id)
+                    read_attribute_tuple = ('*', [BASE_QUALITY_CAP], self.read_dictionary[read_id][pos][2],
+                                            INSERT_CIGAR_CODE, self.read_dictionary[read_id][pos][4])
+                    read_insert_list[pos].append(read_attribute_tuple)
 
         return read_list, read_insert_list, is_supporting
 
@@ -468,7 +465,6 @@ class ImageCreator:
                         break
                 except:
                     print("ERROR IN POSITION: ", position, read_id)
-
 
                 imagechannels_object = imageChannels(row_list[position][0], self.reference_base_projection[position],
                                                      is_supporting)
