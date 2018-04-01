@@ -36,15 +36,16 @@ def generate_pileup(contig, bam_file, ref_file, records, output_dir, thread_name
 
         # file name for the image and save the image
         file_name = chr_name + "_" + str(pos_start) + "_" + str(ref) + "_" + str(alt) + "_" + str(label)
-
+        st_st_time = time.time()
         api_object = TrainBed2ImageAPI(bam_file, ref_file)
         img, img_shape = api_object.create_image(api_object.bam_handler, api_object.fasta_handler, rec, output_dir, file_name)
 
         # label of the image and save the image
         smry.write(os.path.abspath(output_dir + file_name) + ".png," + str(label) + ',' + ','.join(
             map(str, img_shape)) + ',' + str(rec_type) + ',' + str('\t'.join(rec)) + '\n')
+        sys.stderr.write("ONE IMAGE GENERATION TIMG: " + str(time.time() - st_st_time))
 
-    # sys.stderr.write(TextColor.PURPLE + "FINISHED: " + thread_name + " TIME: " + str(time.time()-st_time) + "\n" + TextColor.END)
+    sys.stderr.write(TextColor.PURPLE + "FINISHED: " + thread_name + " TIME: " + str(time.time()-st_time) + "\n" + TextColor.END)
 
 
 def get_combined_gt(gt1, gt2):
@@ -200,10 +201,12 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, records, outp
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
-    chunks = 64
+    chunks = 2000
     index_now = 0
     i = 0
     total_progress = 0
+    st_time = time.time()
+
     while index_now < len(records):
         # parse window of the segment. Use a 1000 overlap for corner cases.
         start_position = index_now
@@ -221,7 +224,8 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, records, outp
         percent_progress = min(100, ((index_now * 100) / len(records)) - total_progress)
         if percent_progress >= 10:
             total_progress = min(100, ((index_now * 100) / len(records)))
-            sys.stderr.write(TextColor.DARKCYAN + "Progress: " + str(round(total_progress, 2)) + "\n" + TextColor.END)
+            sys.stderr.write(TextColor.DARKCYAN + "Progress: " + str(total_progress) + "\n" + TextColor.END)
+            sys.stderr.write(TextColor.YELLOW + "TIME: " + str(time.time()-st_time) + "\n" + TextColor.END)
 
 
 def generate_images(bam_file, ref_file, candidate_bed, output_dir, max_threads):
