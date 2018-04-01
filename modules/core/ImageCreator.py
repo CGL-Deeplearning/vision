@@ -352,10 +352,18 @@ class ImageCreator:
         # ref_index: index of reference sequence
         read_index = 0
         ref_index = 0
+        # we don't wat leading indels in a read
+        found_valid_cigar = False
 
         for cigar in cigar_tuples:
             cigar_code = cigar[0]
             length = cigar[1]
+
+            if (cigar_code == 1 or cigar_code == 2) and found_valid_cigar is False:
+                read_index += length
+                continue
+
+            found_valid_cigar = True
             # get the sequence segments that are effected by this operation
             read_sequence_segment = read_sequence[read_index:read_index+length]
             read_qualities_segment = read_qualities[read_index:read_index + length]
@@ -450,13 +458,9 @@ class ImageCreator:
 
             filter_row = False
             for position in sorted(row_list):
-                try:
-                    if row_list[position][0][2] < MAP_QUALITY_FILTER:
-                        filter_row = True
-                        break
-                except:
-                    print('ERROR IN POSITION: ', read_id, position)
-                    exit()
+                if row_list[position][0][2] < MAP_QUALITY_FILTER:
+                    filter_row = True
+                    break
 
                 imagechannels_object = imageChannels(row_list[position][0], self.reference_base_projection[position],
                                                      is_supporting)
