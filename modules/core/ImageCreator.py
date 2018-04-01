@@ -450,9 +450,13 @@ class ImageCreator:
 
             filter_row = False
             for position in sorted(row_list):
-                if row_list[position][0][2] < MAP_QUALITY_FILTER:
-                    filter_row = True
-                    break
+                try:
+                    if row_list[position][0][2] < MAP_QUALITY_FILTER:
+                        filter_row = True
+                        break
+                except:
+                    print('ERROR IN POSITION: ', read_id, position)
+                    exit()
 
                 imagechannels_object = imageChannels(row_list[position][0], self.reference_base_projection[position],
                                                      is_supporting)
