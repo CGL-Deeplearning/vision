@@ -428,9 +428,13 @@ class ImageCreator:
                     read_insert_list[pos].append(self.read_insert_dictionary[read_id][pos])
 
                 for i in range(inserted_bases, self.insert_length_dictionary[pos]):
-                    read_attribute_tuple = ('*', [BASE_QUALITY_CAP], self.read_dictionary[read_id][pos][2],
-                                            INSERT_CIGAR_CODE, self.read_dictionary[read_id][pos][4])
-                    read_insert_list[pos].append(read_attribute_tuple)
+                    try:
+                        read_attribute_tuple = ('*', [BASE_QUALITY_CAP], self.read_dictionary[read_id][pos][2],
+                                                INSERT_CIGAR_CODE, self.read_dictionary[read_id][pos][4])
+                        read_insert_list[pos].append(read_attribute_tuple)
+                    except:
+                        print('READ ERROR TUPLE ERROR IN: ', pos, read_id)
+
         return read_list, read_insert_list, is_supporting
 
     # TEST FIVE CHANNELS
