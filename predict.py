@@ -216,7 +216,7 @@ def get_proper_alleles(record):
 
 def produce_vcf(prediction_dict):
     header = get_vcf_header()
-    vcf = VariantFile('chr19_pred.vcf', 'w', header=header)
+    vcf = VariantFile('chr19_pred_giab.vcf', 'w', header=header)
     all_calls = []
     for pos in sorted(prediction_dict.keys()):
         records = prediction_dict[pos]
