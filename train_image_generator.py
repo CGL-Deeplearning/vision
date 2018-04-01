@@ -36,14 +36,13 @@ def generate_pileup(contig, bam_file, ref_file, records, output_dir, thread_name
 
         # file name for the image and save the image
         file_name = chr_name + "_" + str(pos_start) + "_" + str(ref) + "_" + str(alt) + "_" + str(label)
-        st_st_time = time.time()
+
         api_object = TrainBed2ImageAPI(bam_file, ref_file)
         img, img_shape = api_object.create_image(api_object.bam_handler, api_object.fasta_handler, rec, output_dir, file_name)
 
         # label of the image and save the image
         smry.write(os.path.abspath(output_dir + file_name) + ".png," + str(label) + ',' + ','.join(
             map(str, img_shape)) + ',' + str(rec_type) + ',' + str('\t'.join(rec)) + '\n')
-        sys.stderr.write("ONE IMAGE GENERATION TIMG: " + str(time.time() - st_st_time))
 
     sys.stderr.write(TextColor.PURPLE + "FINISHED: " + thread_name + " TIME: " + str(time.time()-st_time) + "\n" + TextColor.END)
 
@@ -201,7 +200,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, records, outp
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
-    chunks = 2000
+    chunks = 64
     index_now = 0
     i = 0
     total_progress = 0
