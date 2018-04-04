@@ -4,6 +4,7 @@ import time
 import os
 import sys
 import multiprocessing
+from tqdm import tqdm
 
 from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -282,7 +283,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     # chunk the chromosome into 1000 pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
 
-    for i in range(chunks):
+    for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
         args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
