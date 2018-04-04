@@ -333,7 +333,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
 
     for chr_name in chr_list:
         # here we dumped all the bed files
-        path_to_dir = output_dir_path + chr_name + "/"
+        path_to_dir = output_dir_path + chr_name + "/summary/"
 
         concatenated_file_name = output_dir_path + chr_name + ".csv"
 
