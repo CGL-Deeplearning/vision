@@ -82,6 +82,8 @@ class ImageGenerator:
         if len(ref_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(ref_row))
             ref_row = np.concatenate((ref_row, np.array(empty_channels_list)), axis=0)
+        if len(ref_row) > image_width:
+            ref_row = ref_row[:image_width]
 
         return ref_row
 
@@ -117,15 +119,21 @@ class ImageGenerator:
                       self.positional_info_position_to_index[read_start]
         end_index = self.positional_info_position_to_index[read_end_new] - \
                       self.positional_info_position_to_index[read_start]
+        print(pos, start_index, end_index)
+
         image_row = read_row[start_index:end_index]
 
         if image_start < read_start_new:
-            empty_channels_list = [imageChannels.get_empty_channels()] * int(read_start_new - image_start)
+            distance = self.positional_info_position_to_index[read_start_new] - \
+                      self.positional_info_position_to_index[image_start]
+            empty_channels_list = [imageChannels.get_empty_channels()] * int(distance)
             image_row = np.concatenate((np.array(empty_channels_list), image_row), axis=0)
 
         if len(image_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(image_row))
             image_row = np.concatenate((image_row, np.array(empty_channels_list)), axis=0)
+        if len(image_row) > image_width:
+            image_row = image_row[:image_width]
 
         return image_row
 
@@ -171,5 +179,6 @@ class ImageGenerator:
 
         whole_image = self.add_empty_rows(whole_image, image_height - len(whole_image), image_width)
         whole_image = np.array(whole_image)
+
         # analyze_np_array(whole_image, image_width, image_height)
         return whole_image

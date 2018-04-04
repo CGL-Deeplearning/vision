@@ -232,11 +232,10 @@ class CandidateFinder:
         """
         self.read_allele_dictionary = {}
         ref_alignment_start = read.reference_start
-        # if the region has very high coverage, we are not going to parse through all the reads
-        if self.coverage[ref_alignment_start] > 300:
-            return False
-
         ref_alignment_stop = self.get_read_stop_position(read)
+        # if the region has very high coverage, we are not going to parse through all the reads
+        if self.coverage[ref_alignment_start] > 300 and self.coverage[ref_alignment_stop] > 300:
+            return False
         cigar_tuples = read.cigartuples
         read_sequence = read.query_sequence
         read_id = read.query_name
