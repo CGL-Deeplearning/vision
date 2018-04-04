@@ -285,7 +285,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     for i in range(chunks):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        args = (chr_name, bam_file, ref_file, output_dir, start_position, end_position, confident_bed_tree, i)
+        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
