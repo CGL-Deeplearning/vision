@@ -232,12 +232,11 @@ class CandidateFinder:
         """
         self.read_allele_dictionary = {}
         ref_alignment_start = read.reference_start
-        ref_alignment_stop = self.get_read_stop_position(read)
-
         # if the region has very high coverage, we are not going to parse through all the reads
         if self.coverage[ref_alignment_start] > 300:
-            return
+            return False
 
+        ref_alignment_stop = self.get_read_stop_position(read)
         cigar_tuples = read.cigartuples
         read_sequence = read.query_sequence
         read_id = read.query_name
@@ -309,6 +308,7 @@ class CandidateFinder:
                         (read_id, ref_alignment_start, ref_alignment_stop, read.mapping_quality))
                     self._update_positional_allele_dictionary(read_id, position-1, allele, allele_type,
                                                               read.mapping_quality)
+        return True
 
     def parse_cigar_tuple(self, cigar_code, length, alignment_position, ref_sequence, read_sequence, read_id, quality):
         """
@@ -519,9 +519,9 @@ class CandidateFinder:
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
 
                 read.query_name = read.query_name + '_1' if read.is_read1 else read.query_name + '_2'
-                self.find_read_candidates(read=read)
-                read_id_list.append(read.query_name)
-                total_reads += 1
+                if self.find_read_candidates(read=read):
+                    read_id_list.append(read.query_name)
+                    total_reads += 1
 
         if total_reads == 0:
             return []
