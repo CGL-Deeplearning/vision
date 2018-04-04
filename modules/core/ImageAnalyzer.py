@@ -12,15 +12,15 @@ def get_base_by_color(base):
     :param base:
     :return:
     """
-    if base >= 250.0:
+    if base >= 250:
         return 'A'
-    if base >= 180.0:
+    if base >= 180:
         return 'G'
-    if base >= 100.0:
+    if base >= 100:
         return 'C'
-    if base >= 30.0:
+    if base >= 30:
         return 'T'
-    if base >= 5.0:
+    if base >= 5:
         return '*'
 
 
@@ -30,9 +30,9 @@ def get_alt_support_by_color(is_in_support):
     :param is_in_support:
     :return:
     """
-    if is_in_support == 254.0:
+    if 248 <= is_in_support <= 256:
         return 1
-    elif is_in_support == 152.0:
+    elif 148 <= is_in_support <= 153:
         return 0
 
 
@@ -51,7 +51,7 @@ def get_match_ref_color(is_match):
     :param is_match: If true, base matches to reference
     :return:
     """
-    if is_match == 50:
+    if 48 <= is_match <= 52:
         return 0
     elif is_match == 254:
         return 1
@@ -63,7 +63,7 @@ def get_strand_color(is_rev):
     :param is_rev: True if read is reversed
     :return:
     """
-    if is_rev == 240.0:
+    if 238 <= is_rev <= 244:
         return 1
     else:
         return 0
@@ -75,11 +75,11 @@ def get_cigar_by_color(cigar_code):
     :param is_in_support:
     :return:
     """
-    if cigar_code == 254:
+    if 250 <= cigar_code <= 256:
         return 0
-    if cigar_code == 152:
+    if 148 <= cigar_code <= 158:
         return 1
-    if cigar_code == 76:
+    if 70 <= cigar_code <= 78:
         return 2
 
 
@@ -103,16 +103,18 @@ def analyze_it(img):
     print("CIGAR CHANNEL")
     for i in range(300):
         for j in range(300):
-            if img[i][j][6] != 0:
-                print(get_cigar_by_color(img[i][j][6]), end='')
+            if img[i][j][5] != 0:
+                if get_cigar_by_color(img[i][j][5]) == None:
+                    print(img[i][j][5])
+                print(get_cigar_by_color(img[i][j][5]), end='')
             else:
                 print(' ', end='')
         print()
     print("SUPPORT CHANNEL")
     for i in range(300):
         for j in range(300):
-            if img[i][j][5] != 0:
-                print(get_alt_support_by_color(img[i][j][5]), end='')
+            if img[i][j][6] != 0:
+                print(get_alt_support_by_color(img[i][j][6]), end='')
             else:
                 print(' ', end='')
         print()
@@ -154,42 +156,44 @@ def analyze_it(img):
         print()
 
 
-def analyze_np_array(img):
+def analyze_np_array(img, img_width, img_height):
     if isinstance(img, np.ndarray) is False:
         img = img.numpy() * 255
     else:
         img = np.transpose(img, (2, 0, 1))
+        img = np.array(img).astype(np.uint8)
     # img = np.reshape(np_array_of_img, shape)
     # img = np.transpose(img, (0, 1, 2))
     print("BASE CHANNEL")
-    for i in range(300):
-        for j in range(300):
+    for i in range(img_height):
+        for j in range(img_width):
             if img[0][i][j] != 0:
                 print(get_base_by_color(img[0][i][j]), end='')
             else:
                 print(' ',end='')
         print()
 
-    print("CIGAR CHANNEL")
-    for i in range(300):
-        for j in range(300):
+    print("SUPPORT CHANNEL")
+    for i in range(img_height):
+        for j in range(img_width):
             if img[6][i][j] != 0:
-                print(get_cigar_by_color(img[6][i][j]), end='')
+                print(get_alt_support_by_color(img[6][i][j]), end='')
             else:
                 print(' ', end='')
         print()
-    print("SUPPORT CHANNEL")
-    for i in range(300):
-        for j in range(300):
+
+    print("CIGAR CHANNEL")
+    for i in range(img_height):
+        for j in range(img_width):
             if img[5][i][j] != 0:
-                print(get_alt_support_by_color(img[5][i][j]), end='')
+                print(get_cigar_by_color(img[5][i][j]), end='')
             else:
                 print(' ', end='')
         print()
 
     print("BASE QULAITY CHANNEL")
-    for i in range(300):
-        for j in range(300):
+    for i in range(img_height):
+        for j in range(img_width):
             if img[1][i][j] != 0:
                 print(get_quality_by_color(img[1][i][j]), end='')
             else:
@@ -197,8 +201,8 @@ def analyze_np_array(img):
         print()
 
     print("MAP QUALITY CHANNEL")
-    for i in range(300):
-        for j in range(300):
+    for i in range(img_height):
+        for j in range(img_width):
             if img[2][i][j] != 0:
                 print(get_quality_by_color(img[2][i][j]), end='')
             else:
@@ -206,8 +210,8 @@ def analyze_np_array(img):
         print()
 
     print("MISMATCH CHANNEL")
-    for i in range(300):
-        for j in range(300):
+    for i in range(img_height):
+        for j in range(img_width):
             if img[4][i][j] != 0:
                 print(get_match_ref_color(img[4][i][j]), end='')
             else:
@@ -215,8 +219,8 @@ def analyze_np_array(img):
         print()
 
     print("STRAND CHANNEL")
-    for i in range(300):
-        for j in range(300):
+    for i in range(img_height):
+        for j in range(img_width):
             if img[3][i][j] != 0:
                 print(get_strand_color(img[3][i][j]), end='')
             else:
