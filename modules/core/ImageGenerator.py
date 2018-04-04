@@ -1,4 +1,4 @@
-import numpy as np
+import sys
 from scipy import misc
 from modules.handlers.ImageChannels import imageChannels
 from modules.core.ImageAnalyzer import *
@@ -36,7 +36,10 @@ class ImageGenerator:
     @staticmethod
     def save_image_as_png(pileup_array, save_dir, file_name):
         pileup_array_2d = pileup_array.reshape((pileup_array.shape[0], -1))
-        misc.imsave(save_dir + file_name + ".png", pileup_array_2d, format="PNG")
+        try:
+            misc.imsave(save_dir + file_name + ".png", pileup_array_2d, format="PNG")
+        except:
+            sys.stderr.write("ERROR SAVING FILE: " + save_dir + file_name + ".png" + "\n")
 
     def get_left_right_genomic_position(self, pos):
         left_genomic_position = self.positional_read_info[pos][0][1]
