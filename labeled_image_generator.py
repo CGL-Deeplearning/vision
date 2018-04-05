@@ -282,9 +282,9 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
 
     # 2MB segments at once
-    each_segment_length = 5000
+    each_segment_length = 1000
 
-    chunk_size = 5
+    chunk_size = 10
     max_threads = max_threads * chunk_size
 
     # chunk the chromosome into 1000 pieces
@@ -323,6 +323,8 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
             label_dset[start_indx:] = label_set
             records_dset[start_indx:] = name_recs
             hdf5_file.flush()
+        pool.close()
+        pool.join()
 
 
 def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
