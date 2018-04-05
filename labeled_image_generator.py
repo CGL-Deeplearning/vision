@@ -40,7 +40,7 @@ A region can have multiple windows and each window belongs to a region.
 """
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
-DEBUG_TEST_PARALLEL = True
+DEBUG_TEST_PARALLEL = False
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
