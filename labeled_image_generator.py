@@ -303,7 +303,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         start_position = i * max_threads
         end_position = min((i + 1) * max_threads, len(args))
         args_subset = args[start_position:end_position]
-        results = pool.imap(parallel_run, args_subset)
+        results = pool.imap(parallel_run, args_subset, chunksize=20)
         for result in results:
             img_set, label_set, name_recs = result
             if len(img_set) == 0 or not img_set:
