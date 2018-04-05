@@ -18,6 +18,7 @@ from modules.handlers.TsvHandler import TsvHandler
 from modules.core.ImageGenerator import ImageGenerator
 from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.core.CandidateLabeler import CandidateLabeler
+from modules.handlers.FileManager import FileManager
 """
 candidate_finder finds possible variant sites in given bam file.
 This script selects candidates for variant calling. 
@@ -41,6 +42,7 @@ A region can have multiple windows and each window belongs to a region.
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
+
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -151,7 +153,11 @@ class View:
 
     def generate_candidate_images(self, candidate_list, image_generator, thread_no):
         if len(candidate_list) == 0:
-            return [], [], []
+            return
+        contig = str(self.chromosome_name)
+        smry = open(self.output_dir + "summary/" + "summary" + '_' + contig + "_" + str(thread_no) + ".csv", 'w')
+        hdf5_filename = self.output_dir + contig + '_' + str(thread_no) + ".h5"
+        hdf5_file = h5py.File(hdf5_filename, mode='w')
         image_set = []
         for record in candidate_list:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
@@ -165,8 +171,7 @@ class View:
 
         img_set = []
         label_set = []
-        name_recs = []
-        for img_record in image_set:
+        for i, img_record in enumerate(image_set):
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, label = img_record
             alts = [alt1]
             if alt2 != '.':
@@ -174,11 +179,14 @@ class View:
             image_array = image_generator.create_image(pos_start, ref, alts)
 
             img_rec = str('\t'.join(str(item) for item in img_record))
-            name_recs.append(img_rec)
             label_set.append(label)
             img_set.append(np.array(image_array, dtype=np.int8))
+            smry.write(os.path.abspath(hdf5_filename) + ',' + str(i) + ',' + str(label) + ',' + img_rec + '\n')
 
-        return img_set, label_set, name_recs
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (300, 300, 7), np.int8, compression='gzip')
+        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
+        img_dset[...] = img_set
+        label_dset[...] = label_set
 
     def parse_region(self, start_position, end_position, thread_no):
         """
@@ -220,10 +228,10 @@ class View:
             for candidate in labeled_sites:
                 print(candidate)
 
-        return self.generate_candidate_images(labeled_sites, image_generator, thread_no)
+        self.generate_candidate_images(labeled_sites, image_generator, thread_no)
 
 
-def parallel_run(arg_tuple):
+def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
     """
     Run this method in parallel
     :param chr_name: Chromosome name
@@ -235,7 +243,7 @@ def parallel_run(arg_tuple):
     :param end_position: End position
     :return:
     """
-    chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no = arg_tuple
+
     # create a view object
     view_ob = View(chromosome_name=chr_name,
                    bam_file_path=bam_file,
@@ -245,7 +253,7 @@ def parallel_run(arg_tuple):
                    confident_tree=conf_bed_tree)
 
     # return the results
-    return view_ob.parse_region(start_pos, end_pos, thread_no)
+    view_ob.parse_region(start_pos, end_pos, thread_no)
 
 
 def create_output_dir_for_chromosome(output_dir, chr_name):
@@ -259,15 +267,14 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     if not os.path.exists(path_to_dir):
         os.mkdir(path_to_dir)
 
-    summary_path = path_to_dir + "all_hdfs" + "/"
+    summary_path = path_to_dir + "summary" + "/"
     if not os.path.exists(summary_path):
         os.mkdir(summary_path)
 
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads,
-                                     confident_bed_tree, hdf5_file):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads, confident_bed_tree):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
@@ -284,47 +291,21 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     # 2MB segments at once
     each_segment_length = 100000
 
-    chunk_size = 4
-    max_threads = max_threads * chunk_size
-
     # chunk the chromosome into 1000 pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
     if DEBUG_TEST_PARALLEL:
-        chunks = 5
-        # forcing 5 chunks to test
-    args = []
-    for i in range(chunks):
+        chunks = 12
+    for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        args.append((chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i))
+        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
-    iteration_required = int(math.ceil(len(args)/max_threads))
-    # as we set the first record length 1, lets use 1 less when we first allocate memory
+        p = multiprocessing.Process(target=parallel_run, args=args)
+        p.start()
 
-    for i in tqdm(range(iteration_required)):
-        pool = multiprocessing.Pool(processes=max_threads)
-        start_position = i * max_threads
-        end_position = min((i + 1) * max_threads, len(args))
-        args_subset = args[start_position:end_position]
-        results = pool.imap(parallel_run, args_subset, chunksize=chunk_size)
-        for result in results:
-            img_set, label_set, name_recs = result
-            if len(img_set) == 0 or not img_set:
-                continue
-            img_dset = hdf5_file['images']
-            label_dset = hdf5_file['labels']
-            records_dset = hdf5_file['records']
-            start_indx = img_dset.shape[0]
-            increase_size = img_dset.shape[0] + len(img_set)
-            img_dset.resize((increase_size,) + (300, 300, 7))
-            label_dset.resize((increase_size,))
-            records_dset.resize((increase_size,))
-            img_dset[start_indx:] = img_set
-            label_dset[start_indx:] = label_set
-            records_dset[start_indx:] = name_recs
-            hdf5_file.flush()
-        pool.close()
-        pool.join()
+        while True:
+            if len(multiprocessing.active_children()) < max_threads:
+                break
 
 
 def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
@@ -340,31 +321,50 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
     # chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"]
 
-    pg_st_time = time.time()
+    program_start_time = time.time()
 
     chr_list = ["19"]
 
-    hdf5_filename = output_dir_path + 'Generated_records.h5'
-    hdf5_file = h5py.File(hdf5_filename, mode='w')
-    hdf5_file.create_dataset("images", (0,) + (300, 300, 7), np.int8, maxshape=(None, ) + (300, 300, 7),
-                             chunks=(1, ) + (300, 300, 7), compression='gzip')
-    hdf5_file.create_dataset("labels", (0,), np.int8, maxshape=(None, ), chunks=(1,))
-    hdf5_file.create_dataset("records", (0,), dtype=h5py.special_dtype(vlen=str), maxshape=(None, ), chunks=(1,))
     # each chromosome in list
     for chr_name in chr_list:
         sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
         start_time = time.time()
 
+        # create dump directory inside output directory
+        output_dir = create_output_dir_for_chromosome(output_dir_path, chr_name)
+
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
-                                         max_threads, confident_bed_tree, hdf5_file)
+        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir,
+                                         max_threads, confident_bed_tree)
 
         end_time = time.time()
-        sys.stderr.write(TextColor.PURPLE + "ALL PROCESS FINISHED FOR CHR: " + str(chr_name) + "\n")
+        sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr_name) + " PROCESSES" + "\n")
         sys.stderr.write(TextColor.CYAN + "TIME ELAPSED: " + str(end_time - start_time) + "\n")
 
-    sys.stderr.write(TextColor.GREEN + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
-    sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(time.time()-pg_st_time) + "\n")
+    # wait for the last process to end before file processing
+    while True:
+        if len(multiprocessing.active_children()) == 0:
+            break
+
+    for chr_name in chr_list:
+        # here we dumped all the bed files
+        path_to_dir = output_dir_path + chr_name + "/summary/"
+
+        concatenated_file_name = output_dir_path + chr_name + ".csv"
+
+        filemanager_object = FileManager()
+        # get all bed file paths from the directory
+        file_paths = filemanager_object.get_file_paths_from_directory(path_to_dir)
+        # dump all bed files into one
+        filemanager_object.concatenate_files(file_paths, concatenated_file_name)
+        # delete all temporary files
+        filemanager_object.delete_files(file_paths)
+        # remove the directory
+        os.rmdir(path_to_dir)
+
+    program_end_time = time.time()
+    sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
+    sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
 
 
 def test(view_object):

@@ -14,12 +14,10 @@ def extract_bed(hdf5_file_path):
 def analyze_image(hdf5_file_path, index):
     hdf5_file = h5py.File(hdf5_file_path, 'r')
     image_dataset = hdf5_file['images']
-    record_dataset = hdf5_file['records']
     label_dataset = hdf5_file['labels']
     image = image_dataset[index]
     label = label_dataset[index]
-    record = record_dataset[index]
-    print(label, record)
+    print(label)
     image_analyzer.analyze_np_array(image, image.shape[0], image.shape[1])
 
 
