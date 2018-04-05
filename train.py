@@ -43,7 +43,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes):
     total_images = 0
     batches_done = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
-    for i, (images, labels, image_name, type_class) in enumerate(validation_loader):
+    for i, (images, labels, records) in enumerate(validation_loader):
         if gpu_mode is True and images.size(0) % 8 != 0:
             continue
 
@@ -126,7 +126,7 @@ def test_image(image, img_name):
     # base_color, base_quality_color, map_quality_color, strand_color, match_color, support_color, cigar_color
     image *= 254
     # print(image.size())
-    for i in range(0,image.size(1)):
+    for i in range(0, image.size(1)):
         for j in range(0, image.size(2)):
             print(get_base_by_color(math.ceil(image[0][i][j])), end='')
         print()
@@ -168,7 +168,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
         total_images = 0
         start_time = time.time()
         batches_done = 0
-        for i, (images, labels, image_name, type) in enumerate(train_loader):
+        for i, (images, labels, records) in enumerate(train_loader):
             # print(image_name[0], labels[0])
             # test_image(images[0], image_name)
             # exit()

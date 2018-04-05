@@ -294,7 +294,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     # chunk the chromosome into 1000 pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
     if DEBUG_TEST_PARALLEL:
-        chunks = 12
+        chunks = 4
     for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
