@@ -5,6 +5,7 @@ import csv
 import os
 import sys
 import multiprocessing
+import h5py
 
 from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -219,7 +220,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir, m
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
 
     # 2MB segments at once
-    each_segment_length = 200000
+    each_segment_length = 100000
 
     # chunk the chromosome into 1000 pieces
     chunks = int(math.ceil(whole_length / each_segment_length))

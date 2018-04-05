@@ -1,6 +1,5 @@
 from collections import defaultdict
 from modules.handlers.ImageChannels import imageChannels
-import numpy as np
 import operator
 import time
 import math
@@ -242,7 +241,7 @@ class CandidateFinder:
         read_quality = read.query_qualities
         ref_sequence = self.fasta_handler.get_sequence(chromosome_name=self.chromosome_name,
                                                        start=ref_alignment_start,
-                                                       stop=ref_alignment_stop)
+                                                       stop=ref_alignment_stop+10)
 
         self.read_info[read_id] = (ref_alignment_start, ref_alignment_stop, read.mapping_quality, read.is_reverse)
         for pos in range(ref_alignment_start, ref_alignment_stop):

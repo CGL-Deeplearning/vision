@@ -41,7 +41,7 @@ class ImageGenerator:
         except:
             sys.stderr.write("ERROR SAVING FILE: " + save_dir + file_name + ".png" + "\n")
 
-    def get_left_right_genomic_position(self, pos):
+    def get_left_right_genomic_position(self, pos, image_width):
         left_genomic_position = self.positional_read_info[pos][0][1]
         right_genomic_position = self.positional_read_info[pos][0][2]
         for read in self.positional_read_info[pos]:
@@ -53,32 +53,36 @@ class ImageGenerator:
         pos_index = self.positional_info_position_to_index[pos]
         left_index = self.positional_info_position_to_index[left_pos]
         right_index = self.positional_info_position_to_index[right_pos]
-        length = right_index - left_index
-        half_of_width = image_width / 2
-        if length > image_width:
-            shrunk_left_index = int(pos_index - half_of_width)
-            shrunk_right_index = int(pos_index + half_of_width)
-            shrunk_left_pos = self.positional_info_index_to_position[shrunk_left_index]
-            shrunk_right_pos = self.positional_info_index_to_position[shrunk_right_index]
-            if shrunk_left_pos[1] is True:
-                shrunk_left_pos = shrunk_left_pos[0] - 1
-            else:
-                shrunk_left_pos = shrunk_left_pos[0]
+        left_length = pos_index - left_index
+        half_of_width = int(image_width / 2)
 
-            if shrunk_right_pos[1] is True:
-                shrunk_right_pos = shrunk_right_pos[0] - 1
-            else:
-                shrunk_right_pos = shrunk_right_pos[0]
+        if left_length > half_of_width:
+            while left_length > half_of_width:
+                left_pos += 1
+                left_index = self.positional_info_position_to_index[left_pos]
+                left_length = pos_index - left_index
 
-            return shrunk_left_pos, shrunk_right_pos
+        right_length = right_index - pos_index
+        if right_length > half_of_width:
+            while right_length > half_of_width:
+                right_pos -= 1
+                right_index = self.positional_info_position_to_index[right_pos]
+                right_length = right_index - pos_index
 
-        return left_pos, right_pos
+        left_padding = 0
+        if left_length < half_of_width:
+            left_padding = int(half_of_width) - left_length
 
-    def get_reference_row(self, start_pos, end_pos, image_width):
+        return left_pos, right_pos, left_padding
+
+    def get_reference_row(self, start_pos, end_pos, left_pad, image_width):
         ref_row, ref_start, ref_end = self.image_row_for_ref
-        start_index = start_pos - ref_start
-        end_index = end_pos - ref_start
+        start_index = self.positional_info_position_to_index[start_pos] - self.positional_info_position_to_index[ref_start]
+        end_index = self.positional_info_position_to_index[end_pos] - self.positional_info_position_to_index[ref_start]
         ref_row = np.array(ref_row[start_index:end_index])
+        if left_pad > 0:
+            empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
+            ref_row = np.concatenate((np.array(empty_channels_list), ref_row), axis=0)
         if len(ref_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(ref_row))
             ref_row = np.concatenate((ref_row, np.array(empty_channels_list)), axis=0)
@@ -92,7 +96,7 @@ class ImageGenerator:
         right_index = self.positional_info_position_to_index[pos_b]
         return right_index - left_index
 
-    def get_read_row(self, pos, alts, read, image_start, image_end, image_width):
+    def get_read_row(self, pos, alts, read, image_start, image_end, left_pad, image_width):
         read_id, read_start, read_end = read
         supporting = False
         if read_id in self.allele_dictionary and pos in self.allele_dictionary[read_id]:
@@ -114,18 +118,23 @@ class ImageGenerator:
 
         if image_end < read_end:
             read_end_new = image_end
+        # print(image_start, image_end, read_start, read_end, read_start_new, read_end_new)
 
         start_index = self.positional_info_position_to_index[read_start_new] - \
                       self.positional_info_position_to_index[read_start]
         end_index = self.positional_info_position_to_index[read_end_new] - \
                       self.positional_info_position_to_index[read_start]
-
+        # print(start_index, end_index, end_index-start_index)
         image_row = read_row[start_index:end_index]
 
         if image_start < read_start_new:
             distance = self.positional_info_position_to_index[read_start_new] - \
                       self.positional_info_position_to_index[image_start]
             empty_channels_list = [imageChannels.get_empty_channels()] * int(distance)
+            image_row = np.concatenate((np.array(empty_channels_list), image_row), axis=0)
+
+        if left_pad:
+            empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
             image_row = np.concatenate((np.array(empty_channels_list), image_row), axis=0)
 
         if len(image_row) < image_width:
@@ -160,17 +169,18 @@ class ImageGenerator:
         whole_image = []
         # get all reads that align to that position
         # O(n)
-        left_pos, right_pos = self.get_left_right_genomic_position(query_pos)
+        left_pos, right_pos = self.get_left_right_genomic_position(query_pos, image_width)
         # O(n)
-        start_pos, end_pos = self.get_start_end_based_on_image_width(query_pos, image_width, left_pos, right_pos)
-        ref_row = self.get_reference_row(start_pos, end_pos, image_width)
+        start_pos, end_pos, left_pad = self.get_start_end_based_on_image_width(query_pos, image_width, left_pos, right_pos)
+
+        ref_row = self.get_reference_row(start_pos, end_pos, left_pad, image_width)
 
         for i in range(ref_band):
             whole_image.append(ref_row)
 
         # O(n)
         for read in self.positional_read_info[query_pos]:
-            read_row = self.get_read_row(query_pos, alts, read, start_pos, end_pos, image_width)
+            read_row = self.get_read_row(query_pos, alts, read, start_pos, end_pos, left_pad, image_width)
             if len(whole_image) < image_height:
                 whole_image.append(read_row)
             else:
