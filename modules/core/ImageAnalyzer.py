@@ -162,8 +162,7 @@ def analyze_np_array(img, img_width, img_height):
     else:
         img = np.transpose(img, (2, 0, 1))
         img = np.array(img).astype(np.uint8)
-    # img = np.reshape(np_array_of_img, shape)
-    # img = np.transpose(img, (0, 1, 2))
+
     print("BASE CHANNEL")
     for i in range(img_height):
         for j in range(img_width):

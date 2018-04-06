@@ -1,0 +1,123 @@
+import argparse
+import os
+import sys
+import math
+import time
+import numpy as np
+
+import torch
+import torchnet.meter as meter
+import torch.nn.parallel
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms, utils
+from torch.autograd import Variable
+
+from modules.models.inception import Inception3
+from modules.core.dataloader import PileupDataset, TextColor
+np.set_printoptions(threshold=np.nan)
+
+
+def test(data_file, batch_size, model_path, gpu_mode, num_classes=3):
+    transformations = transforms.Compose([transforms.ToTensor()])
+
+    validation_data = PileupDataset(data_file, transformations)
+    validation_loader = DataLoader(validation_data,
+                                   batch_size=batch_size,
+                                   shuffle=False,
+                                   num_workers=32,
+                                   pin_memory=gpu_mode
+                                   )
+    sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
+
+    model = torch.load(model_path)
+
+    model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
+
+    if gpu_mode:
+        model = model.cuda()
+
+    smry = open("test_miss_calls_" + data_file.split('/')[-1], 'w')
+
+    # Loss
+    criterion = nn.CrossEntropyLoss()
+
+    # Test the Model
+    sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
+    total_loss = 0
+    total_images = 0
+    batches_done = 0
+    confusion_matrix = meter.ConfusionMeter(num_classes)
+    for i, (images, labels, records) in enumerate(validation_loader):
+        if gpu_mode is True and images.size(0) % 8 != 0:
+            continue
+
+        images = Variable(images, volatile=True)
+        labels = Variable(labels, volatile=True)
+        if gpu_mode:
+            images = images.cuda()
+            labels = labels.cuda()
+
+        # Forward + Backward + Optimize
+        outputs = model(images)
+        confusion_matrix.add(outputs.data.squeeze(), labels.data.type(torch.LongTensor))
+        loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
+        # Loss count
+        total_images += images.size(0)
+        total_loss += loss.data[0]
+
+        preds_numpy = outputs.cpu().data.topk(1)[1].numpy().ravel().tolist()
+        true_label_numpy = labels.numpy().ravel().tolist()
+
+        eq = np.equal(preds_numpy, true_label_numpy)
+        mismatch_indices = np.where(eq == False)[0]
+
+        for index in mismatch_indices:
+            smry.write(str(true_label_numpy[index]) + "," + str(preds_numpy[index]) + ","
+                       + records[index] + "\n")
+
+        batches_done += 1
+        if batches_done % 50 == 0:
+            sys.stderr.write(str(confusion_matrix.conf)+"\n")
+            sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
+                             "\n" + TextColor.END)
+
+    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(total_loss/total_images) + "\n"+TextColor.END)
+    sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
+
+
+if __name__ == '__main__':
+    '''
+    Processes arguments and performs tasks to generate the pileup.
+    '''
+    parser = argparse.ArgumentParser()
+    parser.register("type", "bool", lambda v: v.lower() == "true")
+    parser.add_argument(
+        "--test_file",
+        type=str,
+        required=True,
+        help="Training data description csv file."
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        required=False,
+        default=100,
+        help="Batch size for training, default is 100."
+    )
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        required=True,
+        help="Path to a trained model"
+    )
+    parser.add_argument(
+        "--gpu_mode",
+        type=bool,
+        default=False,
+        help="If true then cuda is on."
+    )
+
+    FLAGS, unparsed = parser.parse_known_args()
+
+    test(FLAGS.test_file, FLAGS.batch_size, FLAGS.model_path, FLAGS.gpu_mode)
