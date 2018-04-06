@@ -66,8 +66,8 @@ def test(data_file, batch_size, model_path, gpu_mode, num_classes=3):
         total_images += images.size(0)
         total_loss += loss.data[0]
 
-        preds_numpy = outputs.cpu().data.topk(1)[1].numpy().ravel().tolist()
-        true_label_numpy = labels.numpy().ravel().tolist()
+        preds_numpy = outputs.data.cpu().data.topk(1)[1].numpy().ravel().tolist()
+        true_label_numpy = labels.data.cpu().numpy().ravel().tolist()
 
         eq = np.equal(preds_numpy, true_label_numpy)
         mismatch_indices = np.where(eq == False)[0]
