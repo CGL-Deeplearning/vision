@@ -172,7 +172,8 @@ class View:
 
         img_set = []
         label_set = []
-        for i, img_record in enumerate(image_set):
+        indx = 0
+        for img_record in image_set:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, label = img_record
 
             if STRATIFICATION_RATE < 1.0 and label == 0:
@@ -188,7 +189,8 @@ class View:
             img_rec = str('\t'.join(str(item) for item in img_record))
             label_set.append(label)
             img_set.append(np.array(image_array, dtype=np.int8))
-            smry.write(os.path.abspath(hdf5_filename) + ',' + str(i) + ',' + str(label) + ',' + img_rec + '\n')
+            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + str(label) + ',' + img_rec + '\n')
+            indx += 1
 
         img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (300, 300, 7), np.int8, compression='gzip')
         label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
