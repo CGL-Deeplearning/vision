@@ -7,7 +7,7 @@ import multiprocessing
 import h5py
 from tqdm import tqdm
 import numpy as np
-import modules.core.ImageAnalyzer as image_analyzer
+import random
 
 from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -42,7 +42,8 @@ A region can have multiple windows and each window belongs to a region.
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
-
+# only select 0.6% of the total homozygous cases as they are dominant
+STRATIFICATION_RATE = 0.6
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -173,6 +174,12 @@ class View:
         label_set = []
         for i, img_record in enumerate(image_set):
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, label = img_record
+
+            if STRATIFICATION_RATE < 1.0 and label == 0:
+                random_draw = random.uniform(0, 1)
+                if random_draw > STRATIFICATION_RATE:
+                    continue
+
             alts = [alt1]
             if alt2 != '.':
                 alts.append(alt2)
@@ -373,13 +380,8 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    img_set, label_set, recs = view_object.parse_region(start_position=100000, end_position=110000, thread_no=1)
-    print(len(img_set))
-    img = img_set[0]
-    print(recs[0])
-    image_analyzer.analyze_np_array(img, 300, 300)
-    end_time = time.time()
-    print("TOTAL TIME ELAPSED: ", end_time-start_time)
+    view_object.parse_region(start_position=100000, end_position=200000, thread_no=1)
+    print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
 def handle_output_directory(output_dir):
