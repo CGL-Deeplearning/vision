@@ -170,8 +170,10 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
 def save_best_model(best_model, optimizer, current_loss, file_name):
     sys.stderr.write(TextColor.BLUE + "SAVING MODEL" + TextColor.END)
-    os.remove(file_name + '_model.pkl')
-    os.remove(file_name + '_checkpoint.pkl')
+    if os.path.isfile(file_name + '_model.pkl'):
+        os.remove(file_name + '_model.pkl')
+    if os.path.isfile(file_name + '_checkpoint.pkl'):
+        os.remove(file_name + '_checkpoint.pkl')
     torch.save(best_model, file_name + '_model.pkl')
     ModelHandler.save_checkpoint({
         'state_dict': best_model.state_dict(),
