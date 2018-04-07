@@ -72,7 +72,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     return total_loss / total_images if total_images else 0
 
 
-def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, model, optimizer, num_workers,
+def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers,
           num_classes=3):
     transformations = transforms.Compose([transforms.ToTensor()])
 
@@ -84,7 +84,13 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
                               num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
-    sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
+    sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
+
+    model = ModelHandler.get_new_model(gpu_mode)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+
+    if gpu_mode:
+        model = model.cuda()
 
     # Loss function
     criterion = nn.CrossEntropyLoss()
@@ -127,7 +133,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
             total_loss += loss.data[0]
             batches_done += 1
 
-            if batches_done % 50 == 0:
+            if batches_done % 10 == 0:
                 avg_loss = total_loss / total_images if total_images else 0
                 print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
                 sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
@@ -263,6 +269,6 @@ if __name__ == '__main__':
     training_model, training_optimizer = get_model_and_optimizer(FLAGS.retrain_model, FLAGS.model_path, FLAGS.gpu_mode)
     directory_control(FLAGS.model_out.rpartition('/')[0]+"/")
     train(FLAGS.train_file, FLAGS.validation_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
-          training_model, training_optimizer, FLAGS.num_workers)
+          FLAGS.num_workers)
 
 

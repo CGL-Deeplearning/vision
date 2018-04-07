@@ -1,13 +1,8 @@
 import os
-from PIL import Image, ImageOps
 import numpy as np
-import torch
 import h5py
 import pandas as pd
 from torch.utils.data import Dataset
-from torchvision import transforms, utils
-from sklearn.preprocessing import MultiLabelBinarizer
-from torch.autograd import Variable
 import sys
 
 
@@ -37,8 +32,6 @@ class PileupDataset(Dataset):
         tmp_df = pd.read_csv(csv_path, header=None)
         assert tmp_df[0].apply(lambda x: os.path.isfile(x)).all(), \
             "Some images referenced in the CSV file were not found"
-
-        self.mlb = MultiLabelBinarizer()
         self.transform = transform
 
         self.X_train = tmp_df[0]
@@ -61,7 +54,6 @@ class PileupDataset(Dataset):
 
         img = image_dataset[indx]
         label = label_dataset[indx]
-        hdf5_file.close()
 
         img = img.astype(dtype=np.uint8)
         if self.transform is not None:
