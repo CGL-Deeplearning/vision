@@ -1,38 +1,34 @@
 import argparse
 import os
 import sys
-import math
 import time
-import numpy as np
 
 import torch
 import torchnet.meter as meter
 import torch.nn.parallel
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torch.utils.data import DataLoader
+from torchvision import transforms
 from torch.autograd import Variable
-
-from modules.models.inception import Inception3
 from modules.core.dataloader import PileupDataset, TextColor
-np.set_printoptions(threshold=np.nan)
+from modules.models.ModelHandler import ModelHandler
 
 
-def test(data_file, batch_size, gpu_mode, trained_model, num_classes):
+def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_workers):
     transformations = transforms.Compose([transforms.ToTensor()])
 
     validation_data = PileupDataset(data_file, transformations)
     validation_loader = DataLoader(validation_data,
                                    batch_size=batch_size,
                                    shuffle=False,
-                                   num_workers=16,
+                                   num_workers=num_workers,
                                    pin_memory=gpu_mode
                                    )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
-    model = trained_model.eval()
+    test_model = trained_model.eval()
     if gpu_mode:
-        model = model.cuda()
+        test_model = test_model.cuda()
 
     # Loss
     criterion = nn.CrossEntropyLoss()
@@ -54,91 +50,30 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes):
             labels = labels.cuda()
 
         # Forward + Backward + Optimize
-        outputs = model(images)
-        confusion_matrix.add(outputs.data.squeeze(), labels.data.type(torch.LongTensor))
+        outputs = test_model(images)
+        confusion_matrix.add(outputs.data, labels.data)
         loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
         # Loss count
         total_images += images.size(0)
         total_loss += loss.data[0]
 
         batches_done += 1
-        sys.stderr.write(str(confusion_matrix.conf)+"\n")
-        sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
-                         "\n" + TextColor.END)
+        if batches_done % 100 == 0:
+            sys.stderr.write(str(confusion_matrix.conf)+"\n")
+            sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
+                             "\n" + TextColor.END)
 
     print('Test Loss: ' + str(total_loss/total_images))
-    print('Confusion Matrix: \n', confusion_matrix.conf)
+    # print('Confusion Matrix: \n', confusion_matrix.conf)
 
     sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(total_loss/total_images) + "\n"+TextColor.END)
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
-
-def save_checkpoint(state, filename):
-    torch.save(state, filename)
+    return total_loss / total_images if total_images else 0
 
 
-def get_base_color(base):
-    if base == 'A':
-        return 250.0
-    if base == 'C':
-        return 100.0
-    if base == 'G':
-        return 180.0
-    if base == 'T':
-        return 30.0
-    if base == '*' or 'N':
-        return 5.0
-
-
-def get_base_by_color(color):
-    if color == 250:
-        return 'A'
-    if color == 100:
-        return 'C'
-    if color == 180:
-        return 'G'
-    if color == 30:
-        return 'T'
-    if color == 5:
-        return '*'
-    if color == 0:
-        return ' '
-
-
-def get_match_by_color(color):
-    if color == 0:
-        return ' '
-    if color <= 50: #match
-        return '.'
-    else:
-        return 'x' #mismatch
-
-def get_support_by_color(color):
-    if color == 254:
-        return '.'
-    if color == 0:
-        return ' '
-    if color == 152:
-        return 'x'
-
-
-def test_image(image, img_name):
-    # base_color, base_quality_color, map_quality_color, strand_color, match_color, support_color, cigar_color
-    image *= 254
-    # print(image.size())
-    for i in range(0, image.size(1)):
-        for j in range(0, image.size(2)):
-            print(get_base_by_color(math.ceil(image[0][i][j])), end='')
-        print()
-
-    for i in range(0,image.size(1)):
-        for j in range(0, image.size(2)):
-            print(get_support_by_color(math.ceil(image[5][i][j])), end='')
-        print()
-
-
-def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_classes=3):
-
+def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, model, optimizer, num_workers,
+          num_classes=3):
     transformations = transforms.Compose([transforms.ToTensor()])
 
     sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
@@ -146,20 +81,19 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     train_loader = DataLoader(train_data_set,
                               batch_size=batch_size,
                               shuffle=True,
-                              num_workers=16,
+                              num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
-    # model = Inception3()
-    model = Inception3()
-    # Loss and Optimizer
+    # Loss function
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
     start_epoch = 0
 
     if gpu_mode:
         model = torch.nn.DataParallel(model).cuda()
+
+    running_test_loss = -1
 
     # Train the Model
     sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
@@ -169,10 +103,6 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
         start_time = time.time()
         batches_done = 0
         for i, (images, labels, records) in enumerate(train_loader):
-            # print(image_name[0], labels[0])
-            # test_image(images[0], image_name)
-            # exit()
-
             if gpu_mode is True and images.size(0) % 8 != 0:
                 continue
 
@@ -197,55 +127,51 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
             total_loss += loss.data[0]
             batches_done += 1
 
-            if batches_done % 10 == 0:
+            if batches_done % 50 == 0:
                 avg_loss = total_loss / total_images if total_images else 0
                 print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
                 sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
                                  + " / " + str(len(train_loader)) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.YELLOW + " Loss: " + str(avg_loss) + "\n" + TextColor.END)
+                sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(avg_loss) + "\n" + TextColor.END)
                 sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
                                  "\n" + TextColor.END)
                 start_time = time.time()
 
-        avg_loss = total_loss/total_images if total_images else 0
-        sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1)
-                         + " Batches done: " + str(i+1) + "/" + str(len(train_loader)) + "\n" + TextColor.END)
-        sys.stderr.write(TextColor.YELLOW + " Loss: " + str(avg_loss) + "\n" + TextColor.END)
-        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
+            # if batches_done % 8 == 0:
+            #     current_test_loss = test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
+            #     if running_test_loss == -1 or current_test_loss < running_test_loss:
+            #         save_best_model(model, optimizer, current_test_loss, file_name)
+            #         running_test_loss = current_test_loss
 
-        if (i+1) % 1000 == 0:
-            torch.save(model, file_name + '_checkpoint_' + str(epoch+1) + '_model.pkl')
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-            }, file_name + '_checkpoint_' + str(epoch+1) + "." + str(i+1) + "_params.pkl")
-            sys.stderr.write(TextColor.RED+" MODEL SAVED \n" + TextColor.END)
+        avg_loss = total_loss/total_images if total_images else 0
+        sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Completed: " + str(i+1) + "\n" + TextColor.END)
+        sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(avg_loss) + "\n" + TextColor.END)
+
+        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
 
         avg_loss = total_loss / total_images if total_images else 0
         sys.stderr.write(TextColor.YELLOW + 'EPOCH: ' + str(epoch+1))
-        sys.stderr.write(' Loss: ' + str(avg_loss) + "\n" + TextColor.END)
-
-        torch.save(model, file_name + '_checkpoint_' + str(epoch+1) + '_model.pkl')
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'state_dict': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-        }, file_name + '_checkpoint_' + str(epoch+1) + "_params.pkl")
+        sys.stderr.write(' Train Loss: ' + str(avg_loss) + "\n" + TextColor.END)
 
         # After each epoch do validation
-        test(validation_file, batch_size, gpu_mode, model, num_classes)
+        current_test_loss = test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
+        if running_test_loss == -1 or current_test_loss < running_test_loss:
+            save_best_model(model, optimizer, current_test_loss, file_name)
+            running_test_loss = current_test_loss
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
-    torch.save(model, file_name+'_final_model.pkl')
-    save_checkpoint({
-        'epoch': epoch_limit,
-        'state_dict': model.state_dict(),
+
+def save_best_model(best_model, optimizer, current_loss, file_name):
+    sys.stderr.write(TextColor.BLUE + "SAVING MODEL" + TextColor.END)
+    os.remove(file_name + '_model.pkl')
+    os.remove(file_name + '_checkpoint.pkl')
+    torch.save(best_model, file_name + '_model.pkl')
+    ModelHandler.save_checkpoint({
+        'state_dict': best_model.state_dict(),
         'optimizer': optimizer.state_dict(),
-    }, file_name + '_final_params.pkl')
-    sys.stderr.write(TextColor.PURPLE + 'Model saved as:' + file_name + '_final.pkl\n' + TextColor.END)
-    sys.stderr.write(TextColor.PURPLE + 'Model parameters saved as:' + file_name + '_final_params.pkl\n' + TextColor.END)
+    }, file_name + '_checkpoint.pkl')
+    sys.stderr.write(TextColor.RED + " MODEL SAVED. LOSS: " + str(current_loss) + "\n" + TextColor.END)
 
 
 def directory_control(file_path):
@@ -254,6 +180,18 @@ def directory_control(file_path):
         os.stat(directory)
     except:
         os.mkdir(directory)
+
+
+def get_model_and_optimizer(model_retrain, model_checkpoint_path, gpu_mode):
+    if model_retrain is True:
+        model = ModelHandler.load_model_for_training(model_checkpoint_path, gpu_mode)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+        optimizer = ModelHandler.load_optimizer(optimizer, model_checkpoint_path, gpu_mode)
+        return model, optimizer
+    else:
+        model = ModelHandler.get_new_model(gpu_mode)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+        return model, optimizer
 
 
 if __name__ == '__main__':
@@ -296,15 +234,35 @@ if __name__ == '__main__':
         help="Path and file_name to save model, default is ./model"
     )
     parser.add_argument(
+        "--retrain_model",
+        type=bool,
+        default=False,
+        help="If true then retrain a pre-trained mode."
+    )
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        required=False,
+        default='./model',
+        help="Path of the model to load and retrain"
+    )
+    parser.add_argument(
         "--gpu_mode",
         type=bool,
         default=False,
         help="If true then cuda is on."
     )
-
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        required=False,
+        default=40,
+        help="Epoch size for training iteration."
+    )
     FLAGS, unparsed = parser.parse_known_args()
-
+    training_model, training_optimizer = get_model_and_optimizer(FLAGS.retrain_model, FLAGS.model_path, FLAGS.gpu_mode)
     directory_control(FLAGS.model_out.rpartition('/')[0]+"/")
-    train(FLAGS.train_file, FLAGS.validation_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode)
+    train(FLAGS.train_file, FLAGS.validation_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
+          training_model, training_optimizer, FLAGS.num_workers)
 
 

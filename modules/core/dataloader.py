@@ -59,12 +59,14 @@ class PileupDataset(Dataset):
         image_dataset = hdf5_file['images']
         label_dataset = hdf5_file['labels']
 
-        img = np.array(image_dataset[indx], dtype=np.float)
+        img = image_dataset[indx]
+        label = label_dataset[indx]
+        hdf5_file.close()
 
+        img = img.astype(dtype=np.uint8)
         if self.transform is not None:
             img = self.transform(img)
 
-        label = label_dataset[indx]
         if label != label_csv:
             sys.stderr.write("CSV LABEL DID NOT MATCH HDF5 LABEL" + str(rec) + "\n")
 

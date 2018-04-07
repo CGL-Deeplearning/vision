@@ -225,7 +225,7 @@ def produce_vcf(prediction_dict):
         else:
             chrm, st_pos, end_pos, ref, alt_field, genotype, qual, gq = get_genotype_for_single_allele(records)
 
-        phred_qual = min(60, -10 * np.log10(1 - qual) if 1-qual >= 0.0000000001 else 60)
+        phred_qual = min(60, -10 * np.log10(1 - qual) if 1-qual >= 0.0000001 else 60)
         phred_qual = math.ceil(phred_qual * 100.0) / 100.0
         phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000000001 else 60)
         phred_gq = math.ceil(phred_gq * 100.0) / 100.0

@@ -56,7 +56,7 @@ class imageChannels:
         :return:
         """
         c_q = min(base_quality, BASE_QUALITY_CAP)
-        color = MAX_COLOR_VALUE * c_q / BASE_QUALITY_CAP
+        color = (MAX_COLOR_VALUE * c_q) / BASE_QUALITY_CAP
         return color
 
     @staticmethod
@@ -67,7 +67,7 @@ class imageChannels:
         :return:
         """
         c_q = min(map_quality, MAP_QUALITY_CAP)
-        color = MAX_COLOR_VALUE * c_q / MAP_QUALITY_CAP
+        color = (MAX_COLOR_VALUE * c_q) / MAP_QUALITY_CAP
         return color
 
     @staticmethod
@@ -78,9 +78,9 @@ class imageChannels:
         :return:
         """
         if is_rev is True:
-            return 240
+            return 240.0
         else:
-            return 70
+            return 70.0
 
     @staticmethod
     def get_match_ref_color(is_match):
