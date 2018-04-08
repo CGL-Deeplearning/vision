@@ -14,6 +14,17 @@ from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
 from modules.models.inception import Inception3
 
+
+def exp_lr_scheduler(optimizer, epoch, lr_decay=0.1, lr_decay_epoch=1):
+    """Decay learning rate by a factor of lr_decay every lr_decay_epoch epochs"""
+    if epoch % lr_decay_epoch:
+        return optimizer
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] *= lr_decay
+    return optimizer
+
+
 def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_workers):
     transformations = transforms.Compose([transforms.ToTensor()])
 
@@ -36,7 +47,6 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     # Test the Model
     sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
     total_loss = 0
-    total_images = 0
     batches_done = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
     for i, (images, labels, records) in enumerate(validation_loader):
@@ -54,22 +64,21 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
         confusion_matrix.add(outputs.data, labels.data)
         loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
         # Loss count
-        total_images += images.size(0)
         total_loss += loss.data[0]
 
         batches_done += 1
-        if batches_done % 100 == 0:
+        if batches_done % 10 == 0:
             sys.stderr.write(str(confusion_matrix.conf)+"\n")
             sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
                              "\n" + TextColor.END)
 
-    print('Test Loss: ' + str(total_loss/total_images))
+    print('Test Loss: ' + str(total_loss))
     # print('Confusion Matrix: \n', confusion_matrix.conf)
 
-    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(total_loss/total_images) + "\n"+TextColor.END)
+    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(total_loss) + "\n"+TextColor.END)
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
-    return total_loss / total_images if total_images else 0
+    return total_loss
 
 
 def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_mode,
@@ -107,7 +116,8 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
     for epoch in range(start_epoch, epoch_limit, 1):
         total_loss = 0
-        total_images = 0
+        segment_loss = 0
+        epoch_start_time = time.time()
         start_time = time.time()
         batches_done = 0
         for i, (images, labels, records) in enumerate(train_loader):
@@ -131,41 +141,35 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
             optimizer.step()
 
             # loss count
-            total_images += (x.size(0))
             total_loss += loss.data[0]
+            segment_loss += loss.data[0]
             batches_done += 1
 
             if batches_done % 10 == 0:
-                avg_loss = total_loss / total_images if total_images else 0
-                print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
+                print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(total_loss) + "\t" + str(segment_loss))
                 sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
                                  + " / " + str(len(train_loader)) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(avg_loss) + "\n" + TextColor.END)
+                sys.stderr.write(TextColor.YELLOW + " Segment loss: " + str(segment_loss) + "\n" + TextColor.END)
+                sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(total_loss) + "\n" + TextColor.END)
                 sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
                                  "\n" + TextColor.END)
                 start_time = time.time()
+                segment_loss = 0
 
-            # if batches_done % 8 == 0:
-            #     current_test_loss = test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
-            #     if running_test_loss == -1 or current_test_loss < running_test_loss:
-            #         save_best_model(model, optimizer, current_test_loss, file_name)
-            #         running_test_loss = current_test_loss
-
-        avg_loss = total_loss/total_images if total_images else 0
         sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Completed: " + str(i+1) + "\n" + TextColor.END)
-        sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(avg_loss) + "\n" + TextColor.END)
+        sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(total_loss) + "\n" + TextColor.END)
+        sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - epoch_start_time) +
+                         "\n" + TextColor.END)
 
-        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
-
-        avg_loss = total_loss / total_images if total_images else 0
-        sys.stderr.write(TextColor.YELLOW + 'EPOCH: ' + str(epoch+1))
-        sys.stderr.write(' Train Loss: ' + str(avg_loss) + "\n" + TextColor.END)
+        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(total_loss))
 
         # After each epoch do validation
         current_test_loss = test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
         if running_test_loss == -1 or current_test_loss < running_test_loss:
             save_best_model(model, optimizer, current_test_loss, file_name)
             running_test_loss = current_test_loss
+
+        optimizer = exp_lr_scheduler(optimizer, (epoch+1))
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
