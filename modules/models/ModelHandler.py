@@ -23,26 +23,30 @@ class ModelHandler:
 
     @staticmethod
     def load_optimizer(optimizer, checkpoint_path, gpu_mode):
-        checkpoint = torch.load(checkpoint_path)
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        if gpu_mode:
+            checkpoint = torch.load(checkpoint_path)
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.cuda()
+        else:
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            optimizer.load_state_dict(checkpoint['optimizer'])
 
-        if gpu_mode is False:
-            return optimizer
-
-        for state in optimizer.state.values():
-            for k, v in state.items():
-                if torch.is_tensor(v):
-                    state[k] = v.cuda()
         return optimizer
 
     @staticmethod
     def load_model_for_training(state_dict_path, gpu_mode):
-        checkpoint = torch.load(state_dict_path)
-        state_dict = checkpoint['state_dict']
-        model = Inception3()
-        model.load_state_dict(state_dict)
         if gpu_mode:
+            checkpoint = torch.load(state_dict_path)
+            state_dict = checkpoint['state_dict']
+            model = Inception3()
+            model.load_state_dict(state_dict)
             model = model.cuda()
+        else:
+            model = ModelHandler.load_gpu_models_to_cpu(state_dict_path)
+
         return model
 
     @staticmethod

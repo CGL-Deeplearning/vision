@@ -72,8 +72,8 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     return total_loss / total_images if total_images else 0
 
 
-def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers,
-          num_classes=3):
+def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_mode,
+          model_path, num_classes=3):
     transformations = transforms.Compose([transforms.ToTensor()])
 
     sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
@@ -86,11 +86,13 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
-    model = ModelHandler.get_new_model(gpu_mode)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-
-    if gpu_mode:
-        model = model.cuda()
+    if retrain_mode is False:
+        model = ModelHandler.get_new_model(gpu_mode)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.00005, weight_decay=0.0001)
+        if gpu_mode:
+            model = model.cuda()
+    else:
+        model, optimizer = get_model_and_optimizer(retrain_mode, model_path, gpu_mode)
 
     # Loss function
     criterion = nn.CrossEntropyLoss()
@@ -193,12 +195,12 @@ def directory_control(file_path):
 def get_model_and_optimizer(model_retrain, model_checkpoint_path, gpu_mode):
     if model_retrain is True:
         model = ModelHandler.load_model_for_training(model_checkpoint_path, gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.00005, weight_decay=0.0001)
         optimizer = ModelHandler.load_optimizer(optimizer, model_checkpoint_path, gpu_mode)
         return model, optimizer
     else:
         model = ModelHandler.get_new_model(gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.00005, weight_decay=0.0001)
         return model, optimizer
 
 
@@ -271,6 +273,6 @@ if __name__ == '__main__':
     training_model, training_optimizer = get_model_and_optimizer(FLAGS.retrain_model, FLAGS.model_path, FLAGS.gpu_mode)
     directory_control(FLAGS.model_out.rpartition('/')[0]+"/")
     train(FLAGS.train_file, FLAGS.validation_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
-          FLAGS.num_workers)
+          FLAGS.num_workers, FLAGS.retrain_model, FLAGS.model_path)
 
 
