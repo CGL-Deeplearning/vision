@@ -88,7 +88,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if retrain_mode is False:
         model = Inception3()
-        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-6, nesterov=True)
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9, nesterov=True)
         if gpu_mode:
             model = model.cuda()
     else:
