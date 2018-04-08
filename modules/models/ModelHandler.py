@@ -39,10 +39,7 @@ class ModelHandler:
     @staticmethod
     def load_model_for_training(state_dict_path, gpu_mode):
         if gpu_mode:
-            checkpoint = torch.load(state_dict_path)
-            state_dict = checkpoint['state_dict']
-            model = Inception3()
-            model.load_state_dict(state_dict)
+            model = ModelHandler.load_gpu_models_to_cpu(state_dict_path)
             model = model.cuda()
         else:
             model = ModelHandler.load_gpu_models_to_cpu(state_dict_path)
