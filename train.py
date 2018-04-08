@@ -97,7 +97,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if retrain_mode is False:
         model = Inception3()
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
         if gpu_mode:
             model = model.cuda()
     else:
@@ -169,7 +169,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
             save_best_model(model, optimizer, current_test_loss, file_name)
             running_test_loss = current_test_loss
 
-        optimizer = exp_lr_scheduler(optimizer, (epoch+1))
+        # optimizer = exp_lr_scheduler(optimizer, (epoch+1))
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
