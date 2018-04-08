@@ -12,7 +12,7 @@ from torchvision import transforms
 from torch.autograd import Variable
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
-
+from modules.models.inception import Inception3
 
 def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_workers):
     transformations = transforms.Compose([transforms.ToTensor()])
@@ -87,8 +87,8 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
     if retrain_mode is False:
-        model = ModelHandler.get_new_model(gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+        model = Inception3()
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-6, nesterov=True)
         if gpu_mode:
             model = model.cuda()
     else:
