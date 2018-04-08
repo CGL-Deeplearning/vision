@@ -88,7 +88,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if retrain_mode is False:
         model = ModelHandler.get_new_model(gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.00005, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
         if gpu_mode:
             model = model.cuda()
     else:
@@ -195,12 +195,12 @@ def directory_control(file_path):
 def get_model_and_optimizer(model_retrain, model_checkpoint_path, gpu_mode):
     if model_retrain is True:
         model = ModelHandler.load_model_for_training(model_checkpoint_path, gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.00005, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
         optimizer = ModelHandler.load_optimizer(optimizer, model_checkpoint_path, gpu_mode)
         return model, optimizer
     else:
         model = ModelHandler.get_new_model(gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.00005, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
         return model, optimizer
 
 
