@@ -47,6 +47,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     # Test the Model
     sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
     total_loss = 0
+    total_images = 0
     batches_done = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
     for i, (images, labels, records) in enumerate(validation_loader):
@@ -65,7 +66,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
         loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
         # Loss count
         total_loss += loss.data[0]
-
+        total_images += images.size(0)
         batches_done += 1
         if batches_done % 10 == 0:
             sys.stderr.write(str(confusion_matrix.conf)+"\n")
@@ -74,8 +75,8 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
 
     print('Test Loss: ' + str(total_loss))
     # print('Confusion Matrix: \n', confusion_matrix.conf)
-
-    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(total_loss) + "\n"+TextColor.END)
+    avg_loss = total_loss / total_images if total_images else 0
+    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(avg_loss) + "\n"+TextColor.END)
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
     return total_loss
@@ -116,7 +117,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
     for epoch in range(start_epoch, epoch_limit, 1):
         total_loss = 0
-        segment_loss = 0
+        total_images = 0
         epoch_start_time = time.time()
         start_time = time.time()
         batches_done = 0
@@ -142,26 +143,26 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
             # loss count
             total_loss += loss.data[0]
-            segment_loss += loss.data[0]
+            total_images += (x.size(0))
             batches_done += 1
 
             if batches_done % 10 == 0:
-                print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(total_loss) + "\t" + str(segment_loss))
+                avg_loss = (total_loss / total_images) if total_images else 0
+                print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(total_loss) + "\t" + str(avg_loss))
                 sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
                                  + " / " + str(len(train_loader)) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.YELLOW + " Segment loss: " + str(segment_loss) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(total_loss) + "\n" + TextColor.END)
+                sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
                 sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
                                  "\n" + TextColor.END)
                 start_time = time.time()
-                segment_loss = 0
 
+        avg_loss = (total_loss / total_images) if total_images else 0
         sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Completed: " + str(i+1) + "\n" + TextColor.END)
-        sys.stderr.write(TextColor.YELLOW + " Training loss: " + str(total_loss) + "\n" + TextColor.END)
+        sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
         sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - epoch_start_time) +
                          "\n" + TextColor.END)
 
-        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(total_loss))
+        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
 
         # After each epoch do validation
         current_test_loss = test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
