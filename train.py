@@ -72,7 +72,6 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
             sys.stderr.write(str(confusion_matrix.conf)+"\n")
             sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
                              "\n" + TextColor.END)
-    test_model = test_model.train()
 
     avg_loss = total_loss / total_images if total_images else 0
     print('Test Loss: ' + str(avg_loss))
@@ -100,7 +99,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if retrain_mode is False:
         model = Inception3()
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay=0.000001)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01, weight_decay=0.000001)
         if gpu_mode:
             model = model.cuda()
     else:
