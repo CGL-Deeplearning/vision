@@ -42,7 +42,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
         test_model = test_model.cuda()
 
     # Loss
-    criterion = nn.CrossEntropyLoss()
+    test_criterion = nn.CrossEntropyLoss()
 
     # Test the Model
     sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
@@ -63,15 +63,16 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
         # Forward + Backward + Optimize
         outputs = test_model(images)
         confusion_matrix.add(outputs.data, labels.data)
-        loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
+        test_loss = test_criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
         # Loss count
-        total_loss += loss.data[0]
+        total_loss += test_loss.data[0]
         total_images += images.size(0)
         batches_done += 1
         if batches_done % 10 == 0:
             sys.stderr.write(str(confusion_matrix.conf)+"\n")
             sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
                              "\n" + TextColor.END)
+    test_model = test_model.train()
 
     avg_loss = total_loss / total_images if total_images else 0
     print('Test Loss: ' + str(avg_loss))
@@ -99,7 +100,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if retrain_mode is False:
         model = Inception3()
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay=0.001)
         if gpu_mode:
             model = model.cuda()
     else:
