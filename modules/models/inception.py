@@ -69,7 +69,7 @@ class Inception3(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x):
-        x *= 254
+        # x *= 254
         # 299 x 299 x 3
         x = self.Conv2d_1a_3x3(x)
         # 149 x 149 x 32
