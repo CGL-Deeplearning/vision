@@ -65,8 +65,8 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
         confusion_matrix.add(outputs.data, labels.data)
         test_loss = test_criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
         # Loss count
-        total_loss += test_loss.data[0]
-        total_images += images.size(0)
+        total_loss += float(test_loss.data[0])
+        total_images += float(images.size(0))
         batches_done += 1
         if batches_done % 10 == 0:
             sys.stderr.write(str(confusion_matrix.conf)+"\n")
@@ -99,7 +99,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if retrain_mode is False:
         model = Inception3()
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, nesterov=True, weight_decay=0.999)
         if gpu_mode:
             model = model.cuda()
     else:
