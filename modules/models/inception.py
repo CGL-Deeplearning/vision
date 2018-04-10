@@ -69,7 +69,7 @@ class Inception3(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x):
-        # x *= 254
+        x *= 254
         # 299 x 299 x 3
         x = self.Conv2d_1a_3x3(x)
         # 149 x 149 x 32
@@ -121,9 +121,7 @@ class Inception3(nn.Module):
         # 1000 (num_classes)
         if self.training and self.aux_logits:
             return x, aux
-        # if not self.training:
-        #     m = nn.Softmax(dim=1)
-        #     return m(x)
+
         return x
 
 

@@ -5,6 +5,19 @@ import numpy as np
 import math
 
 
+def get_pixel_by_base(base):
+    if base == 'A':
+        return [0, 0, 255, 255]
+    if base == 'C':
+        return [255, 0, 0, 255]
+    if base == 'G':
+        return [0, 255, 0, 255]
+    if base == 'T':
+        return [255, 255, 0, 255]
+    if base == '*':
+        return [255, 192, 203, 255]
+    return [0, 0, 0, 255]
+
 def get_base_by_color(base):
     """
     Get color based on a base.
@@ -83,77 +96,27 @@ def get_cigar_by_color(cigar_code):
         return 2
 
 
-def analyze_it(img):
-    file = img
-    img = Image.open(file)
+def np_array_to_img(img, img_width, img_height):
+    if isinstance(img, np.ndarray) is False:
+        img = img.numpy() * 255
+    else:
+        img = np.transpose(img, (2, 0, 1))
+        img = np.array(img).astype(np.uint8)
 
-    shape = (300, 300, 7)
-    np_array_of_img = np.array(img.getdata())
+    whole_img = []
+    for i in range(img_height):
+        img_row = []
+        for j in range(img_width):
+            if i > 5 and get_match_ref_color(img[4][i][j]) == 0:
+                img_row.append([255, 255, 255, 255])
+            elif img[0][i][j] != 0:
+                pixel = get_pixel_by_base(get_base_by_color(img[0][i][j]))
+                img_row.append(pixel)
+            else:
+                img_row.append([0, 0, 0, 255])
+        whole_img.append(img_row)
 
-    img = np.reshape(np_array_of_img, shape)
-    img = np.transpose(img, (0, 1, 2))
-    print("BASE CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][0] != 0:
-                print(get_base_by_color(img[i][j][0]), end='')
-            else:
-                print(' ',end='')
-        print()
-    print("CIGAR CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][5] != 0:
-                if get_cigar_by_color(img[i][j][5]) == None:
-                    print(img[i][j][5])
-                print(get_cigar_by_color(img[i][j][5]), end='')
-            else:
-                print(' ', end='')
-        print()
-    print("SUPPORT CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][6] != 0:
-                print(get_alt_support_by_color(img[i][j][6]), end='')
-            else:
-                print(' ', end='')
-        print()
-
-    print("BASE QULAITY CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][1] != 0:
-                print(get_quality_by_color(img[i][j][1]), end='')
-            else:
-                print(' ', end='')
-        print()
-
-    print("MAP QUALITY CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][2] != 0:
-                print(get_quality_by_color(img[i][j][2]), end='')
-            else:
-                print(' ', end='')
-        print()
-
-    print("MISMATCH CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][4] != 0:
-                print(get_match_ref_color(img[i][j][4]), end='')
-            else:
-                print(' ', end='')
-        print()
-
-    print("STRAND CHANNEL")
-    for i in range(300):
-        for j in range(300):
-            if img[i][j][3] != 0:
-                print(get_strand_color(img[i][j][3]), end='')
-            else:
-                print(' ', end='')
-        print()
+    return whole_img
 
 
 def analyze_np_array(img, img_width, img_height):
@@ -225,21 +188,3 @@ def analyze_np_array(img, img_width, img_height):
             else:
                 print(' ', end='')
         print()
-
-
-if __name__ == '__main__':
-    """
-    Processes arguments and performs tasks to generate the pileup.
-    """
-
-    parser = argparse.ArgumentParser()
-    parser.register("type", "bool", lambda v: v.lower() == "true")
-    parser.add_argument(
-        "--img",
-        type=str,
-        required=True,
-        help="Path to the image."
-    )
-    FLAGS, not_parsed_flags = parser.parse_known_args()
-    # make output directory if not already created
-    analyze_it(FLAGS.img)

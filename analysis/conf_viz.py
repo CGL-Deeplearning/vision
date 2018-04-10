@@ -3,10 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 array = \
-[[160609,    462,     21],
- [  1264,  45324,    221],
- [    36,    191,  25504]]
-
+[[96446,   219,    12],
+ [  139, 46588,    82],
+ [    4,   199, 25527]]
 array = np.array(array, dtype=float)
 cm = np.array(array, dtype=float)
 n_categories = 3

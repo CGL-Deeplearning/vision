@@ -153,6 +153,7 @@ class View:
         return labeled_sites
 
     def generate_candidate_images(self, candidate_list, image_generator, thread_no):
+        image_height, image_width = 300, 300
         if len(candidate_list) == 0:
             return
         contig = str(self.chromosome_name)
@@ -184,7 +185,7 @@ class View:
             alts = [alt1]
             if alt2 != '.':
                 alts.append(alt2)
-            image_array = image_generator.create_image(pos_start, ref, alts)
+            image_array = image_generator.create_image(pos_start, ref, alts, image_height=image_height, image_width=image_width)
 
             img_rec = str('\t'.join(str(item) for item in img_record))
             label_set.append(label)
@@ -192,7 +193,7 @@ class View:
             smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + str(label) + ',' + img_rec + '\n')
             indx += 1
 
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (300, 300, 7), np.int8, compression='gzip')
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8, compression='gzip')
         label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
         img_dset[...] = img_set
         label_dset[...] = label_set
@@ -382,7 +383,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=400000, end_position=600000, thread_no=1)
+    view_object.parse_region(start_position=100000, end_position=300000, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
