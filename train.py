@@ -80,8 +80,6 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(avg_loss) + "\n"+TextColor.END)
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
-    return avg_loss
-
 
 def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_mode,
           model_path, num_classes=3):
@@ -97,13 +95,10 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
-    if retrain_mode is False:
-        model = Inception3()
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, weight_decay=0.001)
-        if gpu_mode:
-            model = model.cuda()
-    else:
-        model, optimizer = get_model_and_optimizer(retrain_mode, model_path, gpu_mode)
+    model = Inception3()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
+    if gpu_mode:
+        model = model.cuda()
 
     # Loss function
     criterion = nn.CrossEntropyLoss()
@@ -166,18 +161,16 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
         print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
 
         # After each epoch do validation
-        current_test_loss = test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
-        if running_test_loss == -1 or current_test_loss < running_test_loss:
-            save_best_model(model, optimizer, current_test_loss, file_name)
-            running_test_loss = current_test_loss
+        test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
+        save_best_model(model, optimizer, file_name+"_epoch_"+str(epoch+1))
 
         # optimizer = exp_lr_scheduler(optimizer, (epoch+1))
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
 
-def save_best_model(best_model, optimizer, current_loss, file_name):
-    sys.stderr.write(TextColor.BLUE + "SAVING MODEL" + TextColor.END)
+def save_best_model(best_model, optimizer, file_name):
+    sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
     if os.path.isfile(file_name + '_model.pkl'):
         os.remove(file_name + '_model.pkl')
     if os.path.isfile(file_name + '_checkpoint.pkl'):
@@ -187,7 +180,7 @@ def save_best_model(best_model, optimizer, current_loss, file_name):
         'state_dict': best_model.state_dict(),
         'optimizer': optimizer.state_dict(),
     }, file_name + '_checkpoint.pkl')
-    sys.stderr.write(TextColor.RED + " MODEL SAVED. LOSS: " + str(current_loss) + "\n" + TextColor.END)
+    sys.stderr.write(TextColor.RED + "MODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
 
 
 def directory_control(file_path):
