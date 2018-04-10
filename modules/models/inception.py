@@ -121,9 +121,9 @@ class Inception3(nn.Module):
         # 1000 (num_classes)
         if self.training and self.aux_logits:
             return x, aux
-        if not self.training:
-            m = nn.Softmax(dim=1)
-            return m(x)
+        # if not self.training:
+        #     m = nn.Softmax(dim=1)
+        #     return m(x)
         return x
 
 
