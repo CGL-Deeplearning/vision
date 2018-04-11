@@ -3,12 +3,12 @@ import sys
 import torch
 import numpy as np
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torch.utils.data import DataLoader
+from torchvision import transforms
 from torch.autograd import Variable
-from pysam import VariantFile, VariantHeader, VariantRecord
+from pysam import VariantFile, VariantHeader
 from modules.models.inception import Inception3
-from modules.core.dataloader import PileupDataset, TextColor
+from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
 import operator
 import math
@@ -50,7 +50,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
 
-    for counter, (images, labels, pic_name, type_str, records) in enumerate(testloader):
+    for counter, (images, records) in enumerate(testloader):
         images = Variable(images, volatile=True)
 
         if gpu_mode:
@@ -106,14 +106,17 @@ def get_genotype_for_multiple_allele(records):
     p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
     p02 = min(alt_probs[rec_alt2][1], alt_probs['both'][1])
     p22 = min(alt_probs[rec_alt2][2], alt_probs['both'][2])
-    p12 = min(max(alt_probs[rec_alt1][0], alt_probs[rec_alt1][1]), max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]),
-              alt_probs['both'][2])
+    p12 = alt_probs['both'][2]
     prob_list = [p00, p01, p11, p02, p22, p12]
     normalized_list = [float(i) / sum(prob_list) for i in prob_list]
     prob_list = [float(i) / max(normalized_list) for i in normalized_list]
     genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
-    gq, index = max([(v, i) for i, v in enumerate(prob_list)])
-    qual = sum(prob_list) - p00
+    gq, index = 0, 0
+    for i, v in enumerate(prob_list):
+        if gq < v:
+            index = i
+            gq = v
+    qual = sum(normalized_list) - p00
 
     return chrm, st_pos, end_pos, ref, [rec_alt1, rec_alt2], genotype_list[index], qual, gq
 
