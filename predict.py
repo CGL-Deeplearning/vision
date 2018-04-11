@@ -116,7 +116,7 @@ def get_genotype_for_multiple_allele(records):
         if gq < v:
             index = i
             gq = v
-    qual = sum(normalized_list) - p00
+    qual = sum(prob_list) - prob_list[0]
 
     return chrm, st_pos, end_pos, ref, [rec_alt1, rec_alt2], genotype_list[index], qual, gq
 
