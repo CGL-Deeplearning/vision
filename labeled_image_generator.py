@@ -43,7 +43,7 @@ DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
 # only select 0.6% of the total homozygous cases as they are dominant
-STRATIFICATION_RATE = 0.6
+STRATIFICATION_RATE = 0.5
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
