@@ -1,9 +1,10 @@
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import sys
 import seaborn as sns
 from collections import OrderedDict
-import matplotlib
-matplotlib.use('Agg')
+
 
 sns.set(color_codes=True)
 
