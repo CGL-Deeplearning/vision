@@ -75,7 +75,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
 
     avg_loss = total_loss / total_images if total_images else 0
     print('Test Loss: ' + str(avg_loss))
-    # print('Confusion Matrix: \n', confusion_matrix.conf)
+    print('Confusion Matrix: \n', confusion_matrix.conf)
 
     sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(avg_loss) + "\n"+TextColor.END)
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
