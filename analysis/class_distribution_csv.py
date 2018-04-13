@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
-import numpy as np
 import sys
 import seaborn as sns
-from collections import Counter
 from collections import OrderedDict
+import matplotlib
+matplotlib.use('Agg')
 
 sns.set(color_codes=True)
 
