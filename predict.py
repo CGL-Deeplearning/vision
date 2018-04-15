@@ -95,24 +95,20 @@ def get_genotype_for_multiple_allele(records):
         else:
             alt_probs[alt1] = (record[7:])
 
-    if rec_alt1 not in alt_probs:
-        alt_probs[rec_alt1] = (0, 0, 0)
-    if rec_alt2 not in alt_probs:
-        alt_probs[rec_alt2] = (0, 0, 0)
-    if 'both' not in alt_probs:
-        alt_probs['both'] = (0, 0, 0)
-
     p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
     p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
     p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
     p02 = min(alt_probs[rec_alt2][1], alt_probs['both'][1])
     p22 = min(alt_probs[rec_alt2][2], alt_probs['both'][2])
-    p12 = alt_probs['both'][2]
+    p12 = min(max(alt_probs[rec_alt1][1], alt_probs[rec_alt1][2]), max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]), alt_probs['both'][2])
     prob_list = [p00, p01, p11, p02, p22, p12]
+    # print(prob_list)
     sum_probs = sum(prob_list)
+    # print(sum_probs)
     normalized_list = [(float(i) / sum_probs) if sum_probs else 0 for i in prob_list]
-    max_probs = max(normalized_list)
-    prob_list = [(float(i) / max_probs) if max_probs else 0 for i in normalized_list]
+    prob_list = normalized_list
+    # print(prob_list)
+    # print(sum(prob_list))
     genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
     gq, index = 0, 0
     for i, prob in enumerate(prob_list):
