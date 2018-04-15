@@ -85,7 +85,8 @@ class View:
 
         rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type]
         rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type]
-        return [rec_1, rec_2]
+        rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type]
+        return [rec_1, rec_2, rec_3]
 
     def in_confident_check(self, start, stop):
         """
