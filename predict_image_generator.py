@@ -51,6 +51,7 @@ def build_chromosomal_interval_trees(confident_bed_path):
     :return: trees_chromosomal
     """
     tsv_handler_reference = TsvHandler(tsv_file_path=confident_bed_path)
+    # what's the point of the offset? they sum to 0
     intervals_chromosomal_reference = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1,
                                                                                             universal_offset=-1)
     trees_chromosomal = dict()
@@ -60,7 +61,6 @@ def build_chromosomal_interval_trees(confident_bed_path):
         tree = IntervalTree(intervals)
 
         trees_chromosomal[chromosome_name] = tree
-
     return trees_chromosomal
 
 
@@ -162,8 +162,8 @@ class View:
         if self.confident_tree is not None:
             confident_labeled = []
             for candidate in selected_candidates:
-                pos_st = candidate[1]
-                pos_end = candidate[2]
+                pos_st = candidate[1] + 1# offset for bed
+                pos_end = candidate[1] + 1# offset for bed
                 in_conf = self.in_confident_check(pos_st, pos_end)
                 if in_conf is True:
                     confident_labeled.append(candidate)
@@ -320,7 +320,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=100000, end_position=300000, thread_no=1)
+    view_object.parse_region(start_position=481769, end_position=481771, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

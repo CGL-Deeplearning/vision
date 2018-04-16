@@ -53,7 +53,6 @@ class IntervalTree(object):
         """
         start_query, stop_query = interval
         matches = self.find(start_query, stop_query)
-
         is_subset = False
         for match in matches:
             start = match[0]
