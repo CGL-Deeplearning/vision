@@ -78,6 +78,7 @@ DEL_TYPE = '3'
 IN_TYPE = '2'
 MATCH_TYPE = '1'
 
+
 def solve_multiple_alts(alts, ref):
     type1, type2 = alts[0][1], alts[1][1]
     alt1, alt2 = alts[0][0], alts[1][0]
@@ -263,6 +264,7 @@ def get_proper_alleles(record):
     if genotype == '2/2':
         refined_gt = '1/1'
 
+    end_pos = st_pos + len(ref)
     record = chrm, st_pos, end_pos, ref, refined_alt, refined_gt, phred_qual, phred_gq
 
     return record
