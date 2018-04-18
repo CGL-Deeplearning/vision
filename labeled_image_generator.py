@@ -43,7 +43,7 @@ DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
 # only select 0.6% of the total homozygous cases as they are dominant
-STRATIFICATION_RATE = 0.5
+STRATIFICATION_RATE = 1.0
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -223,8 +223,8 @@ class View:
         if self.confident_tree is not None:
             confident_labeled = []
             for candidate in selected_candidates:
-                pos_st = candidate[1]
-                pos_end = candidate[2]
+                pos_st = candidate[1] + 1
+                pos_end = candidate[1] + 1
                 in_conf = self.in_confident_check(pos_st, pos_end)
                 if in_conf is True:
                     confident_labeled.append(candidate)

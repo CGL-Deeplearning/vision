@@ -9,11 +9,10 @@ This script creates pileup images given a vcf record, bam alignment file and ref
 imageChannels: Handles how many channels to create for each base and their structure
 
 """
-
+MAP_QUALITY_FILTER = 5.0
 MAX_COLOR_VALUE = 254.0
 BASE_QUALITY_CAP = 40.0
 MAP_QUALITY_CAP = 60.0
-MAP_QUALITY_FILTER = 10.0
 MIN_DELETE_QUALITY = 20.0
 MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
