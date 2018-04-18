@@ -17,9 +17,9 @@ def extract_bed(hdf5_file_path):
 def analyze_image(hdf5_file_path, index):
     hdf5_file = h5py.File(hdf5_file_path, 'r')
     image_dataset = hdf5_file['images']
-    label_dataset = hdf5_file['labels']
+    # label_dataset = hdf5_file['labels']
     image = image_dataset[index]
-    label = label_dataset[index]
+    # label = label_dataset[index]
     # whole_img = image_analyzer.np_array_to_img(image, image.shape[0], image.shape[1])
     # misc.imsave(hdf5_file_path + '_' + str(index) + ".png", np.array(whole_img), format="PNG")
     image_analyzer.analyze_np_array(image, image.shape[0], image.shape[1])

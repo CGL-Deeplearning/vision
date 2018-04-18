@@ -63,17 +63,47 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
         for i in range(0, preds.size(0)):
             rec = records[i]
-            chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type = rec.rstrip().split('\t')[0:7]
+            chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
             probs = preds[i].data.numpy()
             prob_hom, prob_het, prob_hom_alt = probs
-            prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type, prob_hom, prob_het, prob_hom_alt))
-            # print((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type, prob_hom, prob_het, prob_hom_alt))
-        sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter+1) + "/" + str(len(testloader)) + "\n" + TextColor.END)
+            prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
+                                            prob_hom, prob_het, prob_hom_alt))
+            # print((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, prob_hom, prob_het, prob_hom_alt))
+        sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter+1) + "/" +
+                         str(len(testloader)) + "\n" + TextColor.END)
 
     return prediction_dict
 
+DEL_TYPE = '3'
+IN_TYPE = '2'
+
+
+def solve_multiple_alts(alts, ref):
+    type1, type2 = alts[0][1], alts[1][1]
+    alt1, alt2 = alts[0][0], alts[1][0]
+    if type1 == DEL_TYPE and type2 == DEL_TYPE:
+        if len(alt2) > len(alt1):
+            return alt2, ref, alt2[0] + alt2[len(alt1):]
+        else:
+            return alt1, ref, alt1[0] + alt1[len(alt2):]
+    elif type1 == IN_TYPE and type2 == IN_TYPE:
+        return ref, alt1, alt2
+    else:
+        if type1 == DEL_TYPE:
+            return alt1, ref, alt1 + alt2[1:]
+        else:
+            return alt2, alt2 + alt1[1:], ref
+
+
+def solve_single_alt(alts, ref):
+    # print(alts)
+    alt1, alt_type = alts
+    if alt_type == DEL_TYPE:
+        return alt1, ref, '.'
+    return ref, alt1, '.'
 
 def get_genotype_for_multiple_allele(records):
+    # print(records)
     ref = '.'
     st_pos = 0
     end_pos = 0
@@ -81,6 +111,7 @@ def get_genotype_for_multiple_allele(records):
     rec_alt1 = '.'
     rec_alt2 = '.'
     alt_probs = defaultdict(list)
+    alt_with_types = []
     for record in records:
         chrm = record[0]
         ref = record[3]
@@ -91,9 +122,10 @@ def get_genotype_for_multiple_allele(records):
         if alt1 != '.' and alt2 != '.':
             rec_alt1 = alt1
             rec_alt2 = alt2
-            alt_probs['both'] = (record[7:])
+            alt_probs['both'] = (record[8:])
         else:
-            alt_probs[alt1] = (record[7:])
+            alt_probs[alt1] = (record[8:])
+            alt_with_types.append((alt1, record[6]))
 
     p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
     p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
@@ -117,13 +149,20 @@ def get_genotype_for_multiple_allele(records):
             index = i
             gq = prob
     qual = sum(prob_list) - prob_list[0]
+    if index == 5:
+        ref, rec_alt1, rec_alt2 = solve_multiple_alts(alt_with_types, ref)
+    else:
+        if index <= 2:
+            ref, rec_alt1, rec_alt2 = solve_single_alt(alt_with_types[0], ref)
+        else:
+            ref, rec_alt2, rec_alt1 = solve_single_alt(alt_with_types[1], ref)
     # print(index, gq, qual)
     return chrm, st_pos, end_pos, ref, [rec_alt1, rec_alt2], genotype_list[index], qual, gq
 
 
 def get_genotype_for_single_allele(records):
     for record in records:
-        probs = [record[7], record[8], record[9]]
+        probs = [record[8], record[9], record[10]]
         genotype_list = ['0/0', '0/1', '1/1']
         gq, index = max([(v, i) for i, v in enumerate(probs)])
         qual = sum(probs) - probs[0]

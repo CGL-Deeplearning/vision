@@ -81,11 +81,11 @@ class View:
 
     @staticmethod
     def get_images_for_two_alts(record):
-        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
 
-        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type]
-        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type]
-        rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type]
+        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0]
+        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0]
+        rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2]
         return [rec_1, rec_2, rec_3]
 
     def in_confident_check(self, start, stop):
@@ -112,22 +112,25 @@ class View:
         hdf5_file = h5py.File(hdf5_filename, mode='w')
         image_set = []
         for record in candidate_list:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
 
             if alt2 != '.':
                 image_set.extend(self.get_images_for_two_alts(record))
             else:
-                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type])
+                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2])
 
         img_set = []
         indx = 0
         for img_record in image_set:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = img_record[0:7]
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = img_record[0:8]
 
             alts = [alt1]
+            rec_types = [rec_type_alt1]
             if alt2 != '.':
                 alts.append(alt2)
-            image_array = image_generator.create_image(pos_start, ref, alts, image_height=image_height, image_width=image_width)
+                rec_types.append(rec_type_alt2)
+            image_array = image_generator.create_image(pos_start, ref, alts, rec_types,
+                                                       image_height=image_height, image_width=image_width)
 
             img_rec = str('\t'.join(str(item) for item in img_record))
             img_set.append(np.array(image_array, dtype=np.int8))
@@ -320,7 +323,8 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=481769, end_position=481771, thread_no=1)
+    # view_object.parse_region(start_position=1521297, end_position=1521302, thread_no=1)
+    view_object.parse_region(start_position=100000, end_position=200000, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
