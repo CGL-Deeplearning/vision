@@ -76,7 +76,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
 DEL_TYPE = '3'
 IN_TYPE = '2'
-
+MATCH_TYPE = '1'
 
 def solve_multiple_alts(alts, ref):
     type1, type2 = alts[0][1], alts[1][1]
@@ -88,11 +88,17 @@ def solve_multiple_alts(alts, ref):
             return alt1, ref, alt1[0] + alt1[len(alt2):]
     elif type1 == IN_TYPE and type2 == IN_TYPE:
         return ref, alt1, alt2
-    else:
-        if type1 == DEL_TYPE:
+    elif type1 == DEL_TYPE or type2 == DEL_TYPE:
+        if type1 == DEL_TYPE and type2 == IN_TYPE:
             return alt1, ref, alt1 + alt2[1:]
-        else:
+        elif type1 == IN_TYPE and type2 == DEL_TYPE:
             return alt2, alt2 + alt1[1:], ref
+        elif type1 == DEL_TYPE:
+            return alt1, ref, alt2
+        elif type2 == DEL_TYPE:
+            return alt2, alt1, ref
+    else:
+        return ref, alt1, alt2
 
 
 def solve_single_alt(alts, ref):
@@ -166,7 +172,13 @@ def get_genotype_for_single_allele(records):
         genotype_list = ['0/0', '0/1', '1/1']
         gq, index = max([(v, i) for i, v in enumerate(probs)])
         qual = sum(probs) - probs[0]
-        return record[0], record[1], record[2], record[3], [record[4]], genotype_list[index], qual, gq
+        ref = record[3]
+        alt_with_types = list()
+        alt_with_types.append((record[4], record[6]))
+        # print(alt_with_types)
+        ref, rec_alt1, rec_alt2 = solve_single_alt(alt_with_types[0], ref)
+        # print(ref, rec_alt1, rec_alt2)
+        return record[0], record[1], record[2], ref, [rec_alt1, rec_alt2], genotype_list[index], qual, gq
 
 
 def get_vcf_header():
@@ -272,6 +284,7 @@ def produce_vcf(prediction_dict):
         phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000000001 else 60)
         phred_gq = math.ceil(phred_gq * 100.0) / 100.0
         all_calls.append((chrm, int(st_pos), int(end_pos), ref, alt_field, genotype, phred_qual, phred_gq))
+        # print(chrm, int(st_pos), int(end_pos), ref, alt_field, genotype, phred_qual, phred_gq)
 
     all_calls.sort(key=operator.itemgetter(1))
     last_end = 0
