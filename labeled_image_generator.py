@@ -94,7 +94,7 @@ class View:
 
     @staticmethod
     def get_images_for_two_alts(record):
-        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
         gt1, gt2 = record[-2:]
         gt1 = gt1[0]
         gt2 = gt2[0]
@@ -102,10 +102,10 @@ class View:
         gt3 = View.get_combined_gt(gt1, gt2)
         if gt3 is None:
             sys.stderr.write(TextColor.RED + "WEIRD RECORD: " + str(record) + "\n")
-        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type, gt1]
-        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type, gt2]
+        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0, gt1]
+        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0, gt2]
         if gt3 is not None:
-            rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, gt3]
+            rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt3]
             return [rec_1, rec_2, rec_3]
 
         return [rec_1, rec_2]
@@ -162,20 +162,20 @@ class View:
         hdf5_file = h5py.File(hdf5_filename, mode='w')
         image_set = []
         for record in candidate_list:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
             gt1, gt2 = record[-2:]
             gt1 = gt1[0]
 
             if alt2 != '.':
                 image_set.extend(self.get_images_for_two_alts(record))
             else:
-                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, gt1])
+                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt1])
 
         img_set = []
         label_set = []
         indx = 0
         for img_record in image_set:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, label = img_record
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, label = img_record
 
             if STRATIFICATION_RATE < 1.0 and label == 0:
                 random_draw = random.uniform(0, 1)
@@ -183,17 +183,21 @@ class View:
                     continue
 
             alts = [alt1]
+            rec_types = [rec_type_alt1]
             if alt2 != '.':
                 alts.append(alt2)
-            image_array = image_generator.create_image(pos_start, ref, alts, image_height=image_height, image_width=image_width)
+                rec_types.append(rec_type_alt2)
+            image_array = image_generator.create_image(pos_start, ref, alts, rec_types,
+                                                       image_height=image_height, image_width=image_width)
 
             img_rec = str('\t'.join(str(item) for item in img_record))
             label_set.append(label)
             img_set.append(np.array(image_array, dtype=np.int8))
-            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + str(label) + ',' + img_rec + '\n')
+            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
             indx += 1
 
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8, compression='gzip')
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8,
+                                            compression='gzip')
         label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
         img_dset[...] = img_set
         label_dset[...] = label_set
@@ -231,7 +235,6 @@ class View:
             selected_candidates = confident_labeled
 
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-
         image_generator = ImageGenerator(dictionaries_for_images)
 
         if DEBUG_PRINT_CANDIDATES:
@@ -383,7 +386,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=100000, end_position=300000, thread_no=1)
+    view_object.parse_region(start_position=39364915, end_position=39364918, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

@@ -324,7 +324,7 @@ def test(view_object):
     """
     start_time = time.time()
     # view_object.parse_region(start_position=1521297, end_position=1521302, thread_no=1)
-    view_object.parse_region(start_position=100000, end_position=200000, thread_no=1)
+    view_object.parse_region(start_position=3039222, end_position=3039224, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
