@@ -45,6 +45,7 @@ DEBUG_TEST_PARALLEL = False
 # only select 0.6% of the total homozygous cases as they are dominant
 STRATIFICATION_RATE = 1.0
 
+
 def build_chromosomal_interval_trees(confident_bed_path):
     """
     Produce a dictionary of intervals trees, with one tree per chromosome
@@ -287,7 +288,7 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads, confident_bed_tree):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confident_bed_tree):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
@@ -297,6 +298,10 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
+    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
+    # create dump directory inside output directory
+    output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+
     # entire length of chromosome
     fasta_handler = FastaHandler(ref_file)
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
@@ -340,14 +345,11 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
 
     # each chromosome in list
     for chr_name in chr_list:
-        sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
+
         start_time = time.time()
 
-        # create dump directory inside output directory
-        output_dir = create_output_dir_for_chromosome(output_dir_path, chr_name)
-
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir,
+        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
                                          max_threads, confident_bed_tree)
 
         end_time = time.time()
