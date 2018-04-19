@@ -298,7 +298,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
-    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
+    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
     # create dump directory inside output directory
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
 
