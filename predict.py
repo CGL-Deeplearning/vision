@@ -45,8 +45,19 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.load_state_dict(new_state_dict)
         model.cpu()
     else:
-        model = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location='cpu')
+        state_dict = checkpoint['state_dict']
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`
+            new_state_dict[name] = v
+
+        model = Inception3()
+        model.load_state_dict(new_state_dict)
         model = model.cuda()
+        model = torch.nn.DataParallel(model).cuda()
 
     model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
 
