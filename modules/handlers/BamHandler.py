@@ -14,9 +14,8 @@ class BamHandler:
         create AlignmentFile object given file path to a bam file
         :param bam_file_path: full path to a bam file
         """
-        self.bam_file_path = bam_file_path
         try:
-            self.bamFile = pysam.AlignmentFile(self.bam_file_path, "rb")
+            self.bamFile = pysam.AlignmentFile(bam_file_path, "rb")
         except:
             raise IOError("BAM FILE READ ERROR")
 
@@ -53,4 +52,7 @@ class BamHandler:
         :return: Reads that align to that site
         """
         return self.bamFile.fetch(chromosome_name, start, stop)
+
+    def get_header_sq(self):
+        return self.bamFile.header['SQ']
 
