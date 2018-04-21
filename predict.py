@@ -189,6 +189,3 @@ if __name__ == '__main__':
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PREDICTION COMPLETED SUCCESSFULLY.\n")
     produce_vcf(record_dict, FLAGS.bam_file, FLAGS.sample_name, FLAGS.output_dir)
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "FINISHED CALLING VARIANT.\n")
-
-
-

@@ -9,11 +9,10 @@ This script creates pileup images given a vcf record, bam alignment file and ref
 imageChannels: Handles how many channels to create for each base and their structure
 
 """
-
+MAP_QUALITY_FILTER = 5.0
 MAX_COLOR_VALUE = 254.0
 BASE_QUALITY_CAP = 40.0
 MAP_QUALITY_CAP = 60.0
-MAP_QUALITY_FILTER = 10.0
 MIN_DELETE_QUALITY = 20.0
 MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
@@ -105,7 +104,6 @@ class ImageGenerator:
                 if alt in read_alleles:
                     supporting = True
                     break
-
         support_val = 254.0 if supporting is True else 152.4
 
         read_row = np.array(self.image_row_for_reads[read_id][0])
@@ -152,19 +150,10 @@ class ImageGenerator:
             image.append(empty_channels)
         return image
 
-    def normalize_alts(self, ref, alt):
-        if len(ref) == 1 and len(alt) == 1:
-            return alt, 1
-        if len(ref) > len(alt):
-            return ref, 3
-        if len(alt) > len(ref):
-            ret_alt = ref[0] + alt[len(ref):]
-            return ret_alt, 2
-
-    def create_image(self, query_pos, ref, alts, image_height=300, image_width=300, ref_band=5):
+    def create_image(self, query_pos, ref, alts, alt_types, image_height=300, image_width=300, ref_band=5):
         alts_norm = []
-        for alt in alts:
-            alts_norm.append(self.normalize_alts(ref, alt))
+        for i, alt in enumerate(alts):
+            alts_norm.append((alt, alt_types[i]))
         alts = alts_norm
         whole_image = []
         # get all reads that align to that position

@@ -127,12 +127,9 @@ class CandidateLabeler:
         for i, alt in enumerate(alts):
             ref_ret = ref
             alt_seq, alt_type = alt, allele_types[i]
-            if alt_type == IN_CANDIDATE:
-                ref_ret, alt_seq = CandidateLabeler._resolve_suffix_for_insert(ref, alt_seq)
             if alt_type == DEL_CANDIDATE:
-                ref_ret, alt_seq = CandidateLabeler._resolve_suffix_for_delete(ref, alt_seq)
+                ref_ret, alt_seq = alt_seq, ref_ret
             refined_alts.append([ref_ret, alt_seq, alt_type])
-
         vcf_recs = []
         for record in records:
             # get the alt allele of the record
@@ -142,7 +139,6 @@ class CandidateLabeler:
                 record.type = 'Hom'
             # if the alt allele of the record is same as candidate allele
             vcf_recs.append((record.ref, rec_alt, record.type, record.filter, record.mq, record.gq, record.gt))
-
         gts = list()
         for alt in refined_alts:
             ref_seq, alt_seq, alt_type = alt

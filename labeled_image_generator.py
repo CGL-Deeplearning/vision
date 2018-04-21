@@ -43,7 +43,8 @@ DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
 # only select 0.6% of the total homozygous cases as they are dominant
-STRATIFICATION_RATE = 0.5
+STRATIFICATION_RATE = 1.0
+
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -94,7 +95,7 @@ class View:
 
     @staticmethod
     def get_images_for_two_alts(record):
-        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
         gt1, gt2 = record[-2:]
         gt1 = gt1[0]
         gt2 = gt2[0]
@@ -102,10 +103,10 @@ class View:
         gt3 = View.get_combined_gt(gt1, gt2)
         if gt3 is None:
             sys.stderr.write(TextColor.RED + "WEIRD RECORD: " + str(record) + "\n")
-        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type, gt1]
-        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type, gt2]
+        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0, gt1]
+        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0, gt2]
         if gt3 is not None:
-            rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, gt3]
+            rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt3]
             return [rec_1, rec_2, rec_3]
 
         return [rec_1, rec_2]
@@ -162,20 +163,20 @@ class View:
         hdf5_file = h5py.File(hdf5_filename, mode='w')
         image_set = []
         for record in candidate_list:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
             gt1, gt2 = record[-2:]
             gt1 = gt1[0]
 
             if alt2 != '.':
                 image_set.extend(self.get_images_for_two_alts(record))
             else:
-                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, gt1])
+                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt1])
 
         img_set = []
         label_set = []
         indx = 0
         for img_record in image_set:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type, label = img_record
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, label = img_record
 
             if STRATIFICATION_RATE < 1.0 and label == 0:
                 random_draw = random.uniform(0, 1)
@@ -183,17 +184,21 @@ class View:
                     continue
 
             alts = [alt1]
+            rec_types = [rec_type_alt1]
             if alt2 != '.':
                 alts.append(alt2)
-            image_array = image_generator.create_image(pos_start, ref, alts, image_height=image_height, image_width=image_width)
+                rec_types.append(rec_type_alt2)
+            image_array = image_generator.create_image(pos_start, ref, alts, rec_types,
+                                                       image_height=image_height, image_width=image_width)
 
             img_rec = str('\t'.join(str(item) for item in img_record))
             label_set.append(label)
             img_set.append(np.array(image_array, dtype=np.int8))
-            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + str(label) + ',' + img_rec + '\n')
+            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
             indx += 1
 
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8, compression='gzip')
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8,
+                                            compression='gzip')
         label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
         img_dset[...] = img_set
         label_dset[...] = label_set
@@ -223,15 +228,14 @@ class View:
         if self.confident_tree is not None:
             confident_labeled = []
             for candidate in selected_candidates:
-                pos_st = candidate[1]
-                pos_end = candidate[2]
+                pos_st = candidate[1] + 1
+                pos_end = candidate[1] + 1
                 in_conf = self.in_confident_check(pos_st, pos_end)
                 if in_conf is True:
                     confident_labeled.append(candidate)
             selected_candidates = confident_labeled
 
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-
         image_generator = ImageGenerator(dictionaries_for_images)
 
         if DEBUG_PRINT_CANDIDATES:
@@ -284,7 +288,7 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads, confident_bed_tree):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confident_bed_tree):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
@@ -294,6 +298,10 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
+    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
+    # create dump directory inside output directory
+    output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+
     # entire length of chromosome
     fasta_handler = FastaHandler(ref_file)
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
@@ -337,14 +345,11 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
 
     # each chromosome in list
     for chr_name in chr_list:
-        sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
+
         start_time = time.time()
 
-        # create dump directory inside output directory
-        output_dir = create_output_dir_for_chromosome(output_dir_path, chr_name)
-
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir,
+        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
                                          max_threads, confident_bed_tree)
 
         end_time = time.time()

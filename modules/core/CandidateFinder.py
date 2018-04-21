@@ -408,32 +408,15 @@ class CandidateFinder:
         """
         alt1_tuple, alt1_count, alt1_freq = alt1
         alt1_seq, alt1_type = alt1_tuple
-        pos_end = pos
         if alt2 == '.':
-            if alt1_type == DELETE_ALLELE:
-                ref, alt1_seq = alt1_seq, ref
-                pos_end = pos + len(ref) - 1
+            pos_end = pos + len(alt1_seq) - 1
             return [pos, pos_end, ref, alt1_seq, '.', alt1_type, 0, ref_count, alt1_count, 0, alt1_freq, 0]
         alt2_tuple, alt2_count, alt2_freq = alt2
         alt2_seq, alt2_type = alt2_tuple
-        pos_end = pos
-        if alt1_type == DELETE_ALLELE and alt2_type == DELETE_ALLELE:
-            if len(alt1_seq) < len(alt2_seq):
-                alt1_seq, alt2_seq = alt2_seq, alt1_seq
-                alt1_count, alt2_count = alt2_count, alt1_count
-                alt1_freq, alt2_freq = alt2_freq, alt1_freq
-            ref, alt1_seq = alt1_seq, ref
-            pos_end = pos + len(ref) - 1
-        elif alt1_type == DELETE_ALLELE:
-            ref, alt1_seq = alt1_seq, ref
-            alt2_seq = alt2_seq + ref[1:]
-            pos_end = pos + len(ref) - 1
-        elif alt2_type == DELETE_ALLELE:
-            ref, alt2_seq = alt2_seq, ref
-            alt1_seq = alt1_seq + ref[1:]
-            pos_end = pos + len(ref) - 1
+        pos_end = pos + max(len(alt1_seq), len(alt2_seq)) - 1
 
-        return [pos, pos_end, ref, alt1_seq, alt2_seq, alt1_type, alt2_type, ref_count, alt1_count, alt2_count, alt1_freq, alt2_freq]
+        return [pos, pos_end, ref, alt1_seq, alt2_seq, alt1_type, alt2_type, ref_count, alt1_count, alt2_count,
+                alt1_freq, alt2_freq]
 
     def postprocess_reads(self, read_id_list):
         for read_id in read_id_list:
@@ -542,9 +525,7 @@ class CandidateFinder:
 
             # pick the top 2 most frequent allele
             allele_frequency_list = list(sorted(all_allele_dictionary.items(), key=operator.itemgetter(1), reverse=True))[:PLOIDY]
-
             allele_list = self._filter_alleles(pos, allele_frequency_list)
-
             alt1 = allele_list[0] if len(allele_list) >= 1 else None
             alt2 = allele_list[1] if len(allele_list) >= 2 else '.'
             if alt1 is None:
@@ -553,6 +534,7 @@ class CandidateFinder:
             dp = self.coverage[pos]
             ref_count = self.coverage[pos] - all_mismatch_count
             candidate_record = [self.chromosome_name] + self._get_record(pos, alt1, alt2, ref, ref_count) + [mq_rms] + [dp]
+
             selected_allele_list.append(candidate_record)
 
         return selected_allele_list

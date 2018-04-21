@@ -7,7 +7,6 @@ import multiprocessing
 import h5py
 from tqdm import tqdm
 import numpy as np
-import random
 
 from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -16,8 +15,6 @@ from modules.handlers.TextColor import TextColor
 from modules.core.IntervalTree import IntervalTree
 from modules.handlers.TsvHandler import TsvHandler
 from modules.core.ImageGenerator import ImageGenerator
-from modules.handlers.VcfHandler import VCFFileProcessor
-from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.FileManager import FileManager
 """
 candidate_finder finds possible variant sites in given bam file.
@@ -68,24 +65,23 @@ class View:
     """
     Works as a main class and handles user interaction with different modules.
     """
-    def __init__(self, chromosome_name, bam_file_path, reference_file_path, vcf_path, output_file_path, confident_tree):
+    def __init__(self, chromosome_name, bam_file_path, reference_file_path, output_file_path, confident_tree):
         # --- initialize handlers ---
         self.bam_handler = BamHandler(bam_file_path)
         self.fasta_handler = FastaHandler(reference_file_path)
         self.output_dir = output_file_path
         self.confident_tree = confident_tree[chromosome_name] if confident_tree else None
-        self.vcf_handler = VCFFileProcessor(file_path=vcf_path)
 
         # --- initialize parameters ---
         self.chromosome_name = chromosome_name
 
     @staticmethod
     def get_images_for_two_alts(record):
-        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
 
-        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type]
-        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type]
-        rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type]
+        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0]
+        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0]
+        rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2]
         return [rec_1, rec_2, rec_3]
 
     def in_confident_check(self, start, stop):
@@ -112,22 +108,25 @@ class View:
         hdf5_file = h5py.File(hdf5_filename, mode='w')
         image_set = []
         for record in candidate_list:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = record[0:7]
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
 
             if alt2 != '.':
                 image_set.extend(self.get_images_for_two_alts(record))
             else:
-                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type])
+                image_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2])
 
         img_set = []
         indx = 0
         for img_record in image_set:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type = img_record[0:7]
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = img_record[0:8]
 
             alts = [alt1]
+            rec_types = [rec_type_alt1]
             if alt2 != '.':
                 alts.append(alt2)
-            image_array = image_generator.create_image(pos_start, ref, alts, image_height=image_height, image_width=image_width)
+                rec_types.append(rec_type_alt2)
+            image_array = image_generator.create_image(pos_start, ref, alts, rec_types,
+                                                       image_height=image_height, image_width=image_width)
 
             img_rec = str('\t'.join(str(item) for item in img_record))
             img_set.append(np.array(image_array, dtype=np.int8))
@@ -178,7 +177,7 @@ class View:
         self.generate_candidate_images(selected_candidates, image_generator, thread_no)
 
 
-def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
+def parallel_run(chr_name, bam_file, ref_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
     """
     Run this method in parallel
     :param chr_name: Chromosome name
@@ -196,7 +195,6 @@ def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, 
                    bam_file_path=bam_file,
                    reference_file_path=ref_file,
                    output_file_path=output_dir,
-                   vcf_path=vcf_file,
                    confident_tree=conf_bed_tree)
 
     # return the results
@@ -221,7 +219,7 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir, max_threads, confident_bed_tree):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_path, max_threads, confident_bed_tree):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Chromosome name
@@ -231,6 +229,9 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :param max_threads: Maximum number of threads
     :return: A list of results returned by the processes
     """
+    # create dump directory inside output directory
+    output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+
     # entire length of chromosome
     fasta_handler = FastaHandler(ref_file)
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
@@ -245,7 +246,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
+        args = (chr_name, bam_file, ref_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
@@ -255,7 +256,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
                 break
 
 
-def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
+def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_threads, confident_bed_tree):
     """
     This method calls chromosome_level_parallelization for each chromosome.
     :param bam_file: BAM file path
@@ -277,12 +278,8 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
         sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
         start_time = time.time()
 
-        # create dump directory inside output directory
-        output_dir = create_output_dir_for_chromosome(output_dir_path, chr_name)
-
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir,
-                                         max_threads, confident_bed_tree)
+        chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir_path, max_threads, confident_bed_tree)
 
         end_time = time.time()
         sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr_name) + " PROCESSES" + "\n")
@@ -320,7 +317,8 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=481769, end_position=481771, thread_no=1)
+    # view_object.parse_region(start_position=1521297, end_position=1521302, thread_no=1)
+    view_object.parse_region(start_position=3039222, end_position=3039224, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
@@ -364,12 +362,6 @@ if __name__ == '__main__':
         type=str,
         required=True,
         help="Reference corresponding to the BAM file."
-    )
-    parser.add_argument(
-        "--vcf",
-        type=str,
-        required=True,
-        help="VCF file path."
     )
     parser.add_argument(
         "--chromosome_name",
@@ -419,13 +411,12 @@ if __name__ == '__main__':
         view = View(chromosome_name=FLAGS.chromosome_name,
                     bam_file_path=FLAGS.bam,
                     reference_file_path=FLAGS.ref,
-                    vcf_path=FLAGS.vcf,
                     output_file_path=chromosome_output,
                     confident_tree=confident_tree_build)
         test(view)
     elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
+        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.output_dir,
                                          FLAGS.max_threads, confident_tree_build)
     else:
-        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
+        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.output_dir,
                                      FLAGS.max_threads, confident_tree_build)
