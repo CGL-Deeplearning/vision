@@ -55,4 +55,3 @@ class BamHandler:
 
     def get_header_sq(self):
         return self.bamFile.header['SQ']
-

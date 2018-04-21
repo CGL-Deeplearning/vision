@@ -73,12 +73,14 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
         for i in range(0, preds.size(0)):
             rec = records[i]
-            chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type = rec.rstrip().split('\t')[0:7]
+            chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
             probs = preds[i].data.numpy()
             prob_hom, prob_het, prob_hom_alt = probs
-            prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type, prob_hom, prob_het, prob_hom_alt))
-            # print((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type, prob_hom, prob_het, prob_hom_alt))
-        sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter+1) + "/" + str(len(testloader)) + "\n" + TextColor.END)
+            prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
+                                            prob_hom, prob_het, prob_hom_alt))
+            # print((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, prob_hom, prob_het, prob_hom_alt))
+        sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
+                         str(len(testloader)) + "\n" + TextColor.END)
 
     return prediction_dict
 
