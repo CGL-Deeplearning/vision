@@ -1,17 +1,16 @@
 import argparse
 import sys
 import torch
-import numpy as np
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import Variable
-from pysam import VariantFile, VariantHeader
 from modules.models.inception import Inception3
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
+from modules.handlers.VcfWriter import VCFWriter
 import operator
-import math
+import os
 
 
 def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
@@ -84,179 +83,43 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     return prediction_dict
 
 
-def get_genotype_for_multiple_allele(records):
-    ref = '.'
-    st_pos = 0
-    end_pos = 0
-    chrm = ''
-    rec_alt1 = '.'
-    rec_alt2 = '.'
-    alt_probs = defaultdict(list)
-    for record in records:
-        chrm = record[0]
-        ref = record[3]
-        st_pos = record[1]
-        end_pos = record[2]
-        alt1 = record[4]
-        alt2 = record[5]
-        if alt1 != '.' and alt2 != '.':
-            rec_alt1 = alt1
-            rec_alt2 = alt2
-            alt_probs['both'] = (record[7:])
-        else:
-            alt_probs[alt1] = (record[7:])
+def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
+    vcf_writer = VCFWriter(bam_file_path, sample_name, output_dir)
 
-    p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
-    p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
-    p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
-    p02 = min(alt_probs[rec_alt2][1], alt_probs['both'][1])
-    p22 = min(alt_probs[rec_alt2][2], alt_probs['both'][2])
-    p12 = min(max(alt_probs[rec_alt1][1], alt_probs[rec_alt1][2]), max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]),
-              max(alt_probs['both'][1], alt_probs['both'][2]))
-    prob_list = [p00, p01, p11, p02, p22, p12]
-    # print(prob_list)
-    sum_probs = sum(prob_list)
-    # print(sum_probs)
-    normalized_list = [(float(i) / sum_probs) if sum_probs else 0 for i in prob_list]
-    prob_list = normalized_list
-    # print(prob_list)
-    # print(sum(prob_list))
-    genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
-    gq, index = 0, 0
-    for i, prob in enumerate(prob_list):
-        if gq <= prob and prob > 0:
-            index = i
-            gq = prob
-    qual = sum(prob_list) - prob_list[0]
-    # print(index, gq, qual)
-    return chrm, st_pos, end_pos, ref, [rec_alt1, rec_alt2], genotype_list[index], qual, gq
-
-
-def get_genotype_for_single_allele(records):
-    for record in records:
-        probs = [record[7], record[8], record[9]]
-        genotype_list = ['0/0', '0/1', '1/1']
-        gq, index = max([(v, i) for i, v in enumerate(probs)])
-        qual = sum(probs) - probs[0]
-        return record[0], record[1], record[2], record[3], [record[4]], genotype_list[index], qual, gq
-
-
-def get_vcf_header():
-    header = VariantHeader()
-    items = [('ID', "PASS"),
-             ('Description', "All filters passed")]
-    header.add_meta(key='FILTER', items=items)
-    items = [('ID', "refCall"),
-             ('Description', "Call is homozygous")]
-    header.add_meta(key='FILTER', items=items)
-    items = [('ID', "lowGQ"),
-             ('Description', "Low genotype quality")]
-    header.add_meta(key='FILTER', items=items)
-    items = [('ID', "lowQUAL"),
-             ('Description', "Low variant call quality")]
-    header.add_meta(key='FILTER', items=items)
-    items = [('ID', "conflictPos"),
-             ('Description', "Overlapping record")]
-    header.add_meta(key='FILTER', items=items)
-    items = [('ID', "GT"),
-             ('Number', 1),
-             ('Type', 'String'),
-             ('Description', "Genotype")]
-    header.add_meta(key='FORMAT', items=items)
-    items = [('ID', "GQ"),
-             ('Number', 1),
-             ('Type', 'Float'),
-             ('Description', "Genotype Quality")]
-    header.add_meta(key='FORMAT', items=items)
-    items = [('ID', "19"),
-             ('length', 198022430)]
-    header.add_meta(key='contig', items=items)
-    items = [('ID', "3"),
-             ('length', 198022430)]
-    header.add_meta(key='contig', items=items)
-    header.add_sample('NA12878')
-    return header
-
-
-def get_genotype_tuple(genotype):
-    split_values = genotype.split('/')
-    split_values = [int(x) for x in split_values]
-    return tuple(split_values)
-
-
-def get_vcf_record(vcf_file, chrm, st_pos, end_pos, ref, alts, genotype, phred_qual, phred_gq, filter):
-    alleles = tuple([ref]) + tuple(alts)
-    genotype = get_genotype_tuple(genotype)
-    end_pos = int(end_pos)+1
-    st_pos = int(st_pos)
-    vcf_record = vcf_file.new_record(contig=chrm, start=st_pos, stop=end_pos, id='.', qual=phred_qual,
-                                     filter=filter, alleles=alleles, GT=genotype, GQ=phred_gq)
-    return vcf_record
-
-
-def get_filter(record, last_end):
-    chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
-    if st_pos <= last_end:
-        return 'conflictPos'
-    if genotype == '0/0':
-        return 'refCall'
-    if phred_qual < 0:
-        return 'lowQUAL'
-    if phred_gq < 0:
-        return 'lowGQ'
-    return 'PASS'
-
-
-def get_proper_alleles(record):
-    chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
-    gts = genotype.split('/')
-    refined_alt = []
-    refined_gt = genotype
-    if gts[0] == '1' or gts[1] == '1':
-        refined_alt.append(alt_field[0])
-    if gts[0] == '2' or gts[1] == '2':
-        refined_alt.append(alt_field[1])
-    if gts[0] == '0' and gts[1] == '0':
-        refined_alt.append('.')
-    if genotype == '0/2':
-        refined_gt = '0/1'
-    if genotype == '2/2':
-        refined_gt = '1/1'
-
-    record = chrm, st_pos, end_pos, ref, refined_alt, refined_gt, phred_qual, phred_gq
-
-    return record
-
-
-def produce_vcf(prediction_dict):
-    header = get_vcf_header()
-    vcf = VariantFile('chr19_pred_giab.vcf', 'w', header=header)
     all_calls = []
-    for pos in sorted(prediction_dict.keys()):
-        records = prediction_dict[pos]
+    for pos in sorted(prediction_dictionary.keys()):
+        records = prediction_dictionary[pos]
         if len(records) > 1:
-            chrm, st_pos, end_pos, ref, alt_field, genotype, qual, gq = get_genotype_for_multiple_allele(records)
+            chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_multiple_allele(records)
         else:
-            chrm, st_pos, end_pos, ref, alt_field, genotype, qual, gq = get_genotype_for_single_allele(records)
+            chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_single_allele(records)
 
-        phred_qual = min(60, -10 * np.log10(1 - qual) if 1-qual >= 0.0000001 else 60)
-        phred_qual = math.ceil(phred_qual * 100.0) / 100.0
-        phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000000001 else 60)
-        phred_gq = math.ceil(phred_gq * 100.0) / 100.0
-        all_calls.append((chrm, int(st_pos), int(end_pos), ref, alt_field, genotype, phred_qual, phred_gq))
+        all_calls.append((chrm, int(st_pos), int(end_pos), ref, alts, genotype, qual, gq))
 
     all_calls.sort(key=operator.itemgetter(1))
     last_end = 0
     for record in all_calls:
-        rec_filter = get_filter(record, last_end)
-        # print(chrm, pos, ref, alt_field, genotype, val)
-        record = get_proper_alleles(record)
+        rec_filter = vcf_writer.get_filter(record, last_end)
+        record = vcf_writer.get_proper_alleles(record)
         chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
         if genotype != '0/0':
             last_end = end_pos
-        vcf_rec = get_vcf_record(vcf, chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq, rec_filter)
-        # print(vcf_rec)
-        vcf.write(vcf_rec)
+        vcf_writer.write_vcf_record(chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq, rec_filter)
+
+
+def handle_output_directory(output_dir):
+    """
+    Process the output directory and return a valid directory where we save the output
+    :param output_dir: Output directory path
+    :return:
+    """
+    # process the output directory
+    if output_dir[-1] != "/":
+        output_dir += "/"
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+
+    return output_dir
 
 
 if __name__ == '__main__':
@@ -269,7 +132,13 @@ if __name__ == '__main__':
         "--test_file",
         type=str,
         required=True,
-        help="Testing data description csv file.."
+        help="Testing data description csv file."
+    )
+    parser.add_argument(
+        "--bam_file",
+        type=str,
+        required=True,
+        help="Path to the BAM file."
     )
     parser.add_argument(
         "--batch_size",
@@ -297,9 +166,29 @@ if __name__ == '__main__':
         default=False,
         help="If true then cuda is on."
     )
+    parser.add_argument(
+        "--sample_name",
+        type=str,
+        required=False,
+        default='NA12878',
+        help="Sample name of the sequence."
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        required=False,
+        default='vcf_output',
+        help="Output directory."
+    )
     FLAGS, unparsed = parser.parse_known_args()
+    FLAGS.output_dir = handle_output_directory(FLAGS.output_dir)
+    sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "SAMPLE NAME: " + FLAGS.sample_name + "\n")
+    sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PLEASE USE --sample_name TO CHANGE SAMPLE NAME.\n")
+    sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "OUTPUT DIRECTORY: " + FLAGS.output_dir + "\n")
+    record_dict = predict(FLAGS.test_file, FLAGS.batch_size, FLAGS.model_path, FLAGS.gpu_mode, FLAGS.num_workers)
+    sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PREDICTION COMPLETED SUCCESSFULLY.\n")
+    produce_vcf(record_dict, FLAGS.bam_file, FLAGS.sample_name, FLAGS.output_dir)
+    sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "FINISHED CALLING VARIANT.\n")
 
-    prediction_dict = predict(FLAGS.test_file, FLAGS.batch_size, FLAGS.model_path, FLAGS.gpu_mode, FLAGS.num_workers)
-    sys.stderr.write(TextColor.BLUE+"Prediction done." +"\n"+ TextColor.END)
-    produce_vcf(prediction_dict)
+
 
