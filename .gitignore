@@ -99,3 +99,21 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# pyCharm
+.idea/
+
+# output
+outputs/
+
+# vcf_output
+vcf_output/
+
+# png files
+*.png
+
+# trained models
+trained_model/
+
+# the DS_Store
+.DS_Store
