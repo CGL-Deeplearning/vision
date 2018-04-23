@@ -165,6 +165,7 @@ class VCFWriter:
         if genotype == '2/2':
             refined_gt = '1/1'
 
+        end_pos = st_pos + len(ref) - 1
         record = chrm, st_pos, end_pos, ref, refined_alt, refined_gt, phred_qual, phred_gq
 
         return record
