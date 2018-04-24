@@ -92,5 +92,5 @@ if __name__ == '__main__':
         help="Directory to save the model"
     )
     FLAGS, unparsed = parser.parse_known_args()
-    wh = WrapHyperband(FLAGS.train_file, FLAGS.test_file, FLAGS.gpu_mode, FLAGS.model_out_dir)
+    wh = WrapHyperband(FLAGS.train_file, FLAGS.test_file, FLAGS.gpu_mode, FLAGS.model_output_dir)
     wh.run(save_output=True)
