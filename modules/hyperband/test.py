@@ -8,7 +8,7 @@ from torch.autograd import Variable
 from modules.core.dataloader import PileupDataset, TextColor
 
 
-def test(data_file, batch_size, gpu_mode, trained_model, num_workers, num_classes=3):
+def test(data_file, batch_size, gpu_mode, trained_model, num_workers, num_classes=3, debug_print=False):
     transformations = transforms.Compose([transforms.ToTensor()])
 
     validation_data = PileupDataset(data_file, transformations)
@@ -51,7 +51,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
         total_loss += float(test_loss.data[0])
         total_images += float(images.size(0))
         batches_done += 1
-        if batches_done % 1000 == 0:
+        if debug_print is True:
             sys.stderr.write(str(confusion_matrix.conf)+"\n")
             sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
                              "\n" + TextColor.END)

@@ -20,29 +20,28 @@ from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.FileManager import FileManager
 """
-candidate_finder finds possible variant sites in given bam file.
-This script selects candidates for variant calling. 
-It walks through the genome, looks at mismatches and records candidates.
+This script creates training images from BAM, Reference FASTA and truth VCF file. The process is:
+- Find candidates that can be variants
+- Label candidates using the VCF
+- Create images for each candidate
 
-It requires three parameters:
-- bam_file_path: path to a bam file
-- reference_file_path: path to a reference file
-- vcf_file_path: path to a VCF file for true genotype labeling
+Input:
+- BAM file: Alignment of a genome
+- REF file: The reference fasta file used in the alignment
+- VCF file: A truth VCF file
+- BED file: A confident bed file. If confident_bed is passed it will only generate train set for those region.
 
-Creates:
-- Bed files containing candidate sites.
-
-
-Also, the terms "window" and "region" are NOT interchangeable.
-Region: A genomic region of interest where we want to find possible variant candidate
-Window: A window in genomic region where there can be multiple alleles
-
-A region can have multiple windows and each window belongs to a region.
+Output:
+- H5PY files: Containing images and their label of the genome.
+- CSV file: Containing records of images and their location in the H5PY file.
 """
+
+# Global debug helpers
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
-# only select 0.6% of the total homozygous cases as they are dominant
+
+# only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
 STRATIFICATION_RATE = 1.0
 
 

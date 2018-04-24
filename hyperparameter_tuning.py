@@ -15,16 +15,17 @@ from modules.hyperband.test import test
 class WrapHyperband:
     # Paramters of the model
     # depth=28 widen_factor=4 drop_rate=0.0
-    def __init__(self, train_file, test_file, gpu_mode):
+    def __init__(self, train_file, test_file, gpu_mode, model_out_dir):
         self.space = {
             # Returns a value drawn according to exp(uniform(low, high)) so that the logarithm of the return value is
             # uniformly distributed.
-            'learning_rate': hp.loguniform('lr', -12, -6),
+            'learning_rate': hp.loguniform('lr', -12, -7),
             'l2': hp.loguniform('l2', -14, -7),
         }
         self.train_file = train_file
         self.test_file = test_file
         self.gpu_mode = gpu_mode
+        self.model_out_dir = model_out_dir
 
     def get_params(self):
         return sample(self.space)
@@ -42,12 +43,13 @@ class WrapHyperband:
         lr = params['learning_rate']
         l2 = params['l2']
 
-        model = train(self.train_file, batch_size, epoch_limit, self.gpu_mode, num_workers, lr, l2)
+        model, optimizer = train(self.train_file, batch_size, epoch_limit, self.gpu_mode, num_workers, lr, l2)
         stats_dictionary = test(self.test_file, batch_size, self.gpu_mode, model, num_workers)
-        return stats_dictionary
+        return model, optimizer, stats_dictionary
 
     def run(self, save_output):
-        hyperband = Hyperband(self.get_params, self.try_params, max_iteration=5, downsample_rate=3)
+        hyperband = Hyperband(self.get_params, self.try_params, max_iteration=8, downsample_rate=2,
+                              model_directory=self.model_out_dir)
         results = hyperband.run()
 
         if save_output:
@@ -83,6 +85,12 @@ if __name__ == '__main__':
         default=False,
         help="If true then cuda is on."
     )
+    parser.add_argument(
+        "--model_outut_dir",
+        type=str,
+        default=True,
+        help="Directory to save the model"
+    )
     FLAGS, unparsed = parser.parse_known_args()
-    wh = WrapHyperband(FLAGS.train_file, FLAGS.test_file, FLAGS.gpu_mode)
+    wh = WrapHyperband(FLAGS.train_file, FLAGS.test_file, FLAGS.gpu_mode, FLAGS.model_out_dir)
     wh.run(save_output=True)

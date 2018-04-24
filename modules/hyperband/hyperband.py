@@ -6,11 +6,28 @@ from time import time, ctime
 import sys
 from modules.handlers.TextColor import TextColor
 import logging
+import os
 from datetime import datetime
+import torch
+from modules.models.ModelHandler import ModelHandler
+
+
+def save_best_model_hyperband(best_model, optimizer, file_name):
+    sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
+    if os.path.isfile(file_name + '_model.pkl'):
+        os.remove(file_name + '_model.pkl')
+    if os.path.isfile(file_name + '_checkpoint.pkl'):
+        os.remove(file_name + '_checkpoint.pkl')
+    torch.save(best_model, file_name + '_model.pkl')
+    ModelHandler.save_checkpoint({
+        'state_dict': best_model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+    }, file_name + '_checkpoint.pkl')
+    sys.stderr.write(TextColor.RED + "MODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
 
 
 class Hyperband:
-    def __init__(self, get_params_function, try_params_function, max_iteration, downsample_rate):
+    def __init__(self, get_params_function, try_params_function, max_iteration, downsample_rate, model_directory):
         self.get_params = get_params_function
         self.try_params = try_params_function
 
@@ -27,6 +44,8 @@ class Hyperband:
         self.best_acc = 0
         self.best_counter = -1
         self.log_file = './logs/'+'Hyperband_'+datetime.now().strftime("%Y%m%d-%H%M%S")+'.log'
+        self.model_directory = model_directory + 'Hyperband_trained_' + datetime.now().strftime("%Y%m%d-%H%M%S")
+
         logging.basicConfig(filename=self.log_file, level=logging.INFO)
 
     # can be called multiple times
@@ -51,7 +70,7 @@ class Hyperband:
                 n_configs = n * self.eta ** (-i)
                 n_iterations = r * self.eta ** (i)
 
-                sys.stderr.write(TextColor.BLUE + "\n*** {} configurations x {:.1f} iterations each"
+                sys.stderr.write(TextColor.BLUE + "\n*** {} configurations x {:.5f} iterations each"
                                  .format(n_configs, n_iterations) + "\n" + TextColor.END)
 
                 logging.info("\n*** {} configurations x {:.1f} iterations each".format(n_configs, n_iterations))
@@ -62,19 +81,21 @@ class Hyperband:
                 for t in T:
 
                     self.counter += 1
-                    sys.stderr.write(TextColor.BLUE + "{} | {} | lowest loss so far: {:.4f} | (run {})"
+                    sys.stderr.write(TextColor.BLUE + "{} | {} | lowest loss so far: {} | (run {})"
                                      .format(self.counter, ctime(), self.best_loss, self.best_counter) + TextColor.END)
-                    logging.info("{} | {} | lowest loss so far: {:.4f} | (run {})"
+                    logging.info("{} | {} | lowest loss so far: {} | (run {})"
                                  .format(self.counter, ctime(), self.best_loss, self.best_counter))
 
                     start_time = time()
 
                     if dry_run:
                         result = {'loss': random(), 'log_loss': random(), 'auc': random()}
+                        model = ''
+                        optimizer = ''
                     else:
                         logging.info("Iterations:\t" + str(n_iterations))
                         logging.info("Params:\t" + str(t))
-                        result = self.try_params(n_iterations, t)  # <---
+                        model, optimizer, result = self.try_params(n_iterations, t)  # <---
 
                     assert (type(result) == dict)
                     assert ('loss' in result)
@@ -91,6 +112,7 @@ class Hyperband:
                     # keeping track of the best result so far (for display only)
                     # could do it be checking results each time, but hey
                     if loss < self.best_loss:
+                        save_best_model_hyperband(model, optimizer, self.model_directory)
                         self.best_loss = loss
                         self.best_counter = self.counter
 
