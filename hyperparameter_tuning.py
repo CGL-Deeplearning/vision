@@ -86,7 +86,7 @@ if __name__ == '__main__':
         help="If true then cuda is on."
     )
     parser.add_argument(
-        "--model_outut_dir",
+        "--model_output_dir",
         type=str,
         default=True,
         help="Directory to save the model"
