@@ -11,10 +11,31 @@ from torch.utils.data import DataLoader
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.inception import Inception3
 
-'''Train the model and return'''
+"""
+Train a model and return the model and optimizer trained.
+
+Input:
+- A train CSV containing training image set information (usually chr1-18)
+
+Return:
+- A trained model
+"""
 
 
 def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, num_classes=3, debug_print=False):
+    """
+    Train a model and save
+    :param train_file: A CSV file containing train image information
+    :param batch_size: Batch size for training
+    :param epoch_limit: Number of epochs to train on
+    :param gpu_mode: If true the model will be trained on GPU
+    :param num_workers: Number of workers for data loading
+    :param lr: Learning rate (Hyperparameter)
+    :param wd: Weight decay (Hyperparameter)
+    :param num_classes: Number of output classes (3- HOM, HET, HOM_ALT)
+    :param debug_print: If true debugging messages will print
+    :return: A trined model
+    """
     transformations = transforms.Compose([transforms.ToTensor()])
 
     # sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
@@ -88,5 +109,5 @@ def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, nu
                          "\n" + TextColor.END)
 
     # sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
-
+    # return trained model and optimizer
     return model, optimizer

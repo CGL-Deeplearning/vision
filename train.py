@@ -13,21 +13,32 @@ from torch.autograd import Variable
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
 from modules.models.inception import Inception3
+"""
+Train a model and save the model that performs best.
 
+Input:
+- A train CSV containing training image set information (usually chr1-18)
+- A test CSV containing testing image set information (usually chr19)
 
-def exp_lr_scheduler(optimizer, epoch, lr_decay=0.1, lr_decay_epoch=1):
-    """Decay learning rate by a factor of lr_decay every lr_decay_epoch epochs"""
-    if epoch % lr_decay_epoch:
-        return optimizer
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] *= lr_decay
-    return optimizer
+Output:
+- A trained model
+"""
 
 
 def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_workers):
+    """
+    Test a trained model
+    :param data_file: Test CSV file containing the test set
+    :param batch_size: Batch size for prediction
+    :param gpu_mode: If True GPU will be used
+    :param trained_model: Trained model
+    :param num_classes: Number of output classes (3- HOM, HET, HOM_ALT)
+    :param num_workers: Number of workers for data loader
+    :return:
+    """
     transformations = transforms.Compose([transforms.ToTensor()])
 
+    # data loader
     validation_data = PileupDataset(data_file, transformations)
     validation_loader = DataLoader(validation_data,
                                    batch_size=batch_size,
@@ -37,6 +48,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
                                    )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
+    # set the evaluation mode of the model
     test_model = trained_model.eval()
     if gpu_mode:
         test_model = test_model.cuda()
@@ -60,7 +72,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
             images = images.cuda()
             labels = labels.cuda()
 
-        # Forward + Backward + Optimize
+        # Predict + confusion_matrix + loss
         outputs = test_model(images)
         confusion_matrix.add(outputs.data, labels.data)
         test_loss = test_criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
@@ -76,13 +88,27 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     avg_loss = total_loss / total_images if total_images else 0
     print('Test Loss: ' + str(avg_loss))
     print('Confusion Matrix: \n', confusion_matrix.conf)
-
+    # print summaries
     sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(avg_loss) + "\n"+TextColor.END)
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
 
 def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_mode,
           model_path, num_classes=3):
+    """
+    Train a model and save
+    :param train_file: A CSV file containing train image information
+    :param validation_file: A CSV file containing test image information
+    :param batch_size: Batch size for training
+    :param epoch_limit: Number of epochs to train on
+    :param file_name: The model output file name
+    :param gpu_mode: If true the model will be trained on GPU
+    :param num_workers: Number of workers for data loading
+    :param retrain_mode: If true then an existing trained model will be loaded and trained
+    :param model_path: If retrain is true then this should be the path to an already trained model
+    :param num_classes: Number of output classes (3- HOM, HET, HOM_ALT)
+    :return:
+    """
     transformations = transforms.Compose([transforms.ToTensor()])
 
     sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
@@ -170,6 +196,13 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
 
 def save_best_model(best_model, optimizer, file_name):
+    """
+    Save the best model
+    :param best_model: A trained model
+    :param optimizer: Optimizer
+    :param file_name: Output file name
+    :return:
+    """
     sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
     if os.path.isfile(file_name + '_model.pkl'):
         os.remove(file_name + '_model.pkl')
@@ -184,6 +217,11 @@ def save_best_model(best_model, optimizer, file_name):
 
 
 def directory_control(file_path):
+    """
+    Create a directory if it doesn't exist
+    :param file_path: Path to the directory
+    :return:
+    """
     directory = os.path.dirname(file_path)
     try:
         os.stat(directory)
@@ -192,6 +230,13 @@ def directory_control(file_path):
 
 
 def get_model_and_optimizer(model_retrain, model_checkpoint_path, gpu_mode):
+    """
+    Load or get a model
+    :param model_retrain: If true then load an existing model
+    :param model_checkpoint_path: Path to an already trained model's checkpoint
+    :param gpu_mode: If True then the model will be trained on GPU
+    :return:
+    """
     if model_retrain is True:
         model = ModelHandler.load_model_for_training(model_checkpoint_path, gpu_mode)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
@@ -205,7 +250,7 @@ def get_model_and_optimizer(model_retrain, model_checkpoint_path, gpu_mode):
 
 if __name__ == '__main__':
     '''
-    Processes arguments and performs tasks to generate the pileup.
+    Processes arguments and performs tasks.
     '''
     parser = argparse.ArgumentParser()
     parser.register("type", "bool", lambda v: v.lower() == "true")

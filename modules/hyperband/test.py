@@ -6,9 +6,30 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import Variable
 from modules.core.dataloader import PileupDataset, TextColor
+"""
+This script will evaluate a model and return the loss value.
+
+Input:
+- A trained model
+- A test CSV file to evaluate
+
+Returns:
+- Loss value
+"""
 
 
 def test(data_file, batch_size, gpu_mode, trained_model, num_workers, num_classes=3, debug_print=False):
+    """
+    Predict images of the data file and print names all the files that are missed in a CSV file.
+    :param data_file: A CSV file containing image information
+    :param batch_size: Size of the batch
+    :param gpu_mode: If true the model will use GPUs
+    :param trained_model: A trained model
+    :param num_workers: Number of workers to use for loading data
+    :param num_classes: Number of classes (HOM, HET, HOM_ALT)
+    :param debug_print: If true the debug messages will print
+    :return: Loss value
+    """
     transformations = transforms.Compose([transforms.ToTensor()])
 
     validation_data = PileupDataset(data_file, transformations)

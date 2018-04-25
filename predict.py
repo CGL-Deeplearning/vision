@@ -11,9 +11,32 @@ from collections import defaultdict
 from modules.handlers.VcfWriter import VCFWriter
 import operator
 import os
+"""
+This script uses a trained model to call variants on a given set of images generated from the genome.
+The process is:
+- Create a prediction table/dictionary using a trained neural network
+- Convert those predictions to a VCF file
+
+INPUT:
+- A trained model
+- Set of images for prediction
+
+Output:
+- A VCF file containing all the variants.
+"""
 
 
 def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
+    """
+    Create a prediction table/dictionary of an images set using a trained model.
+    :param test_file: File to predict on
+    :param batch_size: Batch size used for prediction
+    :param model_path: Path to a trained model
+    :param gpu_mode: If true, predictions will be done over GPU
+    :param num_workers: Number of workers to be used by the dataloader
+    :return: Prediction dictionary
+    """
+    # the prediction table/dictionary
     prediction_dict = defaultdict(list)
     transformations = transforms.Compose([transforms.ToTensor()])
 
@@ -24,15 +47,17 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
                             batch_size=batch_size,
                             shuffle=False,
                             num_workers=num_workers,
-                            pin_memory=gpu_mode # CUDA only
+                            pin_memory=gpu_mode
                             )
 
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
+
+    # load the model
     if gpu_mode is False:
         checkpoint = torch.load(model_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
-        # print('loaded state dict:', state_dict.keys())
-        # print('\nIn state dict keys there is an extra word inserted by model parallel: "module.". We remove it here:')
+
+        # In state dict keys there is an extra word inserted by model parallel: "module.". We remove it here
         from collections import OrderedDict
         new_state_dict = OrderedDict()
 
@@ -58,7 +83,8 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model = model.cuda()
         model = torch.nn.DataParallel(model).cuda()
 
-    model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
+    # Change model to 'eval' mode (BN uses moving mean/var).
+    model.eval()
 
     for counter, (images, records) in enumerate(testloader):
         images = Variable(images, volatile=True)
@@ -67,10 +93,12 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             images = images.cuda()
 
         preds = model(images)
+        # One dimensional softmax is used to convert the logits to probability distribution
         m = nn.Softmax(dim=1)
         soft_probs = m(preds)
         preds = soft_probs.cpu()
 
+        # record each of the predictions from a batch prediction
         for i in range(0, preds.size(0)):
             rec = records[i]
             chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
@@ -78,7 +106,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             prob_hom, prob_het, prob_hom_alt = probs
             prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
                                             prob_hom, prob_het, prob_hom_alt))
-            # print((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, prob_hom, prob_het, prob_hom_alt))
+
         sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
                          str(len(testloader)) + "\n" + TextColor.END)
 
@@ -86,11 +114,22 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
 
 def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
+    """
+    Convert prediction dictionary to a VCF file
+    :param prediction_dictionary: prediction dictionary containing predictions of each image records
+    :param bam_file_path: Path to the BAM file
+    :param sample_name: Name of the sample in the BAM file
+    :param output_dir: Output directory
+    :return:
+    """
+    # object that can write and handle VCF
     vcf_writer = VCFWriter(bam_file_path, sample_name, output_dir)
 
+    # collate multi-allelic records to a single record
     all_calls = []
     for pos in sorted(prediction_dictionary.keys()):
         records = prediction_dictionary[pos]
+        # if record is multi-allelic then combine and get the genotype
         if len(records) > 1:
             chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_multiple_allele(records)
         else:
@@ -98,14 +137,19 @@ def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
 
         all_calls.append((chrm, int(st_pos), int(end_pos), ref, alts, genotype, qual, gq))
 
+    # sort based on position
     all_calls.sort(key=operator.itemgetter(1))
     last_end = 0
     for record in all_calls:
+        # get the record filter ('PASS' or not)
         rec_filter = vcf_writer.get_filter(record, last_end)
+        # get proper alleles. INDEL alleles are handled here.
         record = vcf_writer.get_proper_alleles(record)
         chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq = record
+        # if genotype is not HOM keep track of where the previous record ended
         if genotype != '0/0':
             last_end = end_pos
+        # add the record to VCF
         vcf_writer.write_vcf_record(chrm, st_pos, end_pos, ref, alt_field, genotype, phred_qual, phred_gq, rec_filter)
 
 
@@ -126,7 +170,7 @@ def handle_output_directory(output_dir):
 
 if __name__ == '__main__':
     '''
-    Processes arguments and performs tasks to generate the pileup.
+    Processes arguments and performs tasks.
     '''
     parser = argparse.ArgumentParser()
     parser.register("type", "bool", lambda v: v.lower() == "true")

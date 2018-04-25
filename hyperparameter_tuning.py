@@ -12,15 +12,36 @@ from modules.hyperband.hyperband import Hyperband
 from modules.handlers.TextColor import TextColor
 from modules.hyperband.train import train
 from modules.hyperband.test import test
+"""
+Tune hyper-parameters of a model using hyperband.
+Input:
+- A train CSV file
+- A test CSV file
+
+Output:
+- A model with tuned hyper-parameters
+"""
 
 
 class WrapHyperband:
+    """
+    Wrap hyperband around a model to tune hyper-parameters.
+    """
     # Paramters of the model
     # depth=28 widen_factor=4 drop_rate=0.0
     def __init__(self, train_file, test_file, gpu_mode, model_out_dir, log_directory):
+        """
+        Initialize the object
+        :param train_file: A train CSV file containing train data set information
+        :param test_file: A test CSV file containing train data set information
+        :param gpu_mode: If true, GPU will be used to train and test the models
+        :param model_out_dir: Directory to save the model
+        :param log_directory: Directory to save the log
+        """
+        # the hyper-parameter space is defined here
         self.space = {
-            # Returns a value drawn according to exp(uniform(low, high)) so that the logarithm of the return value is
-            # uniformly distributed.
+            # hp.loguniform returns a value drawn according to exp(uniform(low, high)) so that the logarithm of the
+            # return value is uniformly distributed.
             'learning_rate': hp.loguniform('lr', -12, -7),
             'l2': hp.loguniform('l2', -14, -7),
         }
@@ -31,9 +52,19 @@ class WrapHyperband:
         self.model_out_dir = model_out_dir
 
     def get_params(self):
+        """
+        Get a random draw from the parameter space.
+        :return: A randomly drawn sample space
+        """
         return sample(self.space)
 
     def try_params(self, n_iterations, params):
+        """
+        Try a parameter space to train a model with n_iterations (epochs).
+        :param n_iterations: Number of epochs to train on
+        :param params: Parameter space
+        :return: trained model, optimizer and stats dictionary (loss and others)
+        """
         # Number of iterations or epoch for the model to train on
         n_iterations = int(round(n_iterations))
         print(params)
@@ -45,12 +76,18 @@ class WrapHyperband:
         epoch_limit = n_iterations
         lr = params['learning_rate']
         l2 = params['l2']
-
+        # train a model
         model, optimizer = train(self.train_file, batch_size, epoch_limit, self.gpu_mode, num_workers, lr, l2)
+        # test the trained mode
         stats_dictionary = test(self.test_file, batch_size, self.gpu_mode, model, num_workers)
         return model, optimizer, stats_dictionary
 
     def run(self, save_output):
+        """
+        Run the hyper-parameter tuning algorithm
+        :param save_output: If true, output will beb saved in a pkl file
+        :return:
+        """
         hyperband = Hyperband(self.get_params, self.try_params, max_iteration=8, downsample_rate=2,
                               model_directory=self.model_out_dir, log_directory=self.log_directory)
         results = hyperband.run()
@@ -66,7 +103,7 @@ class WrapHyperband:
 
 def handle_output_directory(output_dir):
     """
-    Process the output directory and return a valid directory where we save the output
+    Process the output directory and return a valid directory where we save the outputs
     :param output_dir: Output directory path
     :return:
     """
@@ -93,7 +130,7 @@ def handle_output_directory(output_dir):
 
 if __name__ == '__main__':
     '''
-    Processes arguments and performs tasks to generate the pileup.
+    Processes arguments and performs tasks.
     '''
     parser = argparse.ArgumentParser()
     parser.register("type", "bool", lambda v: v.lower() == "true")

@@ -10,9 +10,21 @@ import os
 from datetime import datetime
 import torch
 from modules.models.ModelHandler import ModelHandler
+"""
+The Hyperband class used for hyper-parameter optimization.
+Optimized from:
+https://github.com/zygmuntz/hyperband
+"""
 
 
 def save_best_model_hyperband(best_model, optimizer, file_name):
+    """
+    Save the best model
+    :param best_model: A trained model
+    :param optimizer: Optimizer
+    :param file_name: Output file name
+    :return:
+    """
     sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
     if os.path.isfile(file_name + '_model.pkl'):
         os.remove(file_name + '_model.pkl')
@@ -27,8 +39,22 @@ def save_best_model_hyperband(best_model, optimizer, file_name):
 
 
 class Hyperband:
+    """
+    Hyper-parameter optimization algorithm implemented
+    This class is optimized from the popular hyperband implementation:
+    https://github.com/zygmuntz/hyperband
+    """
     def __init__(self, get_params_function, try_params_function, max_iteration, downsample_rate, log_directory,
                  model_directory):
+        """
+        Initialize hyperband object.
+        :param get_params_function: A function to get parameters from sample space.
+        :param try_params_function: Try a parameter by training and testing it
+        :param max_iteration: Maximum iterations per configuration
+        :param downsample_rate: Defines configuration downsampling rate
+        :param log_directory: Directory where log is saved
+        :param model_directory: Directory where model is saved
+        """
         self.get_params = get_params_function
         self.try_params = try_params_function
 
@@ -51,7 +77,12 @@ class Hyperband:
 
     # can be called multiple times
     def run(self, skip_last=0, dry_run=False):
-
+        """
+        The hyper-parameter optimization algorithm.
+        :param skip_last: Skip the last iteration
+        :param dry_run: Dry test run if True
+        :return:
+        """
         for s in reversed(range(self.s_max + 1)):
 
             # initial number of configurations
@@ -102,7 +133,7 @@ class Hyperband:
                     assert ('loss' in result)
 
                     seconds = int(round(time() - start_time))
-                    sys.stderr.write(TextColor.BLUE + "\n{} seconds.".format(seconds) + TextColor.END)
+                    sys.stderr.write(TextColor.BLUE + "\n{} seconds.\n".format(seconds) + TextColor.END)
 
                     loss = result['loss']
                     val_losses.append(loss)
