@@ -18,7 +18,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
                                    num_workers=num_workers,
                                    pin_memory=gpu_mode
                                    )
-    sys.stderr.write(TextColor.PURPLE + 'Test data loading finished\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Test data loading finished\n' + TextColor.END)
 
     test_model = trained_model.eval()
     if gpu_mode:
@@ -28,7 +28,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
     test_criterion = nn.CrossEntropyLoss()
 
     # Test the Model
-    sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
     total_loss = 0
     total_images = 0
     batches_done = 0

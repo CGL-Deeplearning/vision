@@ -17,7 +17,7 @@ from modules.models.inception import Inception3
 def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, num_classes=3, debug_print=False):
     transformations = transforms.Compose([transforms.ToTensor()])
 
-    sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
     train_data_set = PileupDataset(train_file, transformations)
     train_loader = DataLoader(train_data_set,
                               batch_size=batch_size,
@@ -25,7 +25,7 @@ def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, nu
                               num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
-    sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
     model = Inception3()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
@@ -40,7 +40,7 @@ def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, nu
         model = torch.nn.DataParallel(model).cuda()
 
     # Train the Model
-    sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
     for epoch in range(start_epoch, epoch_limit, 1):
         total_loss = 0
         total_images = 0
@@ -84,9 +84,9 @@ def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, nu
         avg_loss = (total_loss / total_images) if total_images else 0
         sys.stderr.write(TextColor.BLUE + "EPOCH " + str(epoch+1) + ": " + TextColor.END)
         sys.stderr.write(TextColor.YELLOW + "LOSS: " + str(avg_loss) + TextColor.END)
-        sys.stderr.write(TextColor.DARKCYAN + "TIME: " + str(time.time() - epoch_start_time) +
+        sys.stderr.write(TextColor.DARKCYAN + " TIME: " + str(time.time() - epoch_start_time) +
                          "\n" + TextColor.END)
 
-    sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
     return model, optimizer

@@ -27,7 +27,8 @@ def save_best_model_hyperband(best_model, optimizer, file_name):
 
 
 class Hyperband:
-    def __init__(self, get_params_function, try_params_function, max_iteration, downsample_rate, model_directory):
+    def __init__(self, get_params_function, try_params_function, max_iteration, downsample_rate, log_directory,
+                 model_directory):
         self.get_params = get_params_function
         self.try_params = try_params_function
 
@@ -43,7 +44,7 @@ class Hyperband:
         self.best_loss = np.inf
         self.best_acc = 0
         self.best_counter = -1
-        self.log_file = './logs/'+'Hyperband_'+datetime.now().strftime("%Y%m%d-%H%M%S")+'.log'
+        self.log_file = log_directory+'Hyperband_'+datetime.now().strftime("%Y%m%d-%H%M%S")+'.log'
         self.model_directory = model_directory + 'Hyperband_trained_' + datetime.now().strftime("%Y%m%d-%H%M%S")
 
         logging.basicConfig(filename=self.log_file, level=logging.INFO)
