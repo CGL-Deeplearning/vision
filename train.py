@@ -122,7 +122,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
     model = Inception3()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00046036225732322617, weight_decay=0.00023726325666489307)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00021723010296152584, weight_decay=1.4433597247180705e-06)
     if gpu_mode:
         model = model.cuda()
 
