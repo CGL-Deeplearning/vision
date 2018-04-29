@@ -97,7 +97,7 @@ class VCFWriter:
         p22 = min(alt_probs[rec_alt2][2], alt_probs['both'][2])
         p12 = min(max(alt_probs[rec_alt1][1], alt_probs[rec_alt1][2]),
                   max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]),
-                  alt_probs['both'][2])
+                  max(alt_probs['both'][1], alt_probs['both'][2]))
         # print(alt_probs)
         prob_list = [p00, p01, p11, p02, p22, p12]
         # print(prob_list)
