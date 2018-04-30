@@ -11,20 +11,13 @@ Dictionaries it updates:
 - candidate_by_read:    records at each position what reads had mismatches  {int -> list}
 - coverage:             records coverage of a position                      {int -> int}
 - edit_count:           records number of mismatches in a position          {int -> int}
-
-Other data structures:
-- candidate_positions (set):    set of positions that of potential candidate variants
-- merged_windows (list):        list of windows of potential candidate variants.
-
-Merged_windows is constructed from candidate_positions. If two positions fall within
-MERGE_WINDOW_DISTANCE we merge them in a single window.
 """
-DEFAULT_MIN_MAP_QUALITY = 2
-MERGE_WINDOW_DISTANCE = 0
-MERGE_WINDOW_OFFSET = 0
-MIN_MISMATCH_THRESHOLD = 0
-MIN_MISMATCH_PERCENT_THRESHOLD = 0
-MIN_COVERAGE_THRESHOLD = 1
+
+DEFAULT_MIN_MAP_QUALITY = 5
+MIN_MISMATCH_THRESHOLD = 2
+MIN_MISMATCH_PERCENT_THRESHOLD = 2
+MIN_COVERAGE_THRESHOLD = 5
+
 PLOIDY = 2
 MATCH_ALLELE = 0
 MISMATCH_ALLELE = 1
