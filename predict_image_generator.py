@@ -248,7 +248,8 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_path, max_threads, confident_bed_tree):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_path, max_threads, confident_bed_tree,
+                                     singleton_run=False):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Name of the chromosome
@@ -257,6 +258,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_path, 
     :param output_path: path to output directory
     :param max_threads: Maximum number of threads to run at one instance
     :param confident_bed_tree: tree containing confident bed intervals
+    :param singleton_run: if running a chromosome independently
     :return:
     """
     # create dump directory inside output directory
@@ -284,6 +286,14 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_path, 
         while True:
             if len(multiprocessing.active_children()) < max_threads:
                 break
+
+    if singleton_run:
+        # wait for the last process to end before file processing
+        while True:
+            if len(multiprocessing.active_children()) == 0:
+                break
+        # remove summary files and make one file
+        summary_file_to_csv(output_path, [chr_name])
 
 
 def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_threads, confident_bed_tree):
@@ -321,6 +331,20 @@ def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_thread
         if len(multiprocessing.active_children()) == 0:
             break
 
+    summary_file_to_csv(output_dir_path, chr_list)
+
+    program_end_time = time.time()
+    sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
+    sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
+
+
+def summary_file_to_csv(output_dir_path, chr_list):
+    """
+    Remove the abundant number of summary files and bind them to one
+    :param output_dir_path: Path to the output directory
+    :param chr_list: List of chromosomes
+    :return:
+    """
     for chr_name in chr_list:
         # here we dumped all the bed files
         path_to_dir = output_dir_path + chr_name + "/summary/"
@@ -336,10 +360,6 @@ def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_thread
         filemanager_object.delete_files(file_paths)
         # remove the directory
         os.rmdir(path_to_dir)
-
-    program_end_time = time.time()
-    sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
-    sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
 
 
 def test(view_object):
