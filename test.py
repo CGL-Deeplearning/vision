@@ -137,7 +137,14 @@ if __name__ == '__main__':
         default=False,
         help="If true then cuda is on."
     )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        required=False,
+        default=16,
+        help="Batch size for training, default is 100."
+    )
 
     FLAGS, unparsed = parser.parse_known_args()
 
-    test(FLAGS.test_file, FLAGS.batch_size, FLAGS.model_path, FLAGS.gpu_mode)
+    test(FLAGS.test_file, FLAGS.batch_size, FLAGS.model_path, FLAGS.gpu_mode, FLAGS.num_workers)
