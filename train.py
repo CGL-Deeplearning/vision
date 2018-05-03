@@ -261,7 +261,7 @@ if __name__ == '__main__':
         help="Training data description csv file."
     )
     parser.add_argument(
-        "--validation_file",
+        "--test_file",
         type=str,
         required=True,
         help="Training data description csv file."
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     FLAGS, unparsed = parser.parse_known_args()
     training_model, training_optimizer = get_model_and_optimizer(FLAGS.retrain_model, FLAGS.model_path, FLAGS.gpu_mode)
     directory_control(FLAGS.model_out.rpartition('/')[0]+"/")
-    train(FLAGS.train_file, FLAGS.validation_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
+    train(FLAGS.train_file, FLAGS.test_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
           FLAGS.num_workers, FLAGS.retrain_model, FLAGS.model_path)
 
 
