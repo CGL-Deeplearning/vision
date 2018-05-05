@@ -11,7 +11,7 @@ DEFAULT_MIN_MAP_QUALITY = 1
 DEBUG_MESSAGE = False
 MIN_DELETE_QUALITY = 20
 VCF_INDEX_BUFFER = -1
-ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.2
+ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.4
 WARN_COLOR = TextColor.RED
 PLOIDY = 2
 MATCH_ALLELE = 0
@@ -641,7 +641,8 @@ class RegionPileupGenerator:
 
             if pos in positional_vcf.keys():
                 snp_recs, in_recs, del_recs = positional_vcf[pos]
-                alt_alleles_found = self.positional_allele_dictionary[bam_pos]
+                alt_alleles_found = self.positional_allele_dictionary[bam_pos] \
+                    if bam_pos in self.positional_allele_dictionary else []
 
                 for snp_rec in snp_recs:
                     alt_ = (snp_rec.alt, 1)

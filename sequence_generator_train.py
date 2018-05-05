@@ -1,24 +1,16 @@
 import argparse
-import math
 import time
 import os
 import sys
 import multiprocessing
-import h5py
 from tqdm import tqdm
-import numpy as np
-import random
 
 from modules.core.RegionPileupGenerator import RegionPileupGenerator
-from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
 from modules.handlers.FastaHandler import FastaHandler
 from modules.handlers.TextColor import TextColor
-from modules.core.IntervalTree import IntervalTree
 from modules.handlers.TsvHandler import TsvHandler
-from modules.core.ImageGenerator import ImageGenerator
 from modules.handlers.VcfHandler import VCFFileProcessor
-from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.FileManager import FileManager
 """
 This script creates training images from BAM, Reference FASTA and truth VCF file. The process is:
