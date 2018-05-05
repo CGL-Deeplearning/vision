@@ -36,10 +36,10 @@ def analyze_it(arg_tuple):
     img, shape, vcf_alt1, vcf_alt2 = arg_tuple
     freq_dictionary = defaultdict(lambda: defaultdict(int))
     file = img
-    img = Image.open(file)
+    img_file = Image.open(file)
     img_h, img_w, img_c = shape
-    np_array_of_img = np.array(img.getdata())
-
+    np_array_of_img = np.array(img_file.getdata())
+    img_file.close()
     img = np.reshape(np_array_of_img, shape)
     img = np.transpose(img, (0, 1, 2))
 
@@ -65,6 +65,7 @@ def analyze_it(arg_tuple):
 
     keys = ['AA', 'AC', 'AG', 'AT', 'CC', 'CG', 'CT', 'GG', 'GT', 'TT', '*A', '*C', '*G', '*T', '.A', '.C', '.G', '.T']
     result = [freq_dictionary[key] for key in keys]
+
     return result
 
 
@@ -106,7 +107,7 @@ def main(file_name, num_threads):
             for i, base_dict in enumerate(result):
                 for base in base_dict:
                     global_freq_dict[keys[i]][base] += base_dict[base]
-
+        pool.close()
     return global_freq_dict
 
 
