@@ -635,38 +635,37 @@ class RegionPileupGenerator:
         return string_a, string_b, vcf_string_a, vcf_string_b, positional_values
 
     def populate_vcf_alleles(self, positional_vcf, interval_start, interval_end):
-        for pos in range(interval_start, interval_end):
+        for pos in positional_vcf.keys():
+            if pos < interval_start or pos > interval_end:
+                continue
             bam_pos = pos + VCF_INDEX_BUFFER
             indx = self.positional_info_position_to_index[bam_pos]
 
-            if pos in positional_vcf.keys():
-                snp_recs, in_recs, del_recs = positional_vcf[pos]
-                alt_alleles_found = self.positional_allele_dictionary[bam_pos] \
-                    if bam_pos in self.positional_allele_dictionary else []
+            snp_recs, in_recs, del_recs = positional_vcf[pos]
+            alt_alleles_found = self.positional_allele_dictionary[bam_pos] \
+                if bam_pos in self.positional_allele_dictionary else []
 
-                for snp_rec in snp_recs:
-                    alt_ = (snp_rec.alt, 1)
-                    if alt_ in alt_alleles_found:
-                        self.vcf_positional_dict[indx].append((snp_rec.alt, snp_rec.genotype))
-                    else:
-                        sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(snp_rec) + "\n" + TextColor.END)
-
-                for in_rec in in_recs:
-                    alt_ = (in_rec.alt, 2)
-                    if alt_ in alt_alleles_found:
-                        for i in range(1, len(in_rec.alt)):
-                            self.vcf_positional_dict[indx+i].append((in_rec.alt[i], in_rec.genotype))
-                    else:
-                        sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(in_rec) + "\n" + TextColor.END)
-
-                for del_rec in del_recs:
-                    alt_ = (del_rec.ref, 3)
-                    if alt_ in alt_alleles_found:
-                        for i in range(1, len(del_rec.ref)):
-                            del_indx = self.positional_info_position_to_index[bam_pos+i]
-                            self.vcf_positional_dict[del_indx].append(('.', del_rec.genotype))
-                    else:
-                        sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(del_rec) + "\n" + TextColor.END)
+            for snp_rec in snp_recs:
+                alt_ = (snp_rec.alt, 1)
+                if alt_ in alt_alleles_found:
+                    self.vcf_positional_dict[indx].append((snp_rec.alt, snp_rec.genotype))
+                else:
+                    sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(snp_rec) + "\n" + TextColor.END)
+            for in_rec in in_recs:
+                alt_ = (in_rec.alt, 2)
+                if alt_ in alt_alleles_found:
+                    for i in range(1, len(in_rec.alt)):
+                        self.vcf_positional_dict[indx+i].append((in_rec.alt[i], in_rec.genotype))
+                else:
+                    sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(in_rec) + "\n" + TextColor.END)
+            for del_rec in del_recs:
+                alt_ = (del_rec.ref, 3)
+                if alt_ in alt_alleles_found:
+                    for i in range(1, len(del_rec.ref)):
+                        del_indx = self.positional_info_position_to_index[bam_pos+i]
+                        self.vcf_positional_dict[del_indx].append(('.', del_rec.genotype))
+                else:
+                    sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(del_rec) + "\n" + TextColor.END)
 
     def create_region_alignment_image(self, interval_start, interval_end, positional_variants):
         """

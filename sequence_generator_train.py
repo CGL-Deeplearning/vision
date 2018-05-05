@@ -125,20 +125,22 @@ class View:
         """
 
         for i in range(start_index, end_index):
-            interval_length = self.confidence_intervals[i][1] - self.confidence_intervals[i][0]
             interval_start, interval_end = self.confidence_intervals[i][0], self.confidence_intervals[i][1]
+
+            interval_length = interval_end - interval_start
+
             if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
                 warn_msg = "REGION SKIPPED, TOO SMALL OF A WINDOW " + self.chromosome_name + " "
-                warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + " " + str(self.thread_id) + "\n"
+                warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + "\n"
                 sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
                 continue
 
-            positional_variants = self.get_vcf_record_of_region(interval_start, interval_end)
+            positional_variants = self.get_vcf_record_of_region(interval_start-10, interval_end + 10)
 
             if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD:
                 warn_msg = "REGION SKIPPED, INSUFFICIENT NUMBER OF VARIANTS " + self.chromosome_name + " "
                 warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + " VARIANT COUNT: " \
-                           + str(len(positional_variants)) + " " + str(self.thread_id) + "\n"
+                           + str(len(positional_variants)) + "\n"
                 sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
                 continue
 
@@ -161,14 +163,13 @@ class View:
             # print(pos_vals)
             # analyze_it(self.output_dir+filename+'.png', img.shape)
 
-
 def test(view_object):
     """
     Run a test
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_index=0, end_index=5)
+    view_object.parse_region(start_index=0, end_index=10)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
@@ -429,7 +430,7 @@ if __name__ == '__main__':
                     reference_file_path=FLAGS.ref,
                     vcf_path=FLAGS.vcf,
                     output_file_path=chromosome_output,
-                    confidence_intervals=confident_interval_tree,
+                    confidence_intervals=confident_interval_tree[FLAGS.chromosome_name],
                     thread_no=1)
         test(view)
     elif FLAGS.chromosome_name is not None:
