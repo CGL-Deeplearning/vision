@@ -40,7 +40,7 @@ Output:
 # Global debug helpers
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
-DEBUG_TEST_PARALLEL = True
+DEBUG_TEST_PARALLEL = False
 
 # only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
 STRATIFICATION_RATE = 1.0
