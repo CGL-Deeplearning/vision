@@ -370,6 +370,7 @@ class VCFFileProcessor:
                 self.vcf_records = pysam.VariantFile(self.file_path)
             except IOError:
                 sys.stderr.write("VCF FILE READ ERROR")
+
         # Filter the records
         filtered_records = self._get_filtered_records(hom_filter)
         # Generate dictionary

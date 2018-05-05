@@ -359,8 +359,7 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads,
-                                     confident_bed_tree, singleton_run=False):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confident_bed_tree):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Name of the chromosome
@@ -370,7 +369,6 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :param output_path: path to output directory
     :param max_threads: Maximum number of threads to run at one instance
     :param confident_bed_tree: tree containing confident bed intervals
-    :param singleton_run: if running a chromosome independently
     :return:
     """
     sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
@@ -401,14 +399,6 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         while True:
             if len(multiprocessing.active_children()) < max_threads:
                 break
-
-    if singleton_run:
-        # wait for the last process to end before file processing
-        while True:
-            if len(multiprocessing.active_children()) == 0:
-                break
-        # remove summary files and make one file
-        summary_file_to_csv(output_path, [chr_name])
 
 
 def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
@@ -450,7 +440,22 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
         if len(multiprocessing.active_children()) == 0:
             break
 
-    summary_file_to_csv(output_dir_path, chr_list)
+    summary_file_to_csv()
+    for chr_name in chr_list:
+        # here we dumped all the bed files
+        path_to_dir = output_dir_path + chr_name + "/summary/"
+
+        concatenated_file_name = output_dir_path + chr_name + ".csv"
+
+        filemanager_object = FileManager()
+        # get all bed file paths from the directory
+        file_paths = filemanager_object.get_file_paths_from_directory(path_to_dir)
+        # dump all bed files into one
+        filemanager_object.concatenate_files(file_paths, concatenated_file_name)
+        # delete all temporary files
+        filemanager_object.delete_files(file_paths)
+        # remove the directory
+        os.rmdir(path_to_dir)
 
     program_end_time = time.time()
     sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
@@ -479,7 +484,6 @@ def summary_file_to_csv(output_dir_path, chr_list):
         filemanager_object.delete_files(file_paths)
         # remove the directory
         os.rmdir(path_to_dir)
-
 
 def test(view_object):
     """
@@ -593,7 +597,7 @@ if __name__ == '__main__':
         test(view)
     elif FLAGS.chromosome_name is not None:
         chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
-                                         FLAGS.max_threads, confident_tree_build, singleton_run=True)
+                                         FLAGS.max_threads, confident_tree_build)
     else:
         genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
                                      FLAGS.max_threads, confident_tree_build)
