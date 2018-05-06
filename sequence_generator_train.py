@@ -41,7 +41,7 @@ LOG_LEVEL = LOG_LEVEL_LOW
 STRATIFICATION_RATE = 1.0
 MIN_SEQUENCE_BASE_LENGTH_THRESHOLD = 10
 MIN_VARIANT_IN_WINDOW_THRESHOLD = 1
-
+BED_INDEX_BUFFER = -1
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -128,8 +128,9 @@ class View:
         """
 
         for i in range(start_index, end_index):
-            interval_start, interval_end = self.confidence_intervals[i][0], self.confidence_intervals[i][1]
-
+            interval_start, interval_end = self.confidence_intervals[i][0]+BED_INDEX_BUFFER, \
+                                           self.confidence_intervals[i][1]+BED_INDEX_BUFFER
+            # interval_start, interval_end = 20174382, 20174578
             interval_length = interval_end - interval_start
 
             if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
@@ -139,7 +140,7 @@ class View:
                     sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
                 continue
 
-            positional_variants = self.get_vcf_record_of_region(interval_start-10, interval_end + 10)
+            positional_variants = self.get_vcf_record_of_region(interval_start, interval_end)
 
             if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD:
                 warn_msg = "REGION SKIPPED, INSUFFICIENT NUMBER OF VARIANTS " + self.chromosome_name + " "
@@ -167,6 +168,7 @@ class View:
             # print(vcf_b)
             # print(pos_vals)
             # analyze_it(self.output_dir+filename+'.png', img.shape)
+            # exit()
 
 def test(view_object):
     """

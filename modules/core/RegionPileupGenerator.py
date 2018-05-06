@@ -677,6 +677,6 @@ class RegionPileupGenerator:
         """
         image = self.process_interval(interval_start, interval_end)
         self.populate_vcf_alleles(positional_variants, interval_start, interval_end)
-        alt_a, alt_b, vcf_a, vcf_b, pos_vals= self.get_estimated_allele_strings(interval_start, interval_end)
+        alt_a, alt_b, vcf_a, vcf_b, pos_vals = self.get_estimated_allele_strings(interval_start, interval_end)
 
         return image, alt_a, alt_b, vcf_a, vcf_b, pos_vals
