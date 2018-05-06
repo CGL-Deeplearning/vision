@@ -33,6 +33,9 @@ Output:
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
+LOG_LEVEL_HIGH = 0
+LOG_LEVEL_LOW = 1
+LOG_LEVEL = LOG_LEVEL_LOW
 
 # only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
 STRATIFICATION_RATE = 1.0
@@ -129,7 +132,7 @@ class View:
 
             interval_length = interval_end - interval_start
 
-            if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
+            if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD and LOG_LEVEL == LOG_LEVEL_HIGH:
                 warn_msg = "REGION SKIPPED, TOO SMALL OF A WINDOW " + self.chromosome_name + " "
                 warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + "\n"
                 sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
@@ -137,7 +140,7 @@ class View:
 
             positional_variants = self.get_vcf_record_of_region(interval_start-10, interval_end + 10)
 
-            if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD:
+            if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD and LOG_LEVEL == LOG_LEVEL_HIGH:
                 warn_msg = "REGION SKIPPED, INSUFFICIENT NUMBER OF VARIANTS " + self.chromosome_name + " "
                 warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + " VARIANT COUNT: " \
                            + str(len(positional_variants)) + "\n"

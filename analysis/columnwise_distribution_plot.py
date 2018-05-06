@@ -8,6 +8,7 @@ from PIL import Image
 import numpy as np
 from collections import defaultdict
 from multiprocessing import Pool
+from tqdm import tqdm
 sns.set(color_codes=True)
 
 
@@ -32,36 +33,37 @@ def get_base_by_color(base):
         return ' '
 
 
-def analyze_it(arg_tuple):
-    img, shape, vcf_alt1, vcf_alt2 = arg_tuple
+def analyze_it(arg_list):
     freq_dictionary = defaultdict(lambda: defaultdict(int))
-    file = img
-    img_file = Image.open(file)
-    img_h, img_w, img_c = shape
-    np_array_of_img = np.array(img_file.getdata())
-    img_file.close()
-    img = np.reshape(np_array_of_img, shape)
-    img = np.transpose(img, (0, 1, 2))
+    for arg_tuple in arg_list:
+        img, shape, vcf_alt1, vcf_alt2 = arg_tuple
+        file = img
+        img_file = Image.open(file)
+        img_h, img_w, img_c = shape
+        np_array_of_img = np.array(img_file.getdata())
+        img_file.close()
+        img = np.reshape(np_array_of_img, shape)
+        img = np.transpose(img, (0, 1, 2))
 
-    ref_string = ''
-    for j in range(img_w):
-        if img[0][j][0] != 0:
-            ref_string += get_base_by_color(img[0][j][0])
-        else:
-            ref_string += ' '
+        ref_string = ''
+        for j in range(img_w):
+            if img[0][j][0] != 0:
+                ref_string += get_base_by_color(img[0][j][0])
+            else:
+                ref_string += ' '
 
-    for i in range(img_w):
-        alt1 = vcf_alt1[i] if vcf_alt1[i] != '-' else ref_string[i]
-        alt2 = vcf_alt2[i] if vcf_alt2[i] != '-' else ref_string[i]
-        if alt2 < alt1:
-            alt1, alt2 = alt2, alt1
+        for i in range(img_w):
+            alt1 = vcf_alt1[i] if vcf_alt1[i] != '-' else ref_string[i]
+            alt2 = vcf_alt2[i] if vcf_alt2[i] != '-' else ref_string[i]
+            if alt2 < alt1:
+                alt1, alt2 = alt2, alt1
 
-        for j in range(1, img_h):
-            if img[j][i][0] != 0:
-                base_in_pos = get_base_by_color(img[j][i][0])
-                if base_in_pos == '*' and ref_string[i] != '*':
-                    base_in_pos = '.'
-                freq_dictionary[alt1+alt2][base_in_pos] += 1
+            for j in range(1, img_h):
+                if img[j][i][0] != 0:
+                    base_in_pos = get_base_by_color(img[j][i][0])
+                    if base_in_pos == '*' and ref_string[i] != '*':
+                        base_in_pos = '.'
+                    freq_dictionary[alt1+alt2][base_in_pos] += 1
 
     keys = ['AA', 'AC', 'AG', 'AT', 'CC', 'CG', 'CT', 'GG', 'GT', 'TT', '*A', '*C', '*G', '*T', '.A', '.C', '.G', '.T']
     result = [freq_dictionary[key] for key in keys]
@@ -89,15 +91,17 @@ def main(file_name, num_threads):
             # workers.append(pool.apply_async(analyze_it, args=(arg,)))
 
             arg_list.append(arg)
-    # final_result = [worker.get() for worker in workers]
-    # print(final_result)
-    # exit()
 
-    for i in range(0, len(arg_list), num_threads):
+    list_arg_tuples = []
+    for i in range(0, len(arg_list), 100):
+        chunked_args = arg_list[i:i+100]
+        list_arg_tuples.append(chunked_args)
+
+    for i in tqdm(range(0, len(list_arg_tuples), num_threads)):
         start = i
-        end = min(i+num_threads, len(arg_list))
+        end = min(i+num_threads, len(list_arg_tuples))
         required_threads = end - start
-        purged_arg_list = arg_list[start:end]
+        purged_arg_list = list_arg_tuples[start:end]
         pool = Pool(processes=required_threads)
         results = pool.map(analyze_it, purged_arg_list)
         # pool.join()
@@ -123,7 +127,8 @@ fig.text(0.06, 0.5, 'Raw counts', ha='center', va='center', rotation='vertical',
 
 plt.suptitle("Frequency distribution per class", size=8)
 plts_in_y = 2
-plts_in_x = int(len(frequency_dictionary.items()) / plts_in_y)
+import math
+plts_in_x = int(math.ceil(len(frequency_dictionary.items()) / plts_in_y))
 subplot_val = plts_in_y * 100 + plts_in_x * 10
 
 for i, key in enumerate(dictionary2):
