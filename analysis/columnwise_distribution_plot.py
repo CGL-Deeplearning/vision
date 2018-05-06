@@ -93,8 +93,8 @@ def main(file_name, num_threads):
             arg_list.append(arg)
 
     list_arg_tuples = []
-    for i in range(0, len(arg_list), 100):
-        chunked_args = arg_list[i:i+100]
+    for i in range(0, len(arg_list), 10):
+        chunked_args = arg_list[i:i+10]
         list_arg_tuples.append(chunked_args)
 
     for i in tqdm(range(0, len(list_arg_tuples), num_threads)):
@@ -129,12 +129,16 @@ plt.suptitle("Frequency distribution per class", size=8)
 plts_in_y = 2
 import math
 plts_in_x = int(math.ceil(len(frequency_dictionary.items()) / plts_in_y))
-subplot_val = plts_in_y * 100 + plts_in_x * 10
+subplot_val = plts_in_x * 100 + plts_in_y * 10
 
 for i, key in enumerate(dictionary2):
     base_keys = ['A', 'C', 'G', 'T', '*', '.']
     value_list = [dictionary2[key][base] for base in base_keys]
     print(key, value_list)
+
+for i, key in enumerate(dictionary2):
+    base_keys = ['A', 'C', 'G', 'T', '*', '.']
+    value_list = [dictionary2[key][base] for base in base_keys]
     plt.subplot(subplot_val+i+1)
     plt.title(key, fontsize=8)
     plt.bar(range(len(value_list)), value_list)
