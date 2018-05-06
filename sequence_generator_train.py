@@ -132,19 +132,21 @@ class View:
 
             interval_length = interval_end - interval_start
 
-            if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD and LOG_LEVEL == LOG_LEVEL_HIGH:
+            if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
                 warn_msg = "REGION SKIPPED, TOO SMALL OF A WINDOW " + self.chromosome_name + " "
                 warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + "\n"
-                sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
+                if LOG_LEVEL == LOG_LEVEL_HIGH:
+                    sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
                 continue
 
             positional_variants = self.get_vcf_record_of_region(interval_start-10, interval_end + 10)
 
-            if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD and LOG_LEVEL == LOG_LEVEL_HIGH:
+            if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD:
                 warn_msg = "REGION SKIPPED, INSUFFICIENT NUMBER OF VARIANTS " + self.chromosome_name + " "
                 warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + " VARIANT COUNT: " \
                            + str(len(positional_variants)) + "\n"
-                sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
+                if LOG_LEVEL == LOG_LEVEL_HIGH:
+                    sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
                 continue
 
             img, allele1, allele2, vcf_a, vcf_b, pos_vals = self.pileup_generator.create_region_alignment_image(
@@ -234,6 +236,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :param singleton_run: if running a chromosome independently
     :return:
     """
+    chr_start_time = time.time()
     sys.stderr.write(TextColor.BLUE + "INFO: STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
     # create dump directory inside output directory
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
@@ -271,6 +274,11 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
                 break
         # remove summary files and make one file
         summary_file_to_csv(output_path, [chr_name])
+
+        chr_end_time = time.time()
+        sys.stderr.write(TextColor.RED + "CHROMOSOME PROCESSES FINISHED SUCCESSFULLY" + "\n")
+        sys.stderr.write(
+            TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(chr_start_time - chr_end_time) + "\n")
 
 
 def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
