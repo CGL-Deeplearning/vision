@@ -11,7 +11,7 @@ DEFAULT_MIN_MAP_QUALITY = 1
 DEBUG_MESSAGE = False
 MIN_DELETE_QUALITY = 20
 VCF_INDEX_BUFFER = -1
-ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.4
+ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.8
 WARN_COLOR = TextColor.RED
 PLOIDY = 2
 MATCH_ALLELE = 0
@@ -646,9 +646,10 @@ class RegionPileupGenerator:
                 if bam_pos in self.positional_allele_dictionary else []
 
             for snp_rec in snp_recs:
-                alt_ = (snp_rec.alt, 1)
+                alt_allele = snp_rec.alt[0]
+                alt_ = (alt_allele, 1)
                 if alt_ in alt_alleles_found:
-                    self.vcf_positional_dict[indx].append((snp_rec.alt, snp_rec.genotype))
+                    self.vcf_positional_dict[indx].append((alt_allele, snp_rec.genotype))
                 else:
                     sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(snp_rec) + "\n" + TextColor.END)
             for in_rec in in_recs:

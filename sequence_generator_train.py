@@ -43,6 +43,7 @@ MIN_SEQUENCE_BASE_LENGTH_THRESHOLD = 10
 MIN_VARIANT_IN_WINDOW_THRESHOLD = 1
 BED_INDEX_BUFFER = -1
 
+
 def build_chromosomal_interval_trees(confident_bed_path):
     """
     Produce a dictionary of intervals trees, with one tree per chromosome
@@ -130,7 +131,8 @@ class View:
         for i in range(start_index, end_index):
             interval_start, interval_end = self.confidence_intervals[i][0]+BED_INDEX_BUFFER, \
                                            self.confidence_intervals[i][1]+BED_INDEX_BUFFER
-            # interval_start, interval_end = 20174382, 20174578
+            # interval_start, interval_end = 16893169, 16900501
+
             interval_length = interval_end - interval_start
 
             if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
@@ -280,7 +282,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         chr_end_time = time.time()
         sys.stderr.write(TextColor.RED + "CHROMOSOME PROCESSES FINISHED SUCCESSFULLY" + "\n")
         sys.stderr.write(
-            TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(chr_start_time - chr_end_time) + "\n")
+            TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(chr_end_time - chr_start_time) + "\n")
 
 
 def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
