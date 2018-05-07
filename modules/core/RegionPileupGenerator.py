@@ -11,7 +11,7 @@ DEFAULT_MIN_MAP_QUALITY = 1
 DEBUG_MESSAGE = False
 MIN_DELETE_QUALITY = 20
 VCF_INDEX_BUFFER = -1
-ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.8
+ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.5
 WARN_COLOR = TextColor.RED
 PLOIDY = 2
 MATCH_ALLELE = 0
@@ -572,8 +572,9 @@ class RegionPileupGenerator:
         for vcf_record in vcf_records:
             allele, genotype = vcf_record
             if not base_frequencies[allele]:
-                warn_msg = str(indx) + " " + str(vcf_record) + "\n"
-                sys.stderr.write(WARN_COLOR + " WARN: VCF ALLELE NOT IN BAM: " + warn_msg + TextColor.END)
+                vcf_record_msg = str(self.chromosome_name) + "\t" + str(vcf_record)
+                warn_msg = "WARN:\tPOSITIONAL MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
+                sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
             # hom_alt
             if genotype[0] == genotype[1]:
                 bases.append(allele)
@@ -620,9 +621,11 @@ class RegionPileupGenerator:
                     # warn if a really abundant allele is not in VCF
                     if base not in vcf_alts and base != ref_base:
                         genome_position = self.positional_info_index_to_position[i][0]
-                        msg = str(genome_position) + " " + str(ref_base) + " " + str(base) + " " + \
-                              str(int(base_frequency*100))
-                        sys.stderr.write(WARN_COLOR + ' WARN: BAM ALLELE NOT FOUND IN VCF ' + msg + "%\n" + TextColor.END)
+                        msg = str(self.chromosome_name) + "\t" + str(genome_position) + "\t" + str(ref_base) + "\t" \
+                              + str(base) + "\t" + str(self.base_frequency[i][base]) + "\t" + str(total_bases) + "\t" \
+                              + str(int(base_frequency*100)) + "\n"
+                        warn_msg = "WARN:\tBAM MISMATCH\t" + msg
+                        sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
             if len(bases) == 0:
                 string_a += '-'
                 string_b += '-'
@@ -651,14 +654,18 @@ class RegionPileupGenerator:
                 if alt_ in alt_alleles_found:
                     self.vcf_positional_dict[indx].append((alt_allele, snp_rec.genotype))
                 else:
-                    sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(snp_rec) + "\n" + TextColor.END)
+                    vcf_record_msg = str(self.chromosome_name) + "\t" + str(snp_rec)
+                    warn_msg = "WARN:\tVCF MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
+                    sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
             for in_rec in in_recs:
                 alt_ = (in_rec.alt, 2)
                 if alt_ in alt_alleles_found:
                     for i in range(1, len(in_rec.alt)):
                         self.vcf_positional_dict[indx+i].append((in_rec.alt[i], in_rec.genotype))
                 else:
-                    sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(in_rec) + "\n" + TextColor.END)
+                    vcf_record_msg = str(self.chromosome_name) + "\t" + str(in_rec)
+                    warn_msg = "WARN:\tVCF MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
+                    sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
             for del_rec in del_recs:
                 alt_ = (del_rec.ref, 3)
                 if alt_ in alt_alleles_found:
@@ -666,7 +673,9 @@ class RegionPileupGenerator:
                         del_indx = self.positional_info_position_to_index[bam_pos+i]
                         self.vcf_positional_dict[del_indx].append(('.', del_rec.genotype))
                 else:
-                    sys.stderr.write(WARN_COLOR + "WARN: VCF RECORD ALLELE NOT FOUND: " + str(del_rec) + "\n" + TextColor.END)
+                    vcf_record_msg = str(self.chromosome_name) + "\t" + str(del_rec)
+                    warn_msg = "WARN:\tVCF MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
+                    sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
 
     def create_region_alignment_image(self, interval_start, interval_end, positional_variants):
         """
