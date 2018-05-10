@@ -577,7 +577,7 @@ class RegionPileupGenerator:
             sys.stderr.write("ERROR: ERROR SAVING FILE: " + save_dir + file_name + ".png" + "\n" + TextColor.END)
             sys.stderr.write()
 
-    def get_allele_bases_from_vcf_genotype(self, indx, vcf_records, base_frequencies):
+    def get_allele_bases_from_vcf_genotype(self, indx, vcf_records, base_frequencies, ref_base):
         bases = []
         for vcf_record in vcf_records:
             allele, genotype = vcf_record
@@ -592,9 +592,9 @@ class RegionPileupGenerator:
             else:
                 bases.append(allele)
         if len(bases) == 0:
-            return '-', '-'
+            return ref_base, ref_base
         elif len(bases) == 1:
-            return bases[0], '-'
+            return bases[0], ref_base
         else:
             return bases[0], bases[1]
 
@@ -627,7 +627,7 @@ class RegionPileupGenerator:
             vcf_alts = []
             if i in self.vcf_positional_dict:
                 alt_a, alt_b = self.get_allele_bases_from_vcf_genotype(i, self.vcf_positional_dict[i],
-                                                                       self.base_frequency[i])
+                                                                       self.base_frequency[i],ref_base)
                 vcf_string_a += alt_a
                 vcf_string_b += alt_b
                 vcf_alts.append(alt_a)
