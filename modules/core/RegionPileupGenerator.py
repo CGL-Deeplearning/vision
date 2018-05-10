@@ -27,6 +27,10 @@ WINDOW_SIZE = 20
 WINDOW_FLANKING_SIZE = 20
 BOUNDARY_COLUMNS = 25
 
+LOG_LEVEL_HIGH = 0
+LOG_LEVEL_LOW = 0
+LOG_LEVEL = LOG_LEVEL_LOW
+
 
 class RegionPileupGenerator:
     def __init__(self, bam_file, ref_file, vcf_file, chr_name):
@@ -581,7 +585,7 @@ class RegionPileupGenerator:
         bases = []
         for vcf_record in vcf_records:
             allele, genotype = vcf_record
-            if not base_frequencies[allele]:
+            if not base_frequencies[allele] and LOG_LEVEL == LOG_LEVEL_HIGH:
                 vcf_record_msg = str(self.chromosome_name) + "\t" + str(vcf_record)
                 warn_msg = "WARN:\tPOSITIONAL MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
                 sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
@@ -602,6 +606,7 @@ class RegionPileupGenerator:
         if base_b < base_a:
             base_a, base_b = base_b, base_a
         encoded_base = base_a + base_b
+        encoded_base = encoded_base.replace('N', '.')
         base_to_letter_map = {'**': 0, '*.': 1, '*A': 2, '*C': 3, '*G': 4, '*T': 5,
                                        '..': 6, '.A': 7, '.C': 8, '.G': 9, '.T': 10,
                                                 'AA': 11, 'AC': 12, 'AG': 13, 'AT': 14,
@@ -645,7 +650,7 @@ class RegionPileupGenerator:
                 if base_frequency >= ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING:
                     bases.append(base)
                     # warn if a really abundant allele is not in VCF
-                    if base not in vcf_alts and base != ref_base:
+                    if base not in vcf_alts and base != ref_base and LOG_LEVEL == LOG_LEVEL_HIGH:
                         genome_position = self.positional_info_index_to_position[i][0]
                         msg = str(self.chromosome_name) + "\t" + str(genome_position) + "\t" + str(ref_base) + "\t" \
                               + str(base) + "\t" + str(self.base_frequency[i][base]) + "\t" + str(total_bases) + "\t" \
@@ -683,7 +688,7 @@ class RegionPileupGenerator:
                 alt_ = (alt_allele, 1)
                 if alt_ in alt_alleles_found:
                     self.vcf_positional_dict[indx].append((alt_allele, snp_rec.genotype))
-                else:
+                elif LOG_LEVEL == LOG_LEVEL_HIGH:
                     vcf_record_msg = str(self.chromosome_name) + "\t" + str(snp_rec)
                     warn_msg = "WARN:\tVCF MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
                     sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
@@ -692,7 +697,7 @@ class RegionPileupGenerator:
                 if alt_ in alt_alleles_found:
                     for i in range(1, len(in_rec.alt)):
                         self.vcf_positional_dict[indx+i].append((in_rec.alt[i], in_rec.genotype))
-                else:
+                elif LOG_LEVEL == LOG_LEVEL_HIGH:
                     vcf_record_msg = str(self.chromosome_name) + "\t" + str(in_rec)
                     warn_msg = "WARN:\tVCF MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
                     sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
@@ -702,7 +707,7 @@ class RegionPileupGenerator:
                     for i in range(1, len(del_rec.ref)):
                         del_indx = self.positional_info_position_to_index[bam_pos+i]
                         self.vcf_positional_dict[del_indx].append(('.', del_rec.genotype))
-                else:
+                elif LOG_LEVEL == LOG_LEVEL_HIGH:
                     vcf_record_msg = str(self.chromosome_name) + "\t" + str(del_rec)
                     warn_msg = "WARN:\tVCF MISMATCH\t" + str(indx) + "\t" + vcf_record_msg + "\n"
                     sys.stderr.write(WARN_COLOR + warn_msg + TextColor.END)
