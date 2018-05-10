@@ -8,6 +8,9 @@ INSERT_CIGAR_CODE = 1
 DELETE_CIGAR_CODE = 2
 IMAGE_DEPTH_THRESHOLD = 300
 
+global_base_color_dictionary = {'A': 254.0, 'C': 100.0, 'G': 180.0, 'T': 30.0, '*': 5.0, '.': 5.0, 'N': 5.0}
+global_cigar_color_dictionary = {0: MAX_COLOR_VALUE, 1: MAX_COLOR_VALUE*0.6, 2: MAX_COLOR_VALUE*0.3}
+
 
 class ImageChannels:
     """
@@ -120,26 +123,28 @@ class ImageChannels:
         Get a bases's channel construction
         :return: [color spectrum of channels based on base attributes]
         """
-        base_color = self.get_base_color(self.pileup_base)
-        base_quality_color = self.get_base_quality_color(self.base_qual)
-        map_quality_color = self.get_map_quality_color(self.map_qual)
-        strand_color = self.get_strand_color(self.is_rev)
-        match_color = self.get_match_ref_color(self.is_match)
-        cigar_color = self.get_cigar_color(self.cigar_code)
+        base_color = global_base_color_dictionary[self.pileup_base] \
+            if self.pileup_base in global_base_color_dictionary else 0.0
+        base_quality_color = (MAX_COLOR_VALUE * min(self.base_qual, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
+        map_quality_color = (MAX_COLOR_VALUE * min(self.map_qual, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
+        strand_color = 240.0 if self.is_rev else 70.0
+        match_color = MAX_COLOR_VALUE * 0.2 if self.is_match is True else MAX_COLOR_VALUE * 1.0
+        cigar_color = global_cigar_color_dictionary[self.cigar_code] \
+            if self.cigar_code in global_cigar_color_dictionary else 0.0
         return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]
 
-    def get_channels_except_support(self):
-        """
-        Get a bases's channel construction
-        :return: [color spectrum of channels based on base attributes]
-        """
-        base_color = self.get_base_color(self.pileup_base)
-        base_quality_color = self.get_base_quality_color(self.base_qual)
-        map_quality_color = self.get_map_quality_color(self.map_qual)
-        strand_color = self.get_strand_color(self.is_rev)
-        match_color = self.get_match_ref_color(self.is_match)
-        cigar_color = self.get_cigar_color(self.cigar_code)
-        return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]
+    # def get_channels_except_support(self):
+    #     """
+    #     Get a bases's channel construction
+    #     :return: [color spectrum of channels based on base attributes]
+    #     """
+    #     base_color = self.get_base_color(self.pileup_base)
+    #     base_quality_color = self.get_base_quality_color(self.base_qual)
+    #     map_quality_color = self.get_map_quality_color(self.map_qual)
+    #     strand_color = self.get_strand_color(self.is_rev)
+    #     match_color = self.get_match_ref_color(self.is_match)
+    #     cigar_color = self.get_cigar_color(self.cigar_code)
+    #     return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]
 
     @staticmethod
     def get_channels_for_ref(base):

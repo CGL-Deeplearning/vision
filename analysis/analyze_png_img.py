@@ -85,15 +85,15 @@ def get_cigar_by_color(cigar_code):
         return 2
 
 
-def analyze_it(img, shape):
+def analyze_it(img, shape, start_index, end_index):
     file = img
     img = Image.open(file)
-    img_h, img_w, img_c = shape
     np_array_of_img = np.array(img.getdata())
 
     img = np.reshape(np_array_of_img, shape)
     img = np.transpose(img, (0, 1, 2))
-
+    img = img[:,start_index:end_index,]
+    img_h, img_w, img_c = img.shape
     print("BASE CHANNEL")
     for i in range(img_h):
         for j in range(img_w):

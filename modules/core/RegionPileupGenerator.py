@@ -9,6 +9,7 @@ from modules.handlers.TextColor import TextColor
 
 DEFAULT_MIN_MAP_QUALITY = 1
 DEBUG_MESSAGE = False
+ALLELE_DEBUG = False
 MIN_DELETE_QUALITY = 20
 VCF_INDEX_BUFFER = -1
 ALLELE_FREQUENCY_THRESHOLD_FOR_REPORTING = 0.5
@@ -18,6 +19,13 @@ MATCH_ALLELE = 0
 MISMATCH_ALLELE = 1
 INSERT_ALLELE = 2
 DELETE_ALLELE = 3
+
+
+# PER SEQUENCE THRESHOLDS
+WINDOW_OVERLAP_JUMP = 5
+WINDOW_SIZE = 20
+WINDOW_FLANKING_SIZE = 20
+BOUNDARY_COLUMNS = 25
 
 
 class RegionPileupGenerator:
@@ -151,8 +159,8 @@ class RegionPileupGenerator:
             if allele != ref:
                 self.mismatch_count[i] += 1
                 self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE)
-            else:
-                self.match_count[i] += 1
+            # else:
+            #     self.match_count[i] += 1
                 # this slows things down a lot. Don't add reference allele to the dictionary if we don't use them
                 # self._update_read_allele_dictionary(i, allele, MATCH_ALLELE)
 
@@ -371,7 +379,7 @@ class RegionPileupGenerator:
                     ref_base = self.reference_dictionary[pos]
                     pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
                     channel_object = ImageChannels(pileup_attributes, ref_base, 0)
-                    read_to_image_row.append(channel_object.get_channels_except_support())
+                    read_to_image_row.append(channel_object.get_channels())
                     self.index_based_coverage[self.positional_info_position_to_index[pos]] += 1
                     if base == '*':
                         self.base_frequency[self.positional_info_position_to_index[pos]]['.'] += 1
@@ -390,7 +398,7 @@ class RegionPileupGenerator:
                             ref_base = ''
                             pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
                             channel_object = ImageChannels(pileup_attributes, ref_base, 0)
-                            read_to_image_row.append(channel_object.get_channels_except_support())
+                            read_to_image_row.append(channel_object.get_channels())
 
                             self.base_frequency[self.positional_info_position_to_index[pos] + i + 1][base] += 1
                             self.index_based_coverage[self.positional_info_position_to_index[pos] + i + 1] += 1
@@ -404,7 +412,7 @@ class RegionPileupGenerator:
                             ref_base = ''
                             pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
                             channel_object = ImageChannels(pileup_attributes, ref_base, 0)
-                            read_to_image_row.append(channel_object.get_channels_except_support())
+                            read_to_image_row.append(channel_object.get_channels())
 
                             indx = self.positional_info_position_to_index[pos] + total_insert_bases + i + 1
                             self.base_frequency[indx][base] += 1
@@ -439,6 +447,7 @@ class RegionPileupGenerator:
         ref_row, ref_start, ref_end = self.image_row_for_ref
         start_index = self.positional_info_position_to_index[start_pos] - self.positional_info_position_to_index[ref_start]
         end_index = self.positional_info_position_to_index[end_pos] - self.positional_info_position_to_index[ref_start]
+
         ref_row = np.array(ref_row[start_index:end_index])
 
         return ref_row
@@ -475,7 +484,7 @@ class RegionPileupGenerator:
         for i, image_row in enumerate(image):
             if len(image_row) < image_width:
                 length_difference = image_width - len(image_row)
-                empty_channels = [ImageChannels.get_empty_channels() for i in range(length_difference)]
+                empty_channels = [ImageChannels.get_empty_channels()] * int(length_difference)
                 image[i] = image[i] + empty_channels
             elif len(image_row) > image_width:
                 image[i] = image[i][:image_width]
@@ -490,7 +499,7 @@ class RegionPileupGenerator:
 
         return -1
 
-    def create_image(self, interval_start, interval_end, read_id_list, image_height=300):
+    def create_image(self, interval_start, interval_end, read_id_list, image_height=100):
         whole_image = [[] for i in range(image_height)]
         image_row_info = defaultdict(int)
 
@@ -498,6 +507,7 @@ class RegionPileupGenerator:
         # O(n)
         ref_row = self.get_reference_row(interval_start, interval_end)
         image_width = ref_row.shape[0]
+        # print("REFERENCE LENGTH: ", image_width)
         whole_image[0].extend(ref_row)
         image_row_info[0] = interval_end
 
@@ -588,6 +598,18 @@ class RegionPileupGenerator:
         else:
             return bases[0], bases[1]
 
+    def get_translated_letter(self, base_a, base_b):
+        if base_b < base_a:
+            base_a, base_b = base_b, base_a
+        encoded_base = base_a + base_b
+        base_to_letter_map = {'**': 0, '*.': 1, '*A': 2, '*C': 3, '*G': 4, '*T': 5,
+                                       '..': 6, '.A': 7, '.C': 8, '.G': 9, '.T': 10,
+                                                'AA': 11, 'AC': 12, 'AG': 13, 'AT': 14,
+                                                          'CC': 15, 'CG': 16, 'CT': 17,
+                                                                    'GG': 18, 'GT': 19,
+                                                                              'TT': 20}
+        return base_to_letter_map[encoded_base]
+
     def get_estimated_allele_strings(self, interval_start, interval_end):
         start_index = self.positional_info_position_to_index[interval_start]
         end_index = self.positional_info_position_to_index[interval_end]
@@ -596,8 +618,11 @@ class RegionPileupGenerator:
         vcf_string_a = ''
         vcf_string_b = ''
         positional_values = ''
+        translated_sequence = ''
+
         for i in range(start_index, end_index):
             pos_increase = 0 if self.positional_info_index_to_position[i][1] is True else 1
+            ref_base = self.reference_base_by_index[i]
             positional_values = positional_values + str(pos_increase)
             vcf_alts = []
             if i in self.vcf_positional_dict:
@@ -607,12 +632,13 @@ class RegionPileupGenerator:
                 vcf_string_b += alt_b
                 vcf_alts.append(alt_a)
                 vcf_alts.append(alt_b)
+                translated_sequence = translated_sequence + chr(ord('A') + self.get_translated_letter(alt_a, alt_b))
             else:
-                vcf_string_a += '-'
-                vcf_string_b += '-'
+                vcf_string_a += ref_base
+                vcf_string_b += ref_base
+                translated_sequence = translated_sequence + chr(ord('A') + self.get_translated_letter(ref_base, ref_base))
             total_bases = self.index_based_coverage[i]
             bases = []
-            ref_base = self.reference_base_by_index[i]
 
             for base in self.base_frequency[i]:
                 base_frequency = self.base_frequency[i][base] / total_bases
@@ -635,7 +661,11 @@ class RegionPileupGenerator:
             else:
                 string_a += bases[0] if bases[0] != ref_base else '-'
                 string_b += bases[1] if bases[1] != ref_base else '-'
-        return string_a, string_b, vcf_string_a, vcf_string_b, positional_values
+
+        if ALLELE_DEBUG:
+            print(string_a)
+            print(string_b)
+        return vcf_string_a, vcf_string_b, translated_sequence, positional_values
 
     def populate_vcf_alleles(self, positional_vcf, interval_start, interval_end):
         for pos in positional_vcf.keys():
@@ -685,8 +715,39 @@ class RegionPileupGenerator:
         :param positional_variants: List of positional variants in that region
         :return:
         """
-        image = self.process_interval(interval_start, interval_end)
+        image = self.process_interval(interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS)
         self.populate_vcf_alleles(positional_variants, interval_start, interval_end)
-        alt_a, alt_b, vcf_a, vcf_b, pos_vals = self.get_estimated_allele_strings(interval_start, interval_end)
+        vcf_a, vcf_b, translated_seq, pos_vals = self.get_estimated_allele_strings(interval_start - BOUNDARY_COLUMNS,
+                                                                                   interval_end + BOUNDARY_COLUMNS)
 
-        return image, alt_a, alt_b, vcf_a, vcf_b, pos_vals
+        return image, vcf_a, vcf_b, translated_seq, pos_vals
+
+    def get_trainable_image_sequence(self, interval_start, interval_end, positional_variants):
+        image, vcf_a, vcf_b, translated_seq, pos_vals = \
+            self.create_region_alignment_image(interval_start, interval_end, positional_variants)
+        sliced_windows = []
+        ref_row, ref_start, ref_end = self.image_row_for_ref
+        img_started_in_indx = self.positional_info_position_to_index[interval_start - BOUNDARY_COLUMNS] - \
+                              self.positional_info_position_to_index[ref_start]
+
+        img_ended_in_indx = self.positional_info_position_to_index[interval_end + BOUNDARY_COLUMNS] - \
+                            self.positional_info_position_to_index[ref_start]
+
+        for pos in range(interval_start, interval_end, WINDOW_OVERLAP_JUMP):
+            point_indx = self.positional_info_position_to_index[pos] - self.positional_info_position_to_index[ref_start]
+            left_window_index = point_indx - WINDOW_FLANKING_SIZE
+            right_window_index = point_indx + WINDOW_SIZE + WINDOW_FLANKING_SIZE
+            if left_window_index < img_started_in_indx:
+                continue
+            if right_window_index > img_ended_in_indx:
+                break
+            img_left_indx = left_window_index - img_started_in_indx
+            img_right_indx = right_window_index - img_started_in_indx
+
+            sub_translated_seq = translated_seq[img_left_indx:img_right_indx]
+            sub_pos_vals = pos_vals[img_left_indx:img_right_indx]
+            sliced_windows.append((pos, img_left_indx, img_right_indx, sub_translated_seq, sub_pos_vals))
+        # for window in sliced_windows:
+        #     print(window[0],window[1],window[2])
+        # exit()
+        return image, sliced_windows

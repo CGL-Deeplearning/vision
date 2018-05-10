@@ -37,6 +37,7 @@ LOG_LEVEL_HIGH = 0
 LOG_LEVEL_LOW = 1
 LOG_LEVEL = LOG_LEVEL_LOW
 
+
 # only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
 STRATIFICATION_RATE = 1.0
 MIN_SEQUENCE_BASE_LENGTH_THRESHOLD = 10
@@ -131,10 +132,9 @@ class View:
         for i in range(start_index, end_index):
             interval_start, interval_end = self.confidence_intervals[i][0]+BED_INDEX_BUFFER, \
                                            self.confidence_intervals[i][1]+BED_INDEX_BUFFER
-            # interval_start, interval_end = 16893169, 16900501
+            # interval_start, interval_end = 34105640, 34105675
 
             interval_length = interval_end - interval_start
-
             if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
                 warn_msg = "REGION SKIPPED, TOO SMALL OF A WINDOW " + self.chromosome_name + " "
                 warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + "\n"
@@ -152,25 +152,36 @@ class View:
                     sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
                 continue
 
-            img, allele1, allele2, vcf_a, vcf_b, pos_vals = self.pileup_generator.create_region_alignment_image(
-                interval_start, interval_end, positional_variants)
+            # img, allele1, allele2, vcf_a, vcf_b, pos_vals, start_index, end_index = \
+            #     self.pileup_generator.create_region_alignment_image(interval_start, interval_end, positional_variants)
+            img, training_sequences = \
+                self.pileup_generator.get_trainable_image_sequence(interval_start, interval_end, positional_variants)
 
             filename = self.chromosome_name + '_' + str(interval_start) + '_' + str(interval_end)
             self.pileup_generator.save_image_as_png(img, self.output_dir, filename)
-
             img_shape_string = ','.join([str(x) for x in img.shape])
             file_location = os.path.abspath(self.output_dir + filename + '.png')
-            file_info = file_location + ',' + img_shape_string + ',' + str(interval_start) + ',' + str(interval_end)
-            summary_string = file_info + ',' + pos_vals + ',' + vcf_a + ',' + vcf_b + "\n"
-            self.summary_file.write(summary_string)
+            file_info = file_location + ',' + img_shape_string
+            # print(interval_start, interval_end)
             # from analysis.analyze_png_img import analyze_it
-            # print(allele1)
-            # print(allele2)
-            # print(vcf_a)
-            # print(vcf_b)
-            # print(pos_vals)
-            # analyze_it(self.output_dir+filename+'.png', img.shape)
+            # analyze_it(self.output_dir + filename + '.png', img.shape, 0, img.shape[1])
+            for i, training_sequence in enumerate(training_sequences):
+                pos, left_index, right_index, translated_seq, sub_pos_vals = training_sequence
+                sequence_info = str(pos) + "," + str(left_index) + "," + str(right_index) + "," + str(translated_seq)
+                sequence_info = sequence_info + "," + str(sub_pos_vals)
+                summary_string = file_info + ',' + sequence_info + "\n"
+                self.summary_file.write(summary_string)
+
+                # from analysis.analyze_png_img import analyze_it
+                # print(pos)
+                # print(translated_seq)
+                # print(sub_pos_vals)
+                # analyze_it(self.output_dir+filename+'.png', img.shape, left_index, right_index)
+                # if i == 10:
+                #     break
+                #analyze_it(self.output_dir + filename + '.png', img.shape, 0, img.shape[1])
             # exit()
+
 
 def test(view_object):
     """
@@ -178,7 +189,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_index=0, end_index=10)
+    view_object.parse_region(start_index=0, end_index=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
@@ -256,7 +267,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         each_chunk_size = 4
         total_segments = 40
 
-    for i in tqdm(range(0, total_segments, each_chunk_size), file=sys.stdout):
+    for i in tqdm(range(0, total_segments, each_chunk_size), file=sys.stdout, ncols=150):
         start_position = i
         end_position = min(i + each_chunk_size, total_segments)
         chunk_intervals = c_intervals[start_position:end_position]
