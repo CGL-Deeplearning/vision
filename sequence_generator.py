@@ -169,6 +169,7 @@ class View:
             file_location = os.path.abspath(self.output_dir + filename + '.png')
             file_info = file_location + ',' + img_shape_string
             # print(interval_start, interval_end)
+
             # from analysis.analyze_png_img import analyze_it
             # analyze_it(self.output_dir + filename + '.png', img.shape, 0, img.shape[1])
             for counter, training_sequence in enumerate(sequences):
@@ -195,7 +196,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_index=0, end_index=100)
+    view_object.parse_region(start_index=0, end_index=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

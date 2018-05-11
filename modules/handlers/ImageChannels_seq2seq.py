@@ -32,6 +32,10 @@ class ImageChannels:
         self.is_match = True if self.ref_base == self.pileup_base else False
 
     @staticmethod
+    def get_total_number_of_channels():
+        return len(ImageChannels.get_empty_channels())
+
+    @staticmethod
     def get_empty_channels():
         """
         Get empty channel values

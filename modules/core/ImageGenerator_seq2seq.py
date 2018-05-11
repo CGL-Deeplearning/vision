@@ -62,20 +62,30 @@ class ImageGenerator:
         self.reference_base_by_index = defaultdict(int)
         self.vcf_positional_dict = defaultdict(list)
 
-    def post_process_reads(self, read_id_list):
+    def post_process_reads(self, read_id_list, interval_start, interval_end):
         """
         After all the inserts are processed, process the reads again to make sure all the in-del lengths match.
         :param read_id_list: List of read ids
         :return:
         """
         for read_id in read_id_list:
-            star_pos, end_pos, mapping_quality, strand_direction = self.pos_dicts.read_info[read_id]
+            start_pos, end_pos, mapping_quality, strand_direction = self.pos_dicts.read_info[read_id]
+            start_pos_new = max(start_pos, interval_start)
+            end_pos_new = min(end_pos, interval_end)
             read_to_image_row = []
-            for pos in range(star_pos, end_pos):
+            for pos in range(start_pos, end_pos):
+
+                if pos < interval_start:
+                    continue
+
+                if pos > interval_end:
+                    break
+
                 if pos not in self.pos_dicts.base_dictionary[read_id] and \
                         pos not in self.pos_dicts.insert_dictionary[read_id]:
                     print(pos, read_id)
                     continue
+
                 # if there is a base in that position for that read
                 if pos in self.pos_dicts.base_dictionary[read_id]:
                     # get the base and the base quality
@@ -139,9 +149,9 @@ class ImageGenerator:
                             self.base_frequency[indx][base] += 1
                             self.index_based_coverage[indx] += 1
 
-            self.image_row_for_reads[read_id] = (read_to_image_row, star_pos, end_pos)
+            self.image_row_for_reads[read_id] = (read_to_image_row, start_pos_new, end_pos_new)
 
-    def post_process_reference(self):
+    def post_process_reference(self, interval_start, interval_end):
         """
         Post process the reference with inserts to create the reference row.
 
@@ -149,8 +159,9 @@ class ImageGenerator:
         :return:
         """
         # find the start and end position for the reference
-        left_position = min(self.pos_dicts.reference_dictionary.keys())
-        right_position = max(self.pos_dicts.reference_dictionary.keys()) + 1
+        left_position = interval_start
+        right_position = interval_end + 1
+
         reference_to_image_row = []
         index = 0
 
@@ -158,7 +169,8 @@ class ImageGenerator:
             # get the reference base for that position
             base = self.pos_dicts.reference_dictionary[pos] if pos in self.pos_dicts.reference_dictionary else 'N'
             # get the pixel value fot the reference
-            reference_to_image_row.append(ImageChannels.get_channels_for_ref(base))
+            pixel_values = ImageChannels.get_channels_for_ref(base)
+            reference_to_image_row.append(pixel_values)
             # save index values
             self.positional_info_index_to_position[index] = (pos, False)
             self.positional_info_position_to_index[pos] = index
@@ -168,11 +180,12 @@ class ImageGenerator:
             if pos in self.pos_dicts.insert_length_info:
                 for i in range(self.pos_dicts.insert_length_info[pos]):
                     base = '*'
-                    reference_to_image_row.append(ImageChannels.get_channels_for_ref(base))
+                    pixel_values = ImageChannels.get_channels_for_ref(base)
+                    reference_to_image_row.append(pixel_values)
                     self.positional_info_index_to_position[index] = (pos, True)
                     self.reference_base_by_index[index] = base
                     index += 1
-
+        # print(reference_to_image_row.shape)
         self.image_row_for_ref = (reference_to_image_row, left_position, right_position)
 
     def get_reference_row(self, start_pos, end_pos):
@@ -215,7 +228,11 @@ class ImageGenerator:
                       self.positional_info_position_to_index[read_start]
         end_index = self.positional_info_position_to_index[read_end_new] - \
                       self.positional_info_position_to_index[read_start]
-
+        # print(start_index, end_index)
+        # print(image_start, image_end)
+        # print(read_start, read_end)
+        # print(read_start_new, read_end_new)
+        # exit()
         image_row = read_row[start_index:end_index]
 
         if image_start < read_start_new:
@@ -225,24 +242,6 @@ class ImageGenerator:
             image_row = empty_channels_list + image_row
 
         return image_row, read_start_new, read_end_new
-
-    @staticmethod
-    def pad_rows(image, image_width):
-        """
-        Pad empty pixels to the right side of the image to make sure everything is same size
-        :param image: The image
-        :param image_width: The width of the image
-        :return:
-        """
-        for i, image_row in enumerate(image):
-            if len(image_row) < image_width:
-                length_difference = image_width - len(image_row)
-                empty_channels = [ImageChannels.get_empty_channels()] * int(length_difference)
-                image[i] = image[i] + empty_channels
-            elif len(image_row) > image_width:
-                image[i] = image[i][:image_width]
-
-        return image
 
     @staticmethod
     def get_row_for_read(read_start, read_end, row_info, image_height):
@@ -270,7 +269,6 @@ class ImageGenerator:
         :param image_height: Height of the image
         :return:
         """
-        whole_image = [[] for i in range(image_height)]
         image_row_info = defaultdict(int)
 
         # get the reference row
@@ -278,9 +276,12 @@ class ImageGenerator:
 
         # the image width is the width of the reference
         image_width = ref_row.shape[0]
+        image_channels = ref_row.shape[1]
 
+        whole_image = np.empty((image_height, image_width, image_channels))
         # add the reference row as the first row of the image [0th row]
-        whole_image[0].extend(ref_row)
+        whole_image[0, :, :] = np.array(ref_row)
+
         # update the packing information
         image_row_info[0] = interval_end
 
@@ -288,6 +289,7 @@ class ImageGenerator:
         for read_id in read_id_list:
             read_info = self.pos_dicts.read_info[read_id]
             read_start, read_end, mq, is_rev = read_info
+
             # get the row of the read
             row = self.get_row_for_read(read_start, read_end, image_row_info, image_height)
 
@@ -297,20 +299,17 @@ class ImageGenerator:
 
             # find the image start
             image_start = max(image_row_info[row], interval_start)
-
+            image_index_for_read_start = self.positional_info_position_to_index[image_start] - \
+                                         self.positional_info_position_to_index[interval_start]
             # get the row with the images
             read_row, read_start, read_end = self.get_read_row(read_id, read_info, image_start, interval_end)
 
+            image_index_for_read_end = image_index_for_read_start + len(read_row)
+
             # append the read to the row we want to pack it to
-            whole_image[row].extend(read_row)
+            whole_image[row, image_index_for_read_start:image_index_for_read_end, :] = np.array(read_row)
             # update packing information
             image_row_info[row] = read_end
-
-        # when all reads are done then pad the rows to make it of same length
-        whole_image = self.pad_rows(whole_image, image_width)
-
-        # convert to numpy array
-        whole_image = np.array(whole_image)
 
         return whole_image
 
@@ -535,8 +534,8 @@ class ImageGenerator:
         :return:
         """
         # post process reference and read
-        self.post_process_reference()
-        self.post_process_reads(read_id_list)
+        self.post_process_reference(interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS)
+        self.post_process_reads(read_id_list, interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS)
 
         image, vcf_a, vcf_b, translated_seq, pos_vals = \
             self.create_region_alignment_image(interval_start, interval_end, positional_variants, read_id_list)

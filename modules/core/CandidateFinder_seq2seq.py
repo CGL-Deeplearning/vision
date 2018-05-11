@@ -21,7 +21,7 @@ INSERT_ALLELE = 2
 DELETE_ALLELE = 3
 
 MIN_DELETE_QUALITY =20
-
+BOUNDARY_COLUMNS = 20
 
 class CandidateFinder:
     """
@@ -402,7 +402,8 @@ class CandidateFinder:
         :return:
         """
         # get all the reads of that region
-        reads = self.bam_handler.get_reads(self.chromosome_name, interval_start, interval_end)
+        reads = self.bam_handler.get_reads(self.chromosome_name, interval_start - BOUNDARY_COLUMNS,
+                                           interval_end + BOUNDARY_COLUMNS)
 
         total_reads = 0
         read_id_list = []
@@ -412,7 +413,7 @@ class CandidateFinder:
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 # for paired end make sure read name is unique
                 read.query_name = read.query_name + '_1' if read.is_read1 else read.query_name + '_2'
-                self.process_read(read, interval_start, interval_end)
+                self.process_read(read, interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS)
                 read_id_list.append(read.query_name)
                 total_reads += 1
 
