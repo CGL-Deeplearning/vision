@@ -278,7 +278,7 @@ class ImageGenerator:
         image_width = ref_row.shape[0]
         image_channels = ref_row.shape[1]
 
-        whole_image = np.empty((image_height, image_width, image_channels))
+        whole_image = np.empty((image_height, image_width, image_channels), dtype=float)
         # add the reference row as the first row of the image [0th row]
         whole_image[0, :, :] = np.array(ref_row)
 
@@ -299,15 +299,15 @@ class ImageGenerator:
 
             # find the image start
             image_start = max(image_row_info[row], interval_start)
-            image_index_for_read_start = self.positional_info_position_to_index[image_start] - \
+            image_index_read_start = self.positional_info_position_to_index[image_start] - \
                                          self.positional_info_position_to_index[interval_start]
             # get the row with the images
             read_row, read_start, read_end = self.get_read_row(read_id, read_info, image_start, interval_end)
 
-            image_index_for_read_end = image_index_for_read_start + len(read_row)
+            image_index_read_end = image_index_read_start + len(read_row)
 
             # append the read to the row we want to pack it to
-            whole_image[row, image_index_for_read_start:image_index_for_read_end, :] = np.array(read_row)
+            whole_image[row, image_index_read_start:image_index_read_end, :] = np.array(read_row, dtype=np.float)
             # update packing information
             image_row_info[row] = read_end
 
