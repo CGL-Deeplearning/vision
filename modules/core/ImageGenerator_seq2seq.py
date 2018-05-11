@@ -278,7 +278,7 @@ class ImageGenerator:
         image_width = ref_row.shape[0]
         image_channels = ref_row.shape[1]
 
-        whole_image = np.empty((image_height, image_width, image_channels), dtype=float)
+        whole_image = np.zeros((image_height, image_width, image_channels))
         # add the reference row as the first row of the image [0th row]
         whole_image[0, :, :] = np.array(ref_row)
 
