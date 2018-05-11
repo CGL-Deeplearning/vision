@@ -322,13 +322,12 @@ class ImageGenerator:
         :param file_name: Name of the file
         :return:
         """
-        sys.stderr.write("SAVING IMAGE: " + file_name)
         pileup_array_2d = pileup_array.reshape((pileup_array.shape[0], -1))
         try:
             misc.imsave(save_dir + file_name + ".png", pileup_array_2d, format="PNG")
-        except:
+        except RuntimeWarning:
             sys.stderr.write(TextColor.RED)
-            sys.stderr.write("ERROR: ERROR SAVING FILE: " + save_dir + file_name + ".png" + "\n" + TextColor.END)
+            sys.stderr.write("ERROR: ERROR SAVING FILE: " + file_name + ".png" + "\n" + TextColor.END)
             sys.stderr.write()
 
     def get_allele_bases_from_vcf_genotype(self, indx, vcf_records, base_frequencies, ref_base):
