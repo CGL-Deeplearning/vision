@@ -45,8 +45,6 @@ MIN_SEQUENCE_BASE_LENGTH_THRESHOLD = 10
 MIN_VARIANT_IN_WINDOW_THRESHOLD = 1
 BED_INDEX_BUFFER = -1
 
-BOUNDARY_COLUMNS = 20
-
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -145,8 +143,7 @@ class View:
                 continue
 
             # get positional variants
-            positional_variants = self.get_vcf_record_of_region(interval_start + BOUNDARY_COLUMNS,
-                                                                interval_end - BOUNDARY_COLUMNS)
+            positional_variants = self.get_vcf_record_of_region(interval_start, interval_end)
 
             if len(positional_variants) < MIN_VARIANT_IN_WINDOW_THRESHOLD:
                 warn_msg = "REGION SKIPPED, INSUFFICIENT NUMBER OF VARIANTS " + self.chromosome_name + " "
