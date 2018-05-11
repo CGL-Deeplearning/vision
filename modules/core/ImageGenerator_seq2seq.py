@@ -323,6 +323,8 @@ class ImageGenerator:
         :return:
         """
         pileup_array_2d = pileup_array.reshape((pileup_array.shape[0], -1))
+        if np.isnan(pileup_array_2d):
+            sys.stderr.write("NAN VALUE ENCOUNTERED " + file_name + "\n")
         try:
             misc.imsave(save_dir + file_name + ".png", pileup_array_2d, format="PNG")
         except RuntimeWarning:
