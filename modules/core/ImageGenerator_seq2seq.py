@@ -322,6 +322,7 @@ class ImageGenerator:
         :param file_name: Name of the file
         :return:
         """
+        sys.stderr.write("SAVING IMAGE: " + file_name)
         pileup_array_2d = pileup_array.reshape((pileup_array.shape[0], -1))
         try:
             misc.imsave(save_dir + file_name + ".png", pileup_array_2d, format="PNG")
