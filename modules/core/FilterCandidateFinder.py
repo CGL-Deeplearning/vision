@@ -516,8 +516,8 @@ class CandidateFinder:
         if total_reads == 0:
             return []
 
-        # self.postprocess_reads(read_id_list)
-        # self.postprocess_reference()
+        self.postprocess_reads(read_id_list)
+        self.postprocess_reference()
 
         selected_alleles = list()
         for pos in range(self.region_start_position, self.region_end_position):
