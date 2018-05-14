@@ -328,7 +328,7 @@ def predict(model, loader):
 
         y_predict = model.forward(x)
 
-        coordinate_vectors.append(coordinates.data.numpy())
+        coordinate_vectors.append(coordinates.numpy())
         x_vectors.append(x.data.numpy())
         y_predict_vectors.append(y_predict.data.numpy())
 
