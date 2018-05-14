@@ -292,7 +292,7 @@ class View:
 
         # go through each read and find candidate positions and alleles
         candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-        # dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
+        dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
         # if confident tree is defined then subset the candidates to only those intervals
         if self.confident_tree is not None:
@@ -312,11 +312,11 @@ class View:
                 for candidate in predicted_candidates:
                     print(candidate)
 
-            # # create image generator object with all necessary dictionary
-            # image_generator = ImageGenerator(dictionaries_for_images)
-            #
-            # # generate and save candidate images
-            # self.generate_candidate_images(predicted_candidates, image_generator, thread_no)
+            # create image generator object with all necessary dictionary
+            image_generator = ImageGenerator(dictionaries_for_images)
+
+            # generate and save candidate images
+            self.generate_candidate_images(predicted_candidates, image_generator, thread_no)
 
 
 def parallel_run(chr_name, bam_file, ref_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
