@@ -333,10 +333,16 @@ def predict(model, loader):
 
     try:
         coordinates = numpy.concatenate(coordinate_vectors)
+
     except ValueError:
         print(len(y_predict_vectors))
         print(len(x_vectors))
         print(len(coordinate_vectors))
+
+        for data in zip(y_predict_vectors,x_vectors,coordinate_vectors):
+            print(data[0][0])
+            print(data[1][0])
+            print(data[2][0])
 
     return y_predict_matrix, x_matrix, coordinates
 
