@@ -241,10 +241,12 @@ class CandidateAlleleNumpyTestDataset(Dataset):
     If dataset is too large to load into memory, and exists in h5py format, use this
     A list of indices defining the subset of the full dataset must be provided.
     """
-    def __init__(self, numpy_dataset):
+    def __init__(self, numpy_dataset, transform=None):
         # check if path exists
         self.data = numpy_dataset.T
+        self.transform = None
 
+        # print("before transform:", type(self.data))
         # print(self.data.shape)
 
         self.length = self.data.shape[0]
@@ -262,6 +264,10 @@ class CandidateAlleleNumpyTestDataset(Dataset):
         # print(x)
 
         x_data = torch.from_numpy(x).type(self.x_dtype)
+
+        # if index == 0:
+        #     print("after transform data:", type(self.data))
+        #     print("after transform coords:", type(coordinates))
 
         return x_data, coordinates
 
@@ -322,7 +328,7 @@ def predict(model, loader):
 
         y_predict = model.forward(x)
 
-        coordinate_vectors.append(coordinates)
+        coordinate_vectors.append(coordinates.data.numpy())
         x_vectors.append(x.data.numpy())
         y_predict_vectors.append(y_predict.data.numpy())
 
@@ -331,18 +337,18 @@ def predict(model, loader):
     y_predict_matrix = numpy.concatenate(y_predict_vectors)
     x_matrix = numpy.concatenate(x_vectors)
 
-    try:
-        coordinates = numpy.concatenate(coordinate_vectors)
-
-    except ValueError:
-        print(len(y_predict_vectors))
-        print(len(x_vectors))
-        print(len(coordinate_vectors))
-
-        for data in zip(y_predict_vectors,x_vectors,coordinate_vectors):
-            print(data[0][0])
-            print(data[1][0])
-            print(data[2][0])
+    coordinates = numpy.concatenate(coordinate_vectors)
+    # print("after dataloader:", type(coordinate_vectors[0]))
+    #
+    # except ValueError:
+    #     print(len(y_predict_vectors))
+    #     print(len(x_vectors))
+    #     print(len(coordinate_vectors))
+    #
+    #     for data in zip(y_predict_vectors,x_vectors,coordinate_vectors):
+    #         print(data[0][0])
+    #         print(data[1][0])
+    #         print(data[2][0])
 
     return y_predict_matrix, x_matrix, coordinates
 
@@ -579,7 +585,7 @@ def run_prediction(test_dataset, model_state_path=None):
     model = ShallowLinear()
 
     # Initialize data loader
-    data_loader_test = DataLoader(dataset=test_dataset, batch_size=batch_size_test)
+    data_loader_test = DataLoader(dataset=test_dataset, batch_size=batch_size_test, )
 
     # load previous model and test only
     model.load_state_dict(torch.load(model_state_path))
