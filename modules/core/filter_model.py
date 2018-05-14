@@ -330,7 +330,13 @@ def predict(model, loader):
 
     y_predict_matrix = numpy.concatenate(y_predict_vectors)
     x_matrix = numpy.concatenate(x_vectors)
-    coordinates = numpy.concatenate(coordinate_vectors)
+
+    try:
+        coordinates = numpy.concatenate(coordinate_vectors)
+    except ValueError:
+        print(len(y_predict_vectors))
+        print(len(x_vectors))
+        print(len(coordinate_vectors))
 
     return y_predict_matrix, x_matrix, coordinates
 
