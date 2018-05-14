@@ -301,7 +301,7 @@ class CandidateLabeler:
         base_quality = float(base_quality)/1000
 
         data_list.append(chromosome_number)  # 0
-        data_list.append(int(start))              # 1
+        data_list.append(int(start))         # 1
         data_list.extend(genotypes)          # 2-4
         l = len(data_list)
         data_list.extend([0]*PLOIDY*3)       # 5-28

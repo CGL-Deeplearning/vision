@@ -65,23 +65,30 @@ def get_positional_frequency_data(coordinates, frequency_data):
 #
 #     return positional_support
 
-def generate_interval_tree_from_bed_file(regions_bed_path):
-    tsv_handler = TsvHandler(regions_bed_path)
 
-    # collect intervals from BED in illumina PG standards and convert to intervals that make sense: 0-based, closed
-    bed_intervals_by_chromosome = tsv_handler.get_bed_intervals_by_chromosome(universal_offset=-1, start_offset=1)
+def build_chromosomal_interval_trees(confident_bed_path):
+    """
+    Produce a dictionary of intervals trees, with one tree per chromosome
+    :param confident_bed_path: Path to confident bed file
+    :return: trees_chromosomal
+    """
+    # create an object for tsv file handling
+    tsv_handler_reference = TsvHandler(tsv_file_path=confident_bed_path)
+    # create intervals based on chromosome
+    intervals_chromosomal_reference = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1,
+                                                                                            universal_offset=-1)
+    # create a dictionary to get all chromosomal trees
+    trees_chromosomal = dict()
 
-    interval_trees_by_chromosome = dict()
+    # for each chromosome extract the tree and add it to the dictionary
+    for chromosome_name in intervals_chromosomal_reference:
+        intervals = intervals_chromosomal_reference[chromosome_name]
+        tree = IntervalTree(intervals)
 
-    for chromosome in bed_intervals_by_chromosome:
-        intervals = bed_intervals_by_chromosome[chromosome]
+        trees_chromosomal[chromosome_name] = tree
 
-        interval_tree = IntervalTree(intervals)
-        interval_trees_by_chromosome[chromosome] = interval_tree
-
-    print("chromosomes: ", bed_intervals_by_chromosome.keys())
-
-    return interval_trees_by_chromosome
+    # return the dictionary containing all the trees
+    return trees_chromosomal
 
 
 def get_support(frequency_data):
@@ -127,7 +134,7 @@ def validate_positional_variants(positional_variants, positional_frequency_data,
             records = positional_variants[position]
             adjusted_position = (position - VCF_OFFSET)
 
-            # if there are candidates, get determine their support by variant type
+            # if there are candidates, determine their support by variant type
             if adjusted_position in positional_frequency_data:
                 support = get_support(positional_frequency_data[adjusted_position])
             else:
@@ -168,6 +175,33 @@ def get_chromosome_lengths(chromosome_names, fasta_handler):
     return chromosome_lengths
 
 
+def get_chromosome_sublist_from_file_paths(file_paths):
+    chromosome_names = set()
+    for path in file_paths:
+        chromosome_name, start, stop = get_region_from_file_path(path)
+        chromosome_names.add(chromosome_name)
+
+    return list(chromosome_names)
+
+
+def get_positional_variants_by_chromosome(vcf_path, fasta_handler, file_paths):
+    chromosome_names = get_chromosome_sublist_from_file_paths(file_paths)
+    chromosome_lengths = get_chromosome_lengths(chromosome_names=chromosome_names, fasta_handler=fasta_handler)
+    positional_variants_by_chromosome = dict()
+
+    print("Loading VCF")
+    for chromosome_name in tqdm(chromosome_names):
+        vcf_handler = VCFFileProcessor(vcf_path)
+        vcf_handler.populate_dictionary(contig=chromosome_name,
+                                        start_pos=0,
+                                        end_pos=chromosome_lengths[chromosome_name],
+                                        hom_filter=True)
+
+        positional_variants_by_chromosome[chromosome_name] = vcf_handler.get_variant_dictionary()
+
+    return positional_variants_by_chromosome
+
+
 def validate_regional_candidate_data(file_paths, vcf_path, fasta_path, bed_path):
     """
     Parse a table of candidate data to determine whether candidates have been found for every variant in their region
@@ -176,14 +210,11 @@ def validate_regional_candidate_data(file_paths, vcf_path, fasta_path, bed_path)
     total_false_negative = 0
     total_true_positive = 0
     all_false_negatives = list()
-    vcf_handler = VCFFileProcessor(vcf_path)
     fasta_handler = FastaHandler(fasta_path)
-    interval_trees_by_chromosome = generate_interval_tree_from_bed_file(bed_path)
-    chromosome_names = fasta_handler.get_sequence_names()
-    chromosome_lengths = get_chromosome_lengths(chromosome_names=chromosome_names, fasta_handler=fasta_handler)
+    interval_trees_by_chromosome = build_chromosomal_interval_trees(bed_path)
+    positional_variants_by_chromosome = get_positional_variants_by_chromosome(vcf_path=vcf_path, fasta_handler=fasta_handler, file_paths=file_paths)
 
     current_chromosome_name = None
-    positional_variants = None
     i=0
     for path in tqdm(file_paths):
         i+=1
@@ -192,18 +223,13 @@ def validate_regional_candidate_data(file_paths, vcf_path, fasta_path, bed_path)
         chromosome_name, start, stop = get_region_from_file_path(path)
 
         if current_chromosome_name != chromosome_name:
-            print("current:", current_chromosome_name, "actual:", chromosome_name)
+            # print("loaded:", current_chromosome_name, "actual:", chromosome_name)
+            print("now loaded:", current_chromosome_name)
+            print("FN: ", total_false_negative)
+            print("TP: ", total_true_positive)
 
-            vcf_handler.populate_dictionary(contig=chromosome_name,
-                                            start_pos=0,
-                                            end_pos=chromosome_lengths[chromosome_name],
-                                            hom_filter=True)
-
-            positional_variants = vcf_handler.get_variant_dictionary()
             current_chromosome_name = chromosome_name
 
-            print("now current chromosome is:", current_chromosome_name)
-            print("length:", chromosome_lengths[chromosome_name])
             sys.stdout.flush()
 
         # print(numpy.array2string(data[1:5,:], threshold=numpy.nan, separator="\t", precision=2, max_line_width=500))
@@ -215,7 +241,7 @@ def validate_regional_candidate_data(file_paths, vcf_path, fasta_path, bed_path)
         positional_frequency_data = get_positional_frequency_data(coordinates, frequency_data)
 
         n_false_negative, n_true_positive, false_negatives = \
-            validate_positional_variants(positional_variants=positional_variants,
+            validate_positional_variants(positional_variants=positional_variants_by_chromosome[chromosome_name],
                                          positional_frequency_data=positional_frequency_data,
                                          confident_interval_tree=interval_trees_by_chromosome[chromosome_name],
                                          start=start,
@@ -225,25 +251,20 @@ def validate_regional_candidate_data(file_paths, vcf_path, fasta_path, bed_path)
         total_false_negative += n_false_negative
         all_false_negatives.extend(false_negatives)
 
-        if n_false_negative > 0:
-            print(chromosome_name, start, stop, n_false_negative, n_true_positive)
-            for false_negative in false_negatives:
-                print(false_negative[:-1])
-                for record in false_negative[-1]:
-                    print(record)
-
-        # --- test ---
-        # numpy.savetxt('test.out', data, delimiter='\t')
-        # if i > 20:
-        #     break
+        # if n_false_negative > 0:
+        #     print(chromosome_name, start, stop, n_false_negative, n_true_positive)
+        #     for false_negative in false_negatives:
+        #         print(false_negative[:-1])
+        #         for record in false_negative[-1]:
+        #             print(record)
 
     print("FN: ", total_false_negative)
     print("TP: ", total_true_positive)
 
-    # for false_negative in false_negatives:
-    #     print(false_negative[:-1])
-    #     for record in false_negative[-1]:
-    #         print(record)
+    for false_negative in false_negatives:
+        print(false_negative[:-1])
+        for record in false_negative[-1]:
+            print(record)
 
 
 parent_directory_path = "/home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold/confident/chr1_19__0_all_1_coverage"

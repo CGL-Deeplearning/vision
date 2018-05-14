@@ -7,7 +7,6 @@ import multiprocessing
 import h5py
 from tqdm import tqdm
 import numpy as np
-import random
 
 from modules.core.FilterCandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -16,38 +15,28 @@ from modules.handlers.TextColor import TextColor
 from modules.core.IntervalTree import IntervalTree
 from modules.handlers.TsvHandler import TsvHandler
 from modules.core.ImageGenerator import ImageGenerator
-from modules.handlers.VcfHandler import VCFFileProcessor
-from modules.core.FilterCandidateLabeler import CandidateLabeler
+from modules.core.FilterCandidateVectorizer import CandidateVectorizer
 from modules.handlers.FileManager import FileManager
 from modules.handlers.TsvWriter import TsvWriter
+from modules.core.filter_model import *
 
 """
-This script creates training images from BAM, Reference FASTA and truth VCF file. The process is:
+This script creates prediction images from BAM and Reference FASTA. The process is:
 - Find candidates that can be variants
-- Label candidates using the VCF
 - Create images for each candidate
 
 Input:
 - BAM file: Alignment of a genome
 - REF file: The reference FASTA file used in the alignment
-- VCF file: A truth VCF file
 - BED file: A confident bed file. If confident_bed is passed it will only generate train set for those region.
 
 Output:
-- H5PY files: Containing images and their label of the genome.
+- H5PY files: Containing images of the genome.
 - CSV file: Containing records of images and their location in the H5PY file.
-
-Example usage:
-python3 filter_train_bed_generator.py --ref ~/data/GIAB/GRCh37_WG.fa --bam ~/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam --vcf ~/data/GIAB/NA12878_GRCh37.vcf.gz --max_threads 30 --output_dir /home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold 
 """
-
-# Global debug helpers
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
-
-# only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
-STRATIFICATION_RATE = 1.0
 
 
 def build_chromosomal_interval_trees(confident_bed_path):
@@ -56,22 +45,19 @@ def build_chromosomal_interval_trees(confident_bed_path):
     :param confident_bed_path: Path to confident bed file
     :return: trees_chromosomal
     """
-    # create an object for tsv file handling
     tsv_handler_reference = TsvHandler(tsv_file_path=confident_bed_path)
-    # create intervals based on chromosome
+
+    # universal_offset affects all coordinates, start_offset only affects start coordinates. BED format has open start
+    # and closed stop for some reason e.g. (start,stop], so this needs to be converted to [start,stop]
     intervals_chromosomal_reference = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1,
                                                                                             universal_offset=-1)
-    # create a dictionary to get all chromosomal trees
     trees_chromosomal = dict()
 
-    # for each chromosome extract the tree and add it to the dictionary
     for chromosome_name in intervals_chromosomal_reference:
         intervals = intervals_chromosomal_reference[chromosome_name]
         tree = IntervalTree(intervals)
 
         trees_chromosomal[chromosome_name] = tree
-
-    # return the dictionary containing all the trees
     return trees_chromosomal
 
 
@@ -79,52 +65,23 @@ class View:
     """
     Process manager that runs sequence of processes to generate images and their labebls.
     """
-    def __init__(self, chromosome_name, bam_file_path, reference_file_path, vcf_path, output_file_path, confident_tree):
+    def __init__(self, chromosome_name, bam_file_path, reference_file_path, output_file_path, confident_tree):
         """
         Initialize a manager object
         :param chromosome_name: Name of the chromosome
         :param bam_file_path: Path to the BAM file
         :param reference_file_path: Path to the reference FASTA file
-        :param vcf_path: Path to the VCF file
         :param output_file_path: Path to the output directory where images are saved
         :param confident_tree: Dictionary containing all confident trees. NULL if parameter not passed.
         """
         # --- initialize handlers ---
-        # create objects to handle different files and query
         self.bam_handler = BamHandler(bam_file_path)
         self.fasta_handler = FastaHandler(reference_file_path)
         self.output_dir = output_file_path
         self.confident_tree = confident_tree[chromosome_name] if confident_tree else None
-        self.vcf_handler = VCFFileProcessor(file_path=vcf_path)
 
-        # --- initialize names ---
-        # name of the chromosome
+        # --- initialize parameters ---
         self.chromosome_name = chromosome_name
-
-    @staticmethod
-    def get_combined_gt(gt1, gt2):
-        """
-        Given two genotypes get the combined genotype. This is used to create labels for the third image.
-        If two alleles have two different genotypes then the third genotype is inferred using this method.
-
-        - If genotype1 is HOM then genotype of third image is genotype2
-        - If genotype2 is HOM then genotype of third image is genotype1
-        - If both gt are  HOM then genotype of third image is HOM
-        - If genotype1, genotype2 both are HET then genotype of third image is HOM_ALT
-        - If none of these cases match then we have an invalid genotype
-        :param gt1: Genotype of first allele
-        :param gt2: Genotype of second allele
-        :return: genotype of image where both alleles are used together
-        """
-        if gt1 == 0:
-            return gt2
-        if gt2 == 0:
-            return gt1
-        if gt1 == 0 and gt2 == 0:
-            return 0
-        if gt1 == 1 and gt2 == 1:
-            return 2
-        return None
 
     @staticmethod
     def get_images_for_two_alts(record):
@@ -134,28 +91,15 @@ class View:
         :return: Records of a site
         """
         chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
-        # get the genotypes from the record
-        gt1, gt2 = record[-2:]
-        gt1 = gt1[0]
-        gt2 = gt2[0]
-        # get the genotype of the images where both of these alleles are used together
-        gt3 = View.get_combined_gt(gt1, gt2)
+        # record for first allele
+        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0]
+        # record for second allele
+        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0]
+        # record for the image where both alleles are present
+        rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2]
+        return [rec_1, rec_2, rec_3]
 
-        # if gt3 is None that means we have invalid gt1 and gt2
-        if gt3 is None:
-            sys.stderr.write(TextColor.RED + "WEIRD RECORD: " + str(record) + "\n")
-
-        # create two separate records for each of the alleles
-        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0, gt1]
-        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0, gt2]
-        if gt3 is not None:
-            # if gt3 is not invalid create the record where both of the alleles are used together
-            rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt3]
-            return [rec_1, rec_2, rec_3]
-
-        return [rec_1, rec_2]
-
-    def write_training_set(self, data, start, stop):
+    def write_test_set(self, data, start, stop):
         """
         Create a npz training set of all labeled candidate sites found in the region
         :param data: vectors of the form [f1, f2, f3, ..., fn, L] where f = freq and L = label 0/1
@@ -185,7 +129,7 @@ class View:
             return True
         return False
 
-    def get_labeled_candidate_sites(self, selected_candidate_list, start_pos, end_pos, filter_hom_ref=False):
+    def get_vectorized_candidate_sites(self, selected_candidate_list):
         """
         Label selected candidates of a region and return a list of records
         :param selected_candidate_list: List of all selected candidates with their alleles
@@ -194,24 +138,13 @@ class View:
         :param filter_hom_ref: whether to ignore hom_ref VCF records during candidate validation
         :return: labeled_sites: Labeled candidate sites. Each containing proper genotype.
         """
-        # get dictionary of variant records for full region
-        self.vcf_handler.populate_dictionary(contig=self.chromosome_name,
-                                             start_pos=start_pos,
-                                             end_pos=end_pos,
-                                             hom_filter=filter_hom_ref)
-
-        # get separate positional variant dictionaries for IN, DEL, and SNP
-        positional_variants = self.vcf_handler.get_variant_dictionary()
-
         # create an object for labeling the allele
-        allele_labeler = CandidateLabeler(fasta_handler=self.fasta_handler)
+        allele_labeler = CandidateVectorizer(fasta_handler=self.fasta_handler)
 
-        # label the sites
-        labeled_sites = allele_labeler.get_labeled_candidates(chromosome_name=self.chromosome_name,
-                                                              positional_vcf=positional_variants,
-                                                              candidate_sites=selected_candidate_list)
+        vectorized_sites = allele_labeler.get_vectorized_candidates(chromosome_name=self.chromosome_name,
+                                                                    candidate_sites=selected_candidate_list)
 
-        return labeled_sites
+        return vectorized_sites
 
     def generate_candidate_images(self, candidate_list, image_generator, thread_no):
         """
@@ -241,29 +174,19 @@ class View:
         # expand the records for sites where two alleles are found
         for record in candidate_list:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
-            gt1, gt2 = record[-2:]
-            gt1 = gt1[0]
 
             if alt2 != '.':
                 image_record_set.extend(self.get_images_for_two_alts(record))
             else:
-                image_record_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt1])
+                image_record_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2])
 
-        # set of images and labels we are generating
+        # set of images we are generating
         img_set = []
-        label_set = []
 
         # index of the image we generate the images
         indx = 0
         for img_record in image_record_set:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, label = img_record
-
-            # STRATIFICATION RATE is used to reduce the number of homozygous images are generated.
-            # this parameter can be controlled via the global value of STRATIFICATION_RATE
-            if STRATIFICATION_RATE < 1.0 and label == 0:
-                random_draw = random.uniform(0, 1)
-                if random_draw > STRATIFICATION_RATE:
-                    continue
+            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = img_record[0:8]
 
             # list of alts in this record
             alts = [alt1]
@@ -280,20 +203,72 @@ class View:
 
             # the record of the image we want to save in the summary file
             img_rec = str('\t'.join(str(item) for item in img_record))
-            label_set.append(label)
             img_set.append(np.array(image_array, dtype=np.int8))
             smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
             indx += 1
 
         # the image dataset we save. The index name in h5py is "images".
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8,
-                                            compression='gzip')
-        # the labels for images that we saved
-        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8, compression='gzip')
 
-        # save the images and labels to the h5py file
+        # save the images
         img_dset[...] = img_set
-        label_dset[...] = label_set
+
+    def subset_by_confident_region(self, candidates):
+        confident_candidates = []
+
+        for candidate in candidates:
+            pos_st = candidate[1] + 1   # offset for bed
+            pos_end = candidate[1] + 1  # offset for bed
+            in_conf = self.in_confident_check(pos_st, pos_end)
+            if in_conf is True:
+                confident_candidates.append(candidate)
+
+        return confident_candidates
+
+    @staticmethod
+    def build_interval_tree_from_coordinate_data(coordinates):
+        intervals = list()
+        for i in range(coordinates.shape[0]):
+            # chromosome_number = coordinates[i,0]
+            start_position = int(coordinates[i,1])
+
+            interval = [start_position, start_position]
+            intervals.append(interval)
+
+        interval_tree = IntervalTree(intervals)
+
+        return interval_tree
+
+    def predict_true_candidates(self, vectorized_candidates, candidates):
+        # specify path to model state file
+        model_state_file_path = "models/filter_model_state"
+
+        # predict
+        positive_coordinates = predict_sites(model_state_file_path, vectorized_candidates)
+
+        positive_coordinates_list = list(map(int,list(positive_coordinates[:,1])))
+        positive_coordinates_set = set(positive_coordinates_list)
+
+        # generate interval tree from table of positive
+        interval_tree = self.build_interval_tree_from_coordinate_data(positive_coordinates)
+
+        # use interval tree to subset coordinates
+        predicted_candidates = list()
+        for candidate in candidates:
+            start = candidate[1]
+
+            interval = [start, start]
+
+            if interval in interval_tree:
+                predicted_candidates.append(candidate)
+
+            # if start in positive_coordinates_set:
+            #     predicted_candidates.append(candidate)
+
+        # for candidate in predicted_candidates:
+        #     print(candidate)
+
+        return predicted_candidates
 
     def parse_region(self, start_position, end_position, thread_no):
         """
@@ -316,47 +291,40 @@ class View:
                                            region_end_position=end_position)
 
         # go through each read and find candidate positions and alleles
-        selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-        dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
+        candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
+        # dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
         # if confident tree is defined then subset the candidates to only those intervals
         if self.confident_tree is not None:
-            confident_labeled = []
-            for candidate in selected_candidates:
-                pos_st = candidate[1] + 1
-                pos_end = candidate[1] + 1
-                in_conf = self.in_confident_check(pos_st, pos_end)
-                if in_conf is True:
-                    confident_labeled.append(candidate)
-            selected_candidates = confident_labeled
+            candidates = self.subset_by_confident_region(candidates)
 
-        # get all labeled candidate sites
-        labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-        self.write_training_set(labeled_sites, start_position, end_position)
+        # get all vectorized candidate sites
+        vectorized_candidates = self.get_vectorized_candidate_sites(candidates)
 
-        # Instead of writing, send the data to the filter model
-        # get subset of coordinates
-        # run image generator on subset
+        if vectorized_candidates.size > 0:
+            # pass test set to trained model and get predicted candidates
+            predicted_candidates = self.predict_true_candidates(vectorized_candidates, candidates)
 
-        if DEBUG_PRINT_CANDIDATES:
-            for candidate in selected_candidates:
-                print(candidate)
+            # print("candidates:", len(candidates))
+            # print("predicted:", len(predicted_candidates))
 
-        # ---- TRUNCATE PIPELINE ----
-        # # create image generator object with all necessary dictionary
-        # image_generator = ImageGenerator(dictionaries_for_images)
-        #
-        # # generate and save candidate images
-        # self.generate_candidate_images(labeled_sites, image_generator, thread_no)
+            if DEBUG_PRINT_CANDIDATES:
+                for candidate in predicted_candidates:
+                    print(candidate)
+
+            # # create image generator object with all necessary dictionary
+            # image_generator = ImageGenerator(dictionaries_for_images)
+            #
+            # # generate and save candidate images
+            # self.generate_candidate_images(predicted_candidates, image_generator, thread_no)
 
 
-def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
+def parallel_run(chr_name, bam_file, ref_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
     """
     Creates a view object for a region and generates images for that region.
     :param chr_name: Name of the chromosome
     :param bam_file: path to BAM file
     :param ref_file: path to reference FASTA file
-    :param vcf_file: path to VCF file
     :param output_dir: path to output directory
     :param start_pos: start position of the genomic region
     :param end_pos: end position of the genomic region
@@ -370,7 +338,6 @@ def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, 
                    bam_file_path=bam_file,
                    reference_file_path=ref_file,
                    output_file_path=output_dir,
-                   vcf_path=vcf_file,
                    confident_tree=conf_bed_tree)
 
     # return the results
@@ -384,7 +351,6 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     :param chr_name: chromosome name
     :return: New directory path
     """
-    print(output_dir, chr_name)
     path_to_dir = output_dir + chr_name + "/"
     if not os.path.exists(path_to_dir):
         os.mkdir(path_to_dir)
@@ -414,19 +380,17 @@ def log_candidate_datasets(parent_directory_path):
             log_writer.append_row([path, length])
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confident_bed_tree):
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, output_path, max_threads, confident_bed_tree):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Name of the chromosome
     :param bam_file: path to BAM file
     :param ref_file: path to reference FASTA file
-    :param vcf_file: path to VCF file
     :param output_path: path to output directory
     :param max_threads: Maximum number of threads to run at one instance
     :param confident_bed_tree: tree containing confident bed intervals
     :return:
     """
-    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
     # create dump directory inside output directory
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
 
@@ -434,57 +398,51 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     fasta_handler = FastaHandler(ref_file)
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
 
-    # .5MB segments at once
+    # 2MB segments at once
     each_segment_length = 50000
 
-    # chunk the chromosome into pieces
+    # chunk the chromosome into 1000 pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
     if DEBUG_TEST_PARALLEL:
         chunks = 4
     for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
-        # gather all parameters
-        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
+        args = (chr_name, bam_file, ref_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
 
-        # wait until we have room for new processes to start
         while True:
             if len(multiprocessing.active_children()) < max_threads:
                 break
 
 
-def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
+def genome_level_parallelization(bam_file, ref_file, output_dir_path, max_threads, confident_bed_tree):
     """
     This method calls chromosome_level_parallelization for each chromosome.
     :param bam_file: path to BAM file
     :param ref_file: path to reference FASTA file
-    :param vcf_file: path to VCF file
     :param output_dir_path: path to output directory
     :param max_threads: Maximum number of threads to run at one instance
     :param confident_bed_tree: tree containing confident bed intervals
     :return:
     """
-
-    # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
     # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
-    chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
-
+    # chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18",
+    # "19"]
+    # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
+    chr_list = ["19"]
     program_start_time = time.time()
-
-    # chr_list = ["19"]
 
     # each chromosome in list
     for chr_name in chr_list:
-
+        sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n")
         start_time = time.time()
 
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
-                                         max_threads, confident_bed_tree)
+        chromosome_level_parallelization(chr_name, bam_file, ref_file, output_dir_path, max_threads, confident_bed_tree)
 
         end_time = time.time()
         sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr_name) + " PROCESSES" + "\n")
@@ -511,8 +469,6 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
         # remove the directory
         os.rmdir(path_to_dir)
 
-    log_candidate_datasets(output_dir_path)
-
     program_end_time = time.time()
     sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
     sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
@@ -524,8 +480,8 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=14467720, end_position=14467729, thread_no=1)
-
+    # view_object.parse_region(start_position=1521297, end_position=1521302, thread_no=1)
+    view_object.parse_region(start_position=3039222, end_position=3039224, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
@@ -535,7 +491,7 @@ def handle_output_directory(output_dir):
     :param output_dir: Output directory path
     :return:
     """
-    # process the output directory (should use os.path.join instead)
+    # process the output directory
     if output_dir[-1] != "/":
         output_dir += "/"
     if not os.path.exists(output_dir):
@@ -569,12 +525,6 @@ if __name__ == '__main__':
         type=str,
         required=True,
         help="Reference corresponding to the BAM file."
-    )
-    parser.add_argument(
-        "--vcf",
-        type=str,
-        required=True,
-        help="VCF file path."
     )
     parser.add_argument(
         "--chromosome_name",
@@ -621,18 +571,16 @@ if __name__ == '__main__':
         sys.stderr.write(TextColor.RED + "CONFIDENT BED IS NULL\n" + TextColor.END)
 
     if FLAGS.test is True:
-        print(FLAGS.output_dir)
         chromosome_output = create_output_dir_for_chromosome(FLAGS.output_dir, FLAGS.chromosome_name)
         view = View(chromosome_name=FLAGS.chromosome_name,
                     bam_file_path=FLAGS.bam,
                     reference_file_path=FLAGS.ref,
-                    vcf_path=FLAGS.vcf,
                     output_file_path=chromosome_output,
                     confident_tree=confident_tree_build)
         test(view)
     elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
+        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.output_dir,
                                          FLAGS.max_threads, confident_tree_build)
     else:
-        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
+        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.output_dir,
                                      FLAGS.max_threads, confident_tree_build)
