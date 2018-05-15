@@ -30,6 +30,7 @@ LOG_LEVEL_LOW = 0
 LOG_LEVEL = LOG_LEVEL_LOW
 WARN_COLOR = TextColor.RED
 
+
 class ImageGenerator:
     """
     Generate images of an interval
@@ -61,6 +62,7 @@ class ImageGenerator:
         self.index_based_coverage = defaultdict(int)
         self.reference_base_by_index = defaultdict(int)
         self.vcf_positional_dict = defaultdict(list)
+        self.reference_string = ''
 
     def post_process_reads(self, read_id_list, interval_start, interval_end):
         """
@@ -164,7 +166,7 @@ class ImageGenerator:
 
         reference_to_image_row = []
         index = 0
-
+        reference_string = ''
         for pos in range(left_position, right_position):
             # get the reference base for that position
             base = self.pos_dicts.reference_dictionary[pos] if pos in self.pos_dicts.reference_dictionary else 'N'
@@ -175,6 +177,7 @@ class ImageGenerator:
             self.positional_info_index_to_position[index] = (pos, False)
             self.positional_info_position_to_index[pos] = index
             self.reference_base_by_index[index] = base
+            reference_string += base
             index += 1
             # if there's an insert add those insert bases
             if pos in self.pos_dicts.insert_length_info:
@@ -184,9 +187,11 @@ class ImageGenerator:
                     reference_to_image_row.append(pixel_values)
                     self.positional_info_index_to_position[index] = (pos, True)
                     self.reference_base_by_index[index] = base
+                    reference_string += base
                     index += 1
         # print(reference_to_image_row.shape)
         self.image_row_for_ref = (reference_to_image_row, left_position, right_position)
+        self.reference_string = reference_string
 
     def get_reference_row(self, start_pos, end_pos):
         """
@@ -398,8 +403,11 @@ class ImageGenerator:
         positional_values = ''
         # label sequence
         translated_sequence = ''
+        reference_string = ''
 
         for i in range(start_index, end_index):
+            # build the reference string
+            reference_string += self.reference_string[i]
             # see if we are in insert or in a true genomic position
             pos_increase = 0 if self.positional_info_index_to_position[i][1] is True else 1
             # reference base
@@ -450,7 +458,7 @@ class ImageGenerator:
             print(string_a)
             print(string_b)
 
-        return vcf_string_a, vcf_string_b, translated_sequence, positional_values
+        return vcf_string_a, vcf_string_b, translated_sequence, positional_values, reference_string
 
     def populate_vcf_alleles(self, positional_vcf, interval_start, interval_end):
         """
@@ -519,10 +527,10 @@ class ImageGenerator:
         """
         image = self.create_image(interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS, read_id_list)
         self.populate_vcf_alleles(positional_variants, interval_start, interval_end)
-        vcf_a, vcf_b, translated_seq, pos_vals = self.get_label_sequence(interval_start - BOUNDARY_COLUMNS,
-                                                                         interval_end + BOUNDARY_COLUMNS)
+        vcf_a, vcf_b, translated_seq, pos_vals, ref_seq = self.get_label_sequence(interval_start - BOUNDARY_COLUMNS,
+                                                                                  interval_end + BOUNDARY_COLUMNS)
 
-        return image, vcf_a, vcf_b, translated_seq, pos_vals
+        return image, vcf_a, vcf_b, translated_seq, pos_vals, ref_seq
 
     def get_segmented_image_sequences(self, interval_start, interval_end, positional_variants, read_id_list):
         """
@@ -537,7 +545,7 @@ class ImageGenerator:
         self.post_process_reference(interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS)
         self.post_process_reads(read_id_list, interval_start - BOUNDARY_COLUMNS, interval_end + BOUNDARY_COLUMNS)
 
-        image, vcf_a, vcf_b, translated_seq, pos_vals = \
+        image, vcf_a, vcf_b, translated_seq, pos_vals, ref_seq = \
             self.create_region_alignment_image(interval_start, interval_end, positional_variants, read_id_list)
         sliced_windows = []
         ref_row, ref_start, ref_end = self.image_row_for_ref
@@ -560,6 +568,7 @@ class ImageGenerator:
 
             sub_translated_seq = translated_seq[img_left_indx:img_right_indx]
             sub_pos_vals = pos_vals[img_left_indx:img_right_indx]
-            sliced_windows.append((pos, img_left_indx, img_right_indx, sub_translated_seq, sub_pos_vals))
+            sub_ref_seq = ref_seq[img_left_indx:img_right_indx]
+            sliced_windows.append((pos, img_left_indx, img_right_indx, sub_translated_seq, sub_pos_vals, sub_ref_seq))
 
         return image, sliced_windows

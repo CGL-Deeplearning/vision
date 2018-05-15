@@ -85,6 +85,18 @@ def get_cigar_by_color(cigar_code):
         return 2
 
 
+def analyze_array(img):
+    img_h, img_w, img_c = img.shape
+    print("BASE CHANNEL")
+    for i in range(img_h):
+        for j in range(img_w):
+            if img[i][j][0] != 0:
+                print(get_base_by_color(img[i][j][0]), end='')
+            else:
+                print(' ', end='')
+        print()
+
+
 def analyze_it(img, shape, start_index, end_index):
     file = img
     img = Image.open(file)

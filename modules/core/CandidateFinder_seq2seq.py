@@ -23,6 +23,7 @@ DELETE_ALLELE = 3
 MIN_DELETE_QUALITY =20
 BOUNDARY_COLUMNS = 20
 
+
 class CandidateFinder:
     """
     Process a genomic region of a BAM file and populate dictionaries that can be used for tensor/image generation

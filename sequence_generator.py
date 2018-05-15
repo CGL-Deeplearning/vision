@@ -3,6 +3,7 @@ import time
 import os
 import sys
 import multiprocessing
+import pickle
 from tqdm import tqdm
 
 from modules.core.CandidateFinder_seq2seq import CandidateFinder
@@ -121,6 +122,18 @@ class View:
 
         return positional_variants
 
+    @staticmethod
+    def save_dictionary(dictionary, directory, file_name):
+        """
+        Save a dictionary to a file.
+        :param dictionary: The dictionary to save
+        :param directory: Directory to save the file to
+        :param file_name: Name of file
+        :return:
+        """
+        with open(directory + file_name + '.pkl', 'wb') as f:
+            pickle.dump(dictionary, f, pickle.HIGHEST_PROTOCOL)
+
     def parse_region(self, start_index, end_index):
         """
         Generate labeled images of a given region of the genome
@@ -132,15 +145,17 @@ class View:
         for i in range(start_index, end_index):
             interval_start, interval_end = self.confidence_intervals[i][0]+BED_INDEX_BUFFER, \
                                            self.confidence_intervals[i][1]+BED_INDEX_BUFFER
-            # interval_start, interval_end = 34105640, 34105675
+            # interval_start, interval_end = 18987335, 18987365
 
             interval_length = interval_end - interval_start
             if interval_length < MIN_SEQUENCE_BASE_LENGTH_THRESHOLD:
-                warn_msg = "REGION SKIPPED, TOO SMALL OF A WINDOW " + self.chromosome_name + " "
-                warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + "\n"
-                if LOG_LEVEL == LOG_LEVEL_HIGH:
-                    sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
-                continue
+                append_length = MIN_SEQUENCE_BASE_LENGTH_THRESHOLD - interval_length
+                interval_start -= append_length
+                # warn_msg = "REGION SKIPPED, TOO SMALL OF A WINDOW " + self.chromosome_name + " "
+                # warn_msg = warn_msg + str(interval_start) + " " + str(interval_end) + "\n"
+                # if LOG_LEVEL == LOG_LEVEL_HIGH:
+                #     sys.stderr.write(TextColor.BLUE + "INFO: " + warn_msg + TextColor.END)
+                # continue
 
             # get positional variants
             positional_variants = self.get_vcf_record_of_region(interval_start, interval_end)
@@ -155,34 +170,42 @@ class View:
 
             # process the interval and populate dictionaries
             read_id_list = self.candidate_finder.process_interval(interval_start, interval_end)
-            image_generator = ImageGenerator(self.candidate_finder)
+            allele_dictionary = self.candidate_finder.positional_allele_frequency
 
+            image_generator = ImageGenerator(self.candidate_finder)
+            # get trainable sequences
             img, sequences = image_generator.get_segmented_image_sequences(interval_start, interval_end,
                                                                            positional_variants, read_id_list)
 
-            # create a filename and save the image
+            # create a filename and save the image and dictionary
             filename = self.chromosome_name + '_' + str(interval_start) + '_' + str(interval_end)
             image_generator.save_image_as_png(img, self.output_dir, filename)
+            self.save_dictionary(allele_dictionary, self.output_dir, filename)
 
             # gather all information about the saved image
             img_shape_string = ','.join([str(x) for x in img.shape])
             file_location = os.path.abspath(self.output_dir + filename + '.png')
-            file_info = file_location + ',' + img_shape_string
+            dictionary_file_location = os.path.abspath(self.output_dir + filename + '.pkl')
+            file_info = file_location + "," + dictionary_file_location + "," + img_shape_string
             # print(interval_start, interval_end)
 
-            # from analysis.analyze_png_img import analyze_it
+            from analysis.analyze_png_img import analyze_it
             # analyze_it(self.output_dir + filename + '.png', img.shape, 0, img.shape[1])
+            # exit()
             for counter, training_sequence in enumerate(sequences):
-                pos, left_index, right_index, translated_seq, sub_pos_vals = training_sequence
-                sequence_info = str(pos) + "," + str(left_index) + "," + str(right_index) + "," + str(translated_seq)
-                sequence_info = sequence_info + "," + str(sub_pos_vals)
-                summary_string = file_info + ',' + sequence_info + "\n"
+                # pos, img_left_indx, img_right_indx, sub_translated_seq, sub_pos_vals, sub_ref_seq
+                pos, left_index, right_index, translated_seq, sub_pos_vals, sub_ref_seq = training_sequence
+                sequence_info = str(self.chromosome_name) + "," + str(pos) + "," + str(left_index) + "," \
+                                + str(right_index) + "," + str(translated_seq)
+                sequence_info = sequence_info + "," + str(sub_pos_vals) + "," + str(sub_ref_seq)
+                summary_string = file_info + "," + sequence_info + "\n"
                 self.summary_file.write(summary_string)
 
                 # from analysis.analyze_png_img import analyze_it
                 # print(pos)
                 # print(translated_seq)
-                # print(sub_pos_vals)
+                # # print(sub_pos_vals)
+                # # print(sub_ref_seq)
                 # analyze_it(self.output_dir+filename+'.png', img.shape, left_index, right_index)
                 # if counter == 10:
                 #     break
