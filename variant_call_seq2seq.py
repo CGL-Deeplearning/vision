@@ -56,7 +56,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
     ## FROM HERE
-    '''
+
     # load the model
     if gpu_mode is False:
         checkpoint = torch.load(model_path, map_location='cpu')
@@ -92,11 +92,11 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model = torch.nn.DataParallel(model).cuda()
 
     # Change model to 'eval' mode (BN uses moving mean/var).
-    model.eval()'''
+    model.eval()
 
     for counter, (images, labels, positional_information, allele_dict) in enumerate(testloader):
         ### FROM HERE
-        '''
+
         images = Variable(images, volatile=True)
 
         if gpu_mode:
@@ -106,7 +106,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         # One dimensional softmax is used to convert the logits to probability distribution
         m = nn.Softmax(dim=2)
         soft_probs = m(output_preds)
-        output_preds = soft_probs.cpu()'''
+        output_preds = soft_probs.cpu()
         # record each of the predictions from a batch prediction
         batches = labels.size(0)
         seqs = labels.size(1)
@@ -118,11 +118,11 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             insert_index = 0
             for seq in range(seqs):
                 ref_base = reference_seq[seq]
-                '''
+
                 preds = output_preds[batch, seq, :].data
                 top_n, top_i = preds.topk(1)
                 predicted_label = top_i[0]
-                '''
+
                 true_label = labels[batch, seq]
                 fake_probs = [0.0] * 21
                 fake_probs[true_label] = 1.0
