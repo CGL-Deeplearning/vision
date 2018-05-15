@@ -50,12 +50,18 @@ class ImageChannels:
         """
         base_color = global_base_color_dictionary[self.pileup_base] \
             if self.pileup_base in global_base_color_dictionary else 0.0
+
         base_quality_color = (MAX_COLOR_VALUE * min(self.base_qual, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
+
         map_quality_color = (MAX_COLOR_VALUE * min(self.map_qual, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
+
         strand_color = 240.0 if self.is_rev else 70.0
+
         match_color = MAX_COLOR_VALUE * 0.2 if self.is_match is True else MAX_COLOR_VALUE * 1.0
+
         cigar_color = global_cigar_color_dictionary[self.cigar_code] \
             if self.cigar_code in global_cigar_color_dictionary else 0.0
+
         return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]
 
     @staticmethod
@@ -73,10 +79,16 @@ class ImageChannels:
 
         base_color = global_base_color_dictionary[pileup_base] \
             if pileup_base in global_base_color_dictionary else 0.0
+
         base_quality_color = (MAX_COLOR_VALUE * min(base_qual, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
+
         map_quality_color = (MAX_COLOR_VALUE * min(map_qual, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
+
         strand_color = 240.0 if is_rev else 70.0
+
         match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
+
         cigar_color = global_cigar_color_dictionary[cigar_code] \
             if cigar_code in global_cigar_color_dictionary else 0.0
+
         return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]

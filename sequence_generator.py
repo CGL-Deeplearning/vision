@@ -183,10 +183,9 @@ class View:
             self.save_dictionary(allele_dictionary, self.output_dir, filename)
 
             # gather all information about the saved image
-            img_shape_string = ','.join([str(x) for x in img.shape])
-            file_location = os.path.abspath(self.output_dir + filename + '.png')
-            dictionary_file_location = os.path.abspath(self.output_dir + filename + '.pkl')
-            file_info = file_location + "," + dictionary_file_location + "," + img_shape_string
+            img_shape_string = ' '.join([str(x) for x in img.shape])
+            file_location = os.path.abspath(self.output_dir) + "/" + filename
+            file_info = file_location + " " + img_shape_string
             # print(interval_start, interval_end)
 
             from analysis.analyze_png_img import analyze_it
@@ -195,9 +194,9 @@ class View:
             for counter, training_sequence in enumerate(sequences):
                 # pos, img_left_indx, img_right_indx, sub_translated_seq, sub_pos_vals, sub_ref_seq
                 pos, left_index, right_index, translated_seq, sub_pos_vals, sub_ref_seq = training_sequence
-                sequence_info = str(self.chromosome_name) + "," + str(pos) + "," + str(left_index) + "," \
+                sequence_info = str(self.chromosome_name) + " " + str(pos) + " " + str(left_index) + " " \
                                 + str(right_index) + "," + str(translated_seq)
-                sequence_info = sequence_info + "," + str(sub_pos_vals) + "," + str(sub_ref_seq)
+                sequence_info = sequence_info + "," + str(sub_ref_seq)
                 summary_string = file_info + "," + sequence_info + "\n"
                 self.summary_file.write(summary_string)
 

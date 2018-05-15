@@ -94,7 +94,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     # Change model to 'eval' mode (BN uses moving mean/var).
     model.eval()'''
 
-    for counter, (images, labels, position_progress, positional_information, allele_dict) in enumerate(testloader):
+    for counter, (images, labels, positional_information, allele_dict) in enumerate(testloader):
         ### FROM HERE
         '''
         images = Variable(images, volatile=True)
@@ -107,21 +107,17 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         m = nn.Softmax(dim=2)
         soft_probs = m(output_preds)
         output_preds = soft_probs.cpu()'''
-
         # record each of the predictions from a batch prediction
         batches = labels.size(0)
         seqs = labels.size(1)
-        chr_name, pos_progresses, start_positions, reference_seqs = positional_information
+        chr_name, start_positions, reference_seqs = positional_information
         for batch in range(batches):
-            pos_progress = pos_progresses[batch]
-            start_position = start_positions[batch]
             chromosome_name = chr_name[batch]
             reference_seq = reference_seqs[batch]
-            current_genomic_position = start_position
+            current_genomic_position = int(start_positions[batch])
             insert_index = 0
             for seq in range(seqs):
                 ref_base = reference_seq[seq]
-                pos_bar = pos_progress[seq]
                 '''
                 preds = output_preds[batch, seq, :].data
                 top_n, top_i = preds.topk(1)
@@ -135,7 +131,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
                 reference_dict[current_genomic_position][insert_index] = ref_base
                 prediction_dict[current_genomic_position][insert_index].append((true_label, fake_probs))
-                if pos_bar == '1':
+                if ref_base != '*':
                     insert_index = 0
                     current_genomic_position += 1
                 else:
@@ -172,7 +168,7 @@ def produce_vcf(chromosome_name, prediction_dict, positional_allele_dict, refere
             if genotype != 0 and '.' not in alts:
                 all_calls.append((chromosome_name, int(pos), int(pos + 1), ref, alts, genotype, qual, gq))
         else:
-            print('IN: ', prediction_dict[pos], positional_allele_dict[pos])
+            print('IN: ', pos)
 
     # sort based on position
     all_calls.sort(key=operator.itemgetter(1))
