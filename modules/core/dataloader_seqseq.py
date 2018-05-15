@@ -34,13 +34,16 @@ class SequenceDataset(Dataset):
 
     @staticmethod
     def load_dictionary(dictionary_location):
-        with open(dictionary_location, 'rb') as f:
-            return pickle.load(f)
+        f = open(dictionary_location, 'rb')
+        dict = pickle.load(f)
+        f.close()
+        return dict
 
     def __getitem__(self, index):
         # load the image
         img = Image.open(self.regional_images[index])
         np_array_of_img = np.array(img.getdata())
+        img.close()
         img_shape = (self.image_shape_y[index], self.image_shape_x[index], self.image_shape_z[index])
         img = np.reshape(np_array_of_img, img_shape)
         img = img[:, self.image_slice_start[index]:self.image_slice_end[index], :]
