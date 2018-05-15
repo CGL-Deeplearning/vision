@@ -51,9 +51,6 @@ class SequenceDataset(Dataset):
         # load genomic position information
         reference_sequence = self.reference_seq[index][20:40]
 
-        # load allele dictionary
-        allele_dictionary = self.load_dictionary(file_name + '.pkl')
-
         # type fix and convert to tensor
         img = img.astype(dtype=np.uint8)
         if self.transform is not None:
@@ -65,7 +62,7 @@ class SequenceDataset(Dataset):
 
         positional_information = (chromosome_name, genomic_start_position, reference_sequence)
 
-        return img, label, positional_information, allele_dictionary
+        return img, label, positional_information
 
     def __len__(self):
         return len(self.file_info.index)

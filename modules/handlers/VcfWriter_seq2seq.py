@@ -64,7 +64,7 @@ class VCFWriter:
         return phred_qual, phred_gq
 
     @staticmethod
-    def process_snp_or_del(predictions, alt_alleles, reference):
+    def process_snp_or_del(predictions, reference):
         # get the list of prediction labels
         list_prediction_labels = [label for label, probs in predictions[0]]
         predicted_class = max(set(list_prediction_labels), key=list_prediction_labels.count)

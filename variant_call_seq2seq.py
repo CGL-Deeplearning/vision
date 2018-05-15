@@ -38,7 +38,6 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     :return: Prediction dictionary
     """
     # the prediction table/dictionary
-    positional_allele_dict = defaultdict(int)
     prediction_dict = defaultdict(lambda: defaultdict(list))
     reference_dict = defaultdict(lambda: defaultdict(int))
     chromosome_name = ''
@@ -55,8 +54,8 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
                             )
 
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
-    ## FROM HERE
-
+    ### FROM HERE
+    '''
     # load the model
     if gpu_mode is False:
         checkpoint = torch.load(model_path, map_location='cpu')
@@ -90,13 +89,15 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.load_state_dict(new_state_dict)
         model = model.cuda()
         model = torch.nn.DataParallel(model).cuda()
+    
 
     # Change model to 'eval' mode (BN uses moving mean/var).
-    model.eval()
+    model.eval()'''
+    # TO HERE
 
-    for counter, (images, labels, positional_information, allele_dict) in enumerate(testloader):
+    for counter, (images, labels, positional_information) in enumerate(testloader):
         ### FROM HERE
-
+        '''
         images = Variable(images, volatile=True)
 
         if gpu_mode:
@@ -106,11 +107,13 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         # One dimensional softmax is used to convert the logits to probability distribution
         m = nn.Softmax(dim=2)
         soft_probs = m(output_preds)
-        output_preds = soft_probs.cpu()
+        output_preds = soft_probs.cpu()'''
+
         # record each of the predictions from a batch prediction
         batches = labels.size(0)
         seqs = labels.size(1)
         chr_name, start_positions, reference_seqs = positional_information
+
         for batch in range(batches):
             chromosome_name = chr_name[batch]
             reference_seq = reference_seqs[batch]
@@ -119,15 +122,18 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             for seq in range(seqs):
                 ref_base = reference_seq[seq]
 
+                '''
                 preds = output_preds[batch, seq, :].data
                 top_n, top_i = preds.topk(1)
                 predicted_label = top_i[0]
+                '''
 
                 true_label = labels[batch, seq]
                 fake_probs = [0.0] * 21
                 fake_probs[true_label] = 1.0
-                if current_genomic_position not in positional_allele_dict and current_genomic_position in allele_dict:
-                    positional_allele_dict[current_genomic_position] = list(allele_dict[current_genomic_position].keys())
+
+                # if current_genomic_position not in positional_allele_dict and current_genomic_position in allele_dict:
+                #     positional_allele_dict[current_genomic_position] = list(allele_dict[current_genomic_position].keys())
 
                 reference_dict[current_genomic_position][insert_index] = ref_base
                 prediction_dict[current_genomic_position][insert_index].append((true_label, fake_probs))
@@ -140,16 +146,14 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
                          str(len(testloader)) + "\n" + TextColor.END)
 
-    return chromosome_name, prediction_dict, positional_allele_dict, reference_dict
+    return chromosome_name, prediction_dict, reference_dict
 
 
-def produce_vcf(chromosome_name, prediction_dict, positional_allele_dict, reference_dict, bam_file_path, sample_name,
-                output_dir):
+def produce_vcf(chromosome_name, prediction_dict, reference_dict, bam_file_path, sample_name, output_dir):
     """
     Convert prediction dictionary to a VCF file
     :param chromosome_name: Chromosome name
     :param prediction_dict: prediction dictionary containing predictions of each image records
-    :param positional_allele_dict: Positional allele dictionary
     :param reference_dict: Dictionary containing reference information
     :param bam_file_path: Path to the BAM file
     :param sample_name: Name of the sample in the BAM file
@@ -164,7 +168,7 @@ def produce_vcf(chromosome_name, prediction_dict, positional_allele_dict, refere
     for pos in prediction_dict.keys():
         if len(prediction_dict[pos]) == 1:
             ref, alts, genotype, qual, gq = \
-                vcf_writer.process_snp_or_del(prediction_dict[pos], positional_allele_dict[pos], reference_dict[pos])
+                vcf_writer.process_snp_or_del(prediction_dict[pos], reference_dict[pos])
             if genotype != 0 and '.' not in alts:
                 all_calls.append((chromosome_name, int(pos), int(pos + 1), ref, alts, genotype, qual, gq))
         else:
@@ -206,11 +210,14 @@ def call_variant():
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "SAMPLE NAME: " + FLAGS.sample_name + "\n")
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PLEASE USE --sample_name TO CHANGE SAMPLE NAME.\n")
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "OUTPUT DIRECTORY: " + FLAGS.output_dir + "\n")
-    chromosome_name, prediction_dict, positional_allele_dict, reference_dict = \
+
+    chromosome_name, prediction_dict, reference_dict = \
         predict(FLAGS.csv_file, FLAGS.batch_size, FLAGS.model_path, FLAGS.gpu_mode, FLAGS.num_workers)
+
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PREDICTION COMPLETED SUCCESSFULLY.\n")
-    produce_vcf(chromosome_name, prediction_dict, positional_allele_dict, reference_dict,
-                FLAGS.bam_file, FLAGS.sample_name, FLAGS.output_dir)
+
+    produce_vcf(chromosome_name, prediction_dict, reference_dict, FLAGS.bam_file, FLAGS.sample_name, FLAGS.output_dir)
+
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "FINISHED CALLING VARIANT.\n")
 
 
