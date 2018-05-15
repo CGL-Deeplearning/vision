@@ -190,7 +190,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
         epoch_start_time = time.time()
         start_time = time.time()
         batches_done = 0
-        for i, (images, labels, positional_information, allele_dict) in enumerate(train_loader):
+        for i, (images, labels, positional_information) in enumerate(train_loader):
             if gpu_mode is True and images.size(0) % 8 != 0:
                 continue
 
