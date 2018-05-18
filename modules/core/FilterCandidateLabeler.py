@@ -1,4 +1,5 @@
 import numpy
+import pandas
 
 """
             possible combos:
@@ -21,12 +22,12 @@ import numpy
             hom_alt   het     NA
             hom       het     NA
             None      None    NA
-
 """
+
 GENOTYPE_DICT = {"Hom": 0, "Het": 1, "Hom_alt": 2}
 GENOTYPE_NAMES = ["Hom", "Het", "Hom_alt"]
 VCF_OFFSET = 1
-PLOIDY = 8
+PLOIDY = 4
 
 # DEBUG_FREQUENCIES = False
 DEBUG_PRINT_ALL = False
@@ -41,11 +42,12 @@ ALT2 = 5
 ALT1_TYPE = 6
 ALT2_TYPE = 7
 
-FREQUENCIES = -4
-COVERAGE = -3
-MAP_QUALITY = -2
-BASE_QUALITY = -1
-
+FREQUENCIES = -6
+COVERAGE = -5
+MAP_QUALITY_NON_REF = -4
+BASE_QUALITY_NON_REF = -3
+MAP_QUALITY_REF = -2
+BASE_QUALITY_REF = -1
 
 # Positional vcf indexes
 SNP, IN, DEL = 0, 1, 2
@@ -171,7 +173,7 @@ class CandidateLabeler:
         :param start: Allele start position
         :param stop: Allele stop position
         :param ref_seq: Reference sequence
-        :return: Dictionary of genotypes
+        :return: list of genotypes
         """
         gts = self.get_label_of_allele(positional_vcf, (start, stop, ref_seq, alleles), allele_types)
 
@@ -275,7 +277,7 @@ class CandidateLabeler:
 
         return split_frequencies
 
-    def _generate_data_vector(self, chromosome_name, start, genotypes, frequencies, coverage, map_quality, base_quality, support):
+    def _generate_data_vector(self, chromosome_name, start, genotypes, frequencies, coverage, map_quality_non_ref, base_quality_non_ref, map_quality_ref, base_quality_ref, support):
         # split the list of allele frequency tuples by their type
         frequencies = self.split_frequencies_by_type(frequencies)
 
@@ -290,25 +292,29 @@ class CandidateLabeler:
         chromosome_number = self._get_chromosome_number(chromosome_name)
         label = int(support)
 
-        # cap and normalize coverage (max = 1000)
+        # cap and scale down coverage (max = 1000)
         coverage = min(coverage, 1000)
         coverage = float(coverage)/1000
 
-        # cap and normalize qualities (max = 1000)
-        map_quality = min(map_quality, 1000)
-        map_quality = float(map_quality)/1000
-        base_quality = min(base_quality, 1000)
-        base_quality = float(base_quality)/1000
+        # scale down qualities
+        map_quality_ref = [mq/1000 for mq in map_quality_ref]
+        base_quality_ref = [bq/1000 for bq in base_quality_ref]
+        map_quality_non_ref = [mq/1000 for mq in map_quality_non_ref]
+        base_quality_non_ref = [bq/1000 for bq in base_quality_non_ref]
 
-        data_list.append(chromosome_number)  # 0
-        data_list.append(int(start))         # 1
-        data_list.extend(genotypes)          # 2-4
+        print(genotypes)
+
+        data_list.append(chromosome_number)     # 0
+        data_list.append(int(start))            # 1
+        data_list.extend(genotypes)             # 2-3
         l = len(data_list)
-        data_list.extend([0]*PLOIDY*3)       # 5-28
-        data_list.append(coverage)           # 29
-        data_list.append(map_quality)        # 30
-        data_list.append(base_quality)       # 31
-        data_list.append(label)              # 32
+        data_list.extend([0]*PLOIDY*3)          # 4-15
+        data_list.append(coverage)              # 16
+        data_list.extend(map_quality_ref)       # 17-22
+        data_list.extend(base_quality_ref)      # 23-28
+        data_list.extend(map_quality_non_ref)   # 29-34
+        data_list.extend(base_quality_non_ref)  # 35-42
+        data_list.append(label)                 # 43
 
         # convert data list to numpy Float vector
         data_vector = numpy.array(data_list, dtype=numpy.double).reshape((len(data_list),1))
@@ -316,7 +322,8 @@ class CandidateLabeler:
         # add normalized frequency vector values to the full data vector
         data_vector[l:l+PLOIDY*3] = site_frequency_vector.reshape((PLOIDY*3,1))
 
-        # print(numpy.array2string(data_vector.T, separator="\t", precision=4, max_line_width=500))
+        print(numpy.array2string(data_vector.T, separator="\t", precision=4, max_line_width=500))
+        print(data_vector.shape)
 
         return data_vector
 
@@ -352,8 +359,12 @@ class CandidateLabeler:
 
             frequencies = candidate[FREQUENCIES]
             coverage = candidate[COVERAGE]
-            map_quality = candidate[MAP_QUALITY]
-            base_quality = candidate[BASE_QUALITY]
+
+            print(candidate)
+            map_quality_non_ref = candidate[MAP_QUALITY_NON_REF]
+            base_quality_non_ref = candidate[BASE_QUALITY_NON_REF]
+            map_quality_ref = candidate[MAP_QUALITY_REF]
+            base_quality_ref = candidate[BASE_QUALITY_REF]
 
             alleles = [alt1, alt2]
 
@@ -373,8 +384,10 @@ class CandidateLabeler:
                                                 frequencies=frequencies,
                                                 coverage=coverage,
                                                 support=support,
-                                                map_quality=map_quality,
-                                                base_quality=base_quality,)
+                                                map_quality_non_ref=map_quality_non_ref,
+                                                base_quality_non_ref=base_quality_non_ref,
+                                                map_quality_ref=map_quality_ref,
+                                                base_quality_ref=base_quality_ref)
 
             all_labeled_vectors.append(vector)
 
@@ -387,6 +400,7 @@ class CandidateLabeler:
             # table contains only 1 entry, numpy gives it no 2nd dimension... -_-
             all_labeled_vectors = numpy.atleast_2d(all_labeled_vectors)
 
+        numpy.savetxt("test.tsv", all_labeled_vectors.T, delimiter='\t')
         # print(numpy.array2string(all_labeled_vectors.T, separator="\t", precision=2, max_line_width=500))
 
         return all_labeled_vectors

@@ -364,8 +364,8 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
 
 def log_candidate_datasets(parent_directory_path):
     file_extension = ".npz"
-    file_paths = FileManager.get_all_filepaths_by_type(parent_directory_path=parent_directory_path,
-                                                       file_extension=file_extension)
+    file_paths = FileManager.get_all_file_paths_by_type(parent_directory_path=parent_directory_path,
+                                                        file_extension=file_extension)
 
     log_header = ["file_path", "length"]
     log_writer = TsvWriter(output_directory=parent_directory_path,

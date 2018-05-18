@@ -1,6 +1,6 @@
 import shutil
-from os import listdir, remove, walk
-from os.path import isfile, isdir, join
+from os import listdir, remove, walk, mkdir
+from os.path import isfile, isdir, join, dirname, exists
 
 """
 EXAMPLE USAGE:
@@ -21,7 +21,7 @@ class FileManager:
     @staticmethod
     def concatenate_files(file_paths, output_file_path):
         """
-        Concatenate files given in list of file paths to a single file
+        Concatenate files (efficiently) given a list of file paths to a single file
         :param file_paths: List of file path
         :param output_file_path: Output file path name
         :return: None
@@ -53,16 +53,40 @@ class FileManager:
         return dir_paths
 
     @staticmethod
-    def get_all_filepaths_by_type(parent_directory_path, file_extension, sort=True):
+    def get_all_file_paths_by_type(parent_directory_path, file_extension, sort=True):
+        """
+        Given a parent directory, iterate all files within, and return those that end in the extension provided by user.
+        File paths returned in sorted order by default.
+        :param parent_directory_path:
+        :param file_extension:
+        :param sort:
+        :return:
+        """
         all_files = list()
 
         for root, dirs, files in walk(parent_directory_path):
             sub_files = [join(root,subfile) for subfile in files if subfile.endswith(file_extension)]
             all_files.extend(sub_files)
 
-        all_files.sort()
+        if sort:
+            all_files.sort()
 
         return all_files
+
+    @staticmethod
+    def ensure_directory_exists(directory_path):
+        """
+        Recursively test directories in a directory path and generate missing directories as needed
+        :param directory_path:
+        :return:
+        """
+        if not exists(directory_path):
+            try:
+                mkdir(directory_path)
+
+            except FileNotFoundError:
+                FileManager.ensure_directory_exists(dirname(directory_path))
+                mkdir(directory_path)
 
     @staticmethod
     def delete_files(file_paths):
@@ -74,3 +98,7 @@ class FileManager:
         for file_path in file_paths:
             remove(file_path)
 
+
+if __name__ == "__main__":
+    test_directory = "./test/directory/path"
+    FileManager.ensure_directory_exists(test_directory)

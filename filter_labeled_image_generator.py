@@ -38,7 +38,7 @@ Output:
 - CSV file: Containing records of images and their location in the H5PY file.
 
 Example usage:
-python3 filter_train_bed_generator.py --ref ~/data/GIAB/GRCh37_WG.fa --bam ~/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam --vcf ~/data/GIAB/NA12878_GRCh37.vcf.gz --max_threads 30 --output_dir /home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold 
+python3 filter_labeled_image_generator.py --ref ~/data/GIAB/GRCh37_WG.fa --bam ~/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam --vcf ~/data/GIAB/NA12878_GRCh37.vcf.gz --max_threads 30 --output_dir /home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold 
 """
 
 # Global debug helpers
@@ -385,21 +385,26 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     :return: New directory path
     """
     print(output_dir, chr_name)
-    path_to_dir = output_dir + chr_name + "/"
+
+    path_to_dir = os.path.join(output_dir, chr_name)
     if not os.path.exists(path_to_dir):
         os.mkdir(path_to_dir)
 
-    summary_path = path_to_dir + "summary" + "/"
+    # print(path_to_dir)
+
+    summary_path = os.path.join(path_to_dir, "summary")
     if not os.path.exists(summary_path):
         os.mkdir(summary_path)
+
+    # print(summary_path)
 
     return path_to_dir
 
 
 def log_candidate_datasets(parent_directory_path):
     file_extension = ".npz"
-    file_paths = FileManager.get_all_filepaths_by_type(parent_directory_path=parent_directory_path,
-                                                       file_extension=file_extension)
+    file_paths = FileManager.get_all_file_paths_by_type(parent_directory_path=parent_directory_path,
+                                                        file_extension=file_extension)
 
     log_header = ["file_path", "length"]
     log_writer = TsvWriter(output_directory=parent_directory_path,
@@ -538,13 +543,15 @@ def handle_output_directory(output_dir):
     # process the output directory (should use os.path.join instead)
     if output_dir[-1] != "/":
         output_dir += "/"
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+
+    FileManager.ensure_directory_exists(output_dir)
 
     # create an internal directory so we don't overwrite previous runs
     timestr = time.strftime("%m%d%Y_%H%M%S")
-    internal_directory = "run_" + timestr + "/"
-    output_dir = output_dir + internal_directory
+    internal_directory_name = "run_" + timestr
+    output_dir = os.path.join(output_dir, internal_directory_name)
+
+    print(internal_directory_name, output_dir)
 
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)

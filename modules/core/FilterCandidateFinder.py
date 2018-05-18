@@ -1,6 +1,7 @@
 from collections import defaultdict
 from modules.handlers.ImageChannels import imageChannels
 from modules.core.IterativeAverage import IterativeAverage
+from modules.core.IterativeHistogram import IterativeHistogram
 import operator
 import time
 import math
@@ -20,7 +21,7 @@ MIN_MISMATCH_THRESHOLD = 0
 MIN_MISMATCH_PERCENT_THRESHOLD = 0
 MIN_COVERAGE_THRESHOLD = 1
 
-PLOIDY = 8
+PLOIDY = 4
 MATCH_ALLELE = 0
 MISMATCH_ALLELE = 1
 INSERT_ALLELE = 2
@@ -53,8 +54,10 @@ class CandidateFinder:
         self.rms_mq = defaultdict(int)
         self.mismatch_count = defaultdict(int)
         self.match_count = defaultdict(int)
-        self.map_quality = defaultdict(IterativeAverage)
-        self.base_quality = defaultdict(IterativeAverage)
+        self.map_quality_non_ref = defaultdict(lambda: IterativeHistogram(start=0, stop=60, n_bins=6, unbounded_upper_bin=True, unbounded_lower_bin=True))
+        self.base_quality_non_ref = defaultdict(lambda: IterativeHistogram(start=0, stop=60, n_bins=6, unbounded_upper_bin=True, unbounded_lower_bin=True))
+        self.map_quality_ref = defaultdict(lambda: IterativeHistogram(start=0, stop=60, n_bins=6, unbounded_upper_bin=True, unbounded_lower_bin=True))
+        self.base_quality_ref = defaultdict(lambda: IterativeHistogram(start=0, stop=60, n_bins=6, unbounded_upper_bin=True, unbounded_lower_bin=True))
 
         # the base and the insert dictionary for finding alleles
         self.positional_allele_dictionary = {}
@@ -159,18 +162,21 @@ class CandidateFinder:
             self._update_base_dictionary(read_id=read_id, pos=i, base=allele, quality=read_base_qualities[i-alignment_position])
             if allele != ref:
                 # only update qualities using reads that contain mismatches
-                self.base_quality[i].update(read_base_qualities[i-alignment_position])
-                self.map_quality[i].update(read_mapping_quality)
+                self.base_quality_non_ref[i].update(read_base_qualities[i - alignment_position])
+                self.map_quality_non_ref[i].update(read_mapping_quality)
 
                 # increase mismatch count
                 self.mismatch_count[i] += 1
                 self._update_read_allele_dictionary(pos=i, allele=allele, type=MISMATCH_ALLELE)
             else:
+                self.base_quality_ref[i].update(read_base_qualities[i - alignment_position])
+                self.map_quality_ref[i].update(read_mapping_quality)
+
                 self.match_count[i] += 1
                 # this slows things down a lot. Don't add reference allele to the dictionary if we don't use them
                 # self._update_read_allele_dictionary(i, allele, MATCH_ALLELE)
 
-    def parse_delete(self, read_id, alignment_position, length, ref_sequence):
+    def parse_delete(self, read_id, alignment_position, length, ref_sequence, read_mapping_quality):
         """
         Process a cigar operation that is a delete
         :param alignment_position: Alignment position
@@ -185,11 +191,13 @@ class CandidateFinder:
         stop = start + length
         self.mismatch_count[alignment_position] += 1
 
+
         for i in range(start, stop):
             self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
             # increase the coverage
             self.mismatch_count[i] += 1
             self.coverage[i] += 1
+            self.map_quality_non_ref[i].update(read_mapping_quality)
 
         # the allele is the anchor + what's being deleted
         allele = self.reference_dictionary[alignment_position] + ref_sequence
@@ -197,7 +205,7 @@ class CandidateFinder:
         # record the delete where it first starts
         self._update_read_allele_dictionary(pos=alignment_position + 1, allele=allele, type=DELETE_ALLELE)
 
-    def parse_insert(self, read_id, alignment_position, read_sequence, read_base_qualities):
+    def parse_insert(self, read_id, alignment_position, read_sequence, read_base_qualities, read_mapping_quality):
         """
         Process a cigar operation where there is an insert
         :param alignment_position: Position where the insert happened
@@ -211,7 +219,10 @@ class CandidateFinder:
 
         # calculate the average base quality for the entire insert segment and update the positional base quality
         average_base_quality = sum(read_base_qualities)/len(read_base_qualities)
-        self.base_quality[alignment_position].update(average_base_quality)
+        self.base_quality_non_ref[alignment_position].update(average_base_quality)
+
+        # update the map quality with this read's info
+        self.map_quality_non_ref[alignment_position].update(read_mapping_quality)
 
         # record the insert where it first starts
         self.mismatch_count[alignment_position] += 1
@@ -357,7 +368,8 @@ class CandidateFinder:
             self.parse_insert(read_id=read_id,
                               alignment_position=alignment_position-1,
                               read_sequence=read_sequence,
-                              read_base_qualities=read_base_qualities)
+                              read_base_qualities=read_base_qualities,
+                              read_mapping_quality=read_mapping_quality)
             ref_index_increment = 0
         elif cigar_code == 2 or cigar_code == 3:
             # delete or ref_skip
@@ -366,7 +378,8 @@ class CandidateFinder:
             self.parse_delete(read_id=read_id,
                               alignment_position=alignment_position-1,
                               ref_sequence=ref_sequence,
-                              length=length)
+                              length=length,
+                              read_mapping_quality=read_mapping_quality)
             read_index_increment = 0
         elif cigar_code == 4:
             # soft clip
@@ -546,11 +559,12 @@ class CandidateFinder:
             # split allele strings and frequencies into their own single typed lists
             alleles = allele_list
             coverage = self.coverage[pos]
-            map_quality = self.map_quality[pos].get_average()
-            base_quality = self.base_quality[pos].get_average()
+            map_quality_non_ref = self.map_quality_non_ref[pos].get_histogram()
+            base_quality_non_ref = self.base_quality_non_ref[pos].get_histogram()
+            map_quality_ref = self.map_quality_ref[pos].get_histogram()
+            base_quality_ref = self.base_quality_ref[pos].get_histogram()
 
-            filtering_data = [alleles, coverage, map_quality, base_quality]
-
+            filtering_data = [alleles, coverage, map_quality_non_ref, base_quality_non_ref, map_quality_ref, base_quality_ref]
             ref_count = self.coverage[pos] - all_mismatch_count
 
             candidate_record = [self.chromosome_name] + self._get_record(pos, alt1, alt2, ref, ref_count)

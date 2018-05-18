@@ -273,7 +273,7 @@ fasta_path = "/home/ryan/data/GIAB/GRCh37_WG.fa"
 bed_path = "/home/ryan/data/GIAB/NA12878_GRCh37_confident.bed"
 file_extension = ".npz"
 
-file_paths = FileManager.get_all_filepaths_by_type(parent_directory_path=parent_directory_path,
-                                                   file_extension=file_extension)
+file_paths = FileManager.get_all_file_paths_by_type(parent_directory_path=parent_directory_path,
+                                                    file_extension=file_extension)
 
 validate_regional_candidate_data(file_paths, vcf_path, fasta_path, bed_path)
