@@ -241,6 +241,6 @@ class CandidateVectorizer:
         else:
             data_table = None
 
-        data_table.to_csv("test.tsv", sep='\t')
+        # data_table.to_csv("test.tsv", sep='\t')
 
         return data_table
