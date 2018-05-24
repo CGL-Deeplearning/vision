@@ -229,15 +229,17 @@ class CandidateVectorizer:
             all_labeled_vectors.append(vector)
 
         # if there is no data for this region, append an empty vector
-        if len(all_labeled_vectors) == 0:
-            data_table = pandas.DataFrame([])
+        # if len(all_labeled_vectors) == 0:
+        #     data_table = pandas.DataFrame([])
 
-        else:
+        if not len(all_labeled_vectors) == 0:
             # concatenate
             data_table = pandas.concat(all_labeled_vectors)
 
             # normalize
             data_table = self.normalize_data_table(data_table=data_table)
+        else:
+            data_table = None
 
         data_table.to_csv("test.tsv", sep='\t')
 

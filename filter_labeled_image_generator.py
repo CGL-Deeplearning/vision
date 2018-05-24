@@ -350,22 +350,24 @@ class View:
 
         # get all labeled candidate sites
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-        self.write_pandas_training_set(labeled_sites, start_position, end_position)
 
-        # Instead of writing, send the data to the filter model
-        # get subset of coordinates
-        # run image generator on subset
+        if labeled_sites is not None and labeled_sites.size > 0:
+            self.write_pandas_training_set(labeled_sites, start_position, end_position)
 
-        if DEBUG_PRINT_CANDIDATES:
-            for candidate in selected_candidates:
-                print(candidate)
+            # Instead of writing, send the data to the filter model
+            # get subset of coordinates
+            # run image generator on subset
 
-        # ---- TRUNCATE PIPELINE ----
-        # # create image generator object with all necessary dictionary
-        # image_generator = ImageGenerator(dictionaries_for_images)
-        #
-        # # generate and save candidate images
-        # self.generate_candidate_images(labeled_sites, image_generator, thread_no)
+            if DEBUG_PRINT_CANDIDATES:
+                for candidate in selected_candidates:
+                    print(candidate)
+
+            # ---- TRUNCATE PIPELINE ----
+            # # create image generator object with all necessary dictionary
+            # image_generator = ImageGenerator(dictionaries_for_images)
+            #
+            # # generate and save candidate images
+            # self.generate_candidate_images(labeled_sites, image_generator, thread_no)
 
 
 def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):

@@ -303,7 +303,7 @@ class View:
         # get all vectorized candidate sites
         vectorized_candidates = self.get_vectorized_candidate_sites(candidates)
 
-        if vectorized_candidates.size > 0:
+        if vectorized_candidates is not None and vectorized_candidates.size > 0:
             # pass test set to trained model and get predicted candidates
             predicted_candidates = self.predict_true_candidates(vectorized_candidates, candidates)
 
@@ -484,7 +484,7 @@ def test(view_object):
     start_time = time.time()
     # view_object.parse_region(start_position=1521297, end_position=1521302, thread_no=1)
     # view_object.parse_region(start_position=3039222, end_position=3039224, thread_no=1)
-    view_object.parse_region(start_position=3039200, end_position=3039300, thread_no=1)
+    view_object.parse_region(start_position=24009200, end_position=26439300, thread_no=1)
 
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
