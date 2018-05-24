@@ -7,7 +7,9 @@ import multiprocessing
 import h5py
 from tqdm import tqdm
 import numpy as np
+import pandas
 import random
+import gzip
 
 from modules.core.FilterCandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -171,6 +173,22 @@ class View:
             np.savez_compressed(path, a=data)
             # self.log_writer.append_row([path, length])
 
+    def write_pandas_training_set(self, data, start, stop):
+        """
+        Create a npz training set of all labeled candidate sites found in the region
+        :param data: vectors of the form [f1, f2, f3, ..., fn, L] where f = freq and L = label 0/1
+        :param start: start coord of region
+        :param stop: stop coord of region
+        :return:
+        """
+        filename = "allele_frequencies_" + self.chromosome_name + "_" + str(start) + "_" + str(stop) + ".pkl.gz"
+        path = (os.path.join(self.output_dir, filename))
+
+        # length = data.shape[0]
+        if data.size > 0:
+            data.to_pickle(path, compression="gzip")
+            # self.log_writer.append_row([path, length])
+
     def in_confident_check(self, start, stop):
         """
         Check if an interval is inside the confident bed region.
@@ -332,7 +350,7 @@ class View:
 
         # get all labeled candidate sites
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-        self.write_training_set(labeled_sites, start_position, end_position)
+        self.write_pandas_training_set(labeled_sites, start_position, end_position)
 
         # Instead of writing, send the data to the filter model
         # get subset of coordinates
@@ -402,7 +420,7 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
 
 
 def log_candidate_datasets(parent_directory_path):
-    file_extension = ".npz"
+    file_extension = ".pkl.gz"
     file_paths = FileManager.get_all_file_paths_by_type(parent_directory_path=parent_directory_path,
                                                         file_extension=file_extension)
 
@@ -412,8 +430,11 @@ def log_candidate_datasets(parent_directory_path):
                            filename_prefix="candidate_dataset_log.tsv")
 
     for path in tqdm(file_paths):
-        data = np.load(path)['a']
-        length = data.shape[1]
+        # print(path)
+        file = gzip.open(path)
+        data = pandas.read_pickle(file)
+        # print(data.shape)
+        length = data.shape[0]
 
         if data.size > 0:
             log_writer.append_row([path, length])
@@ -529,7 +550,9 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=14467720, end_position=14467729, thread_no=1)
+    view_object.parse_region(start_position=800000, end_position=850000, thread_no=1)
+
+    log_candidate_datasets(view_object.output_dir)
 
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
@@ -551,7 +574,7 @@ def handle_output_directory(output_dir):
     internal_directory_name = "run_" + timestr
     output_dir = os.path.join(output_dir, internal_directory_name)
 
-    print(internal_directory_name, output_dir)
+    # print(internal_directory_name, output_dir)
 
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -628,7 +651,7 @@ if __name__ == '__main__':
         sys.stderr.write(TextColor.RED + "CONFIDENT BED IS NULL\n" + TextColor.END)
 
     if FLAGS.test is True:
-        print(FLAGS.output_dir)
+        # print(FLAGS.output_dir)
         chromosome_output = create_output_dir_for_chromosome(FLAGS.output_dir, FLAGS.chromosome_name)
         view = View(chromosome_name=FLAGS.chromosome_name,
                     bam_file_path=FLAGS.bam,

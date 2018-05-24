@@ -179,6 +179,7 @@ class View:
                                            chromosome_name=self.chromosome_name,
                                            region_start_position=start_position,
                                            region_end_position=end_position)
+
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
         dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
@@ -187,8 +188,8 @@ class View:
         if self.confident_tree is not None:
             confident_labeled = []
             for candidate in selected_candidates:
-                pos_st = candidate[1] + 1# offset for bed
-                pos_end = candidate[1] + 1# offset for bed
+                pos_st = candidate[1] + 1   # offset for bed
+                pos_end = candidate[1] + 1  # offset for bed
                 in_conf = self.in_confident_check(pos_st, pos_end)
                 if in_conf is True:
                     confident_labeled.append(candidate)

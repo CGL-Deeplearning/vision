@@ -521,8 +521,13 @@ class CandidateFinder:
             allele_list = self._filter_alleles(pos, allele_frequency_list)
             alt1 = allele_list[0] if len(allele_list) >= 1 else None
             alt2 = allele_list[1] if len(allele_list) >= 2 else '.'
+
+            # print("--- CANDIDATE FINDER ---")
+            # print(allele_frequency_list)
+
             if alt1 is None:
                 continue
+
             mq_rms = round(math.sqrt(self.rms_mq[pos]/self.coverage[pos]), 3) if self.coverage[pos] > 0 else 0
             dp = self.coverage[pos]
             ref_count = self.coverage[pos] - all_mismatch_count

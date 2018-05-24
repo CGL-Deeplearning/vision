@@ -230,7 +230,10 @@ class View:
         intervals = list()
         for i in range(coordinates.shape[0]):
             # chromosome_number = coordinates[i,0]
+
+            # print(coordinates.shape)
             start_position = int(coordinates[i,1])
+            # print(start_position)
 
             interval = [start_position, start_position]
             intervals.append(interval)
@@ -246,8 +249,8 @@ class View:
         # predict
         positive_coordinates = predict_sites(model_state_file_path, vectorized_candidates)
 
-        positive_coordinates_list = list(map(int,list(positive_coordinates[:,1])))
-        positive_coordinates_set = set(positive_coordinates_list)
+        # positive_coordinates_list = list(map(int, list(positive_coordinates[:,1])))
+        # positive_coordinates_set = set(positive_coordinates_list)
 
         # generate interval tree from table of positive
         interval_tree = self.build_interval_tree_from_coordinate_data(positive_coordinates)
@@ -256,7 +259,6 @@ class View:
         predicted_candidates = list()
         for candidate in candidates:
             start = candidate[1]
-
             interval = [start, start]
 
             if interval in interval_tree:
@@ -481,7 +483,9 @@ def test(view_object):
     """
     start_time = time.time()
     # view_object.parse_region(start_position=1521297, end_position=1521302, thread_no=1)
-    view_object.parse_region(start_position=3039222, end_position=3039224, thread_no=1)
+    # view_object.parse_region(start_position=3039222, end_position=3039224, thread_no=1)
+    view_object.parse_region(start_position=3039200, end_position=3039300, thread_no=1)
+
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

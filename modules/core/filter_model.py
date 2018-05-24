@@ -130,7 +130,7 @@ class ShallowLinear(nn.Module):
     def __init__(self):
         super(ShallowLinear, self).__init__()
 
-        self.layer_sizes = [27, 64, 1]
+        self.layer_sizes = [37, 64, 1]
         D_in, H1, D_out = self.layer_sizes
 
         # print(D_in, H1, D_out)
@@ -218,6 +218,7 @@ class CandidateAlleleH5Dataset(Dataset):
         self.y_dtype = torch.FloatTensor     # for MSE Loss or BCE loss
         # self.y_dtype = torch.LongTensor      # for CE Loss
 
+
     def __getitem__(self, index):
         index = self.indices[index]
 
@@ -275,20 +276,69 @@ class CandidateAlleleNumpyTestDataset(Dataset):
         return self.length
 
 
+class CandidateAllelePandasTestDataset(Dataset):
+    """
+    If dataset is too large to load into memory, and exists in h5py format, use this
+    A list of indices defining the subset of the full dataset must be provided.
+    """
+    def __init__(self, pandas_dataset):
+        # check if path exists
+        metadata_headers = ["chromosome_number", "position"]
+        x_data_headers = ["frequency_1", "frequency_2", "frequency_3", "frequency_4", "frequency_5", "frequency_6",
+                          "frequency_7", "frequency_8", "frequency_9", "frequency_10", "frequency_11", "frequency_12",
+                          "coverage", "map_quality_ref_1", "map_quality_ref_2", "map_quality_ref_3",
+                          "map_quality_ref_4", "map_quality_ref_5", "map_quality_ref_6", "base_quality_ref_1",
+                          "base_quality_ref_2", "base_quality_ref_3", "base_quality_ref_4", "base_quality_ref_5",
+                          "base_quality_ref_6", "map_quality_non_ref_1", "map_quality_non_ref_2",
+                          "map_quality_non_ref_3", "map_quality_non_ref_4", "map_quality_non_ref_5",
+                          "map_quality_non_ref_6", "base_quality_non_ref_1", "base_quality_non_ref_2",
+                          "base_quality_non_ref_3", "base_quality_non_ref_4", "base_quality_non_ref_5",
+                          "base_quality_non_ref_6"]
+
+        self.x = pandas_dataset[x_data_headers]
+        self.metadata = pandas_dataset[metadata_headers]
+        self.transform = None
+
+        self.length = self.x.shape[0]
+
+        # print(pandas_dataset.shape, self.x.shape)
+
+        # self.x_dtype = torch.FloatTensor
+        # self.y_dtype = torch.FloatTensor     # for MSE Loss or BCE loss
+        # self.y_dtype = torch.LongTensor      # for CE Loss
+
+    def __getitem__(self, index):
+        # print(index)
+
+        x = numpy.atleast_2d(self.x.iloc[index,:].values)
+        coordinates = numpy.atleast_2d(self.metadata.iloc[index,:].values)
+
+        # print(index, x.shape, coordinates.shape)
+
+        x_dtype = torch.FloatTensor
+        x = x_dtype(x)
+
+        return x, coordinates
+
+    def __len__(self):
+        return self.length
+
+
 def subset_coordinates_by_positive_prediction(coordinates_matrix, y_predict_matrix):
     # print("x shape:", coordinates_matrix.shape)
 
-    coordinates = coordinates_matrix[:,:2]
+    # coordinates = coordinates_matrix[:,:2]
 
-    # print("coordinates shape:", coordinates.shape)
+    # print("coordinates shape:", coordinates_matrix.shape)
 
     positive_mask = (y_predict_matrix > POSITIVE_PREDICTION_THRESHOLD).squeeze()
 
+    # print(y_predict_matrix)
     # print("positives:", numpy.count_nonzero(positive_mask))
 
-    coordinates_subset = coordinates[positive_mask, :]
+    coordinates_subset = numpy.atleast_2d(coordinates_matrix[positive_mask, :].squeeze())
 
-    numpy.savetxt('test.out', coordinates_subset, delimiter=',')
+    # numpy.savetxt('test.out', coordinates_subset, delimiter=',')
 
     return coordinates_subset
 
@@ -328,16 +378,21 @@ def predict(model, loader):
 
         y_predict = model.forward(x)
 
-        coordinate_vectors.append(coordinates.numpy())
-        x_vectors.append(x.data.numpy())
-        y_predict_vectors.append(y_predict.data.numpy())
+        coordinate_vectors.append(numpy.atleast_2d(coordinates.numpy().squeeze()))
+
+        # print(coordinates)
+        # print(numpy.atleast_2d(coordinates.numpy().squeeze()))
+
+        x_vectors.append(numpy.atleast_2d(x.data.numpy().squeeze()))
+        y_predict_vectors.append(numpy.atleast_2d(y_predict.data.numpy().squeeze()))
 
         batch_index += 1
 
     y_predict_matrix = numpy.concatenate(y_predict_vectors)
     x_matrix = numpy.concatenate(x_vectors)
 
-    coordinates = numpy.concatenate(coordinate_vectors)
+    # print(coordinate_vectors)
+    coordinates = numpy.atleast_2d(numpy.concatenate(coordinate_vectors, axis=0).squeeze())
     # print("after dataloader:", type(coordinate_vectors[0]))
     #
     # except ValueError:
@@ -393,6 +448,7 @@ def train(model, loader, optimizer, loss_fn, epochs=5, cutoff=None, print_progre
 
             if print_progress and i % 100 == 0:
                 print(i, loss)
+                # print(x.data[0])
 
             i += 1
 
@@ -526,7 +582,7 @@ def calculate_testing_stats(y_matrix, y_predict_matrix, x_matrix, metadata_matri
 
 def grid_search(dataset_train, dataset_test, tsv_writer):
     # Batch size is the number of training examples used to calculate each iteration's gradient
-    batch_size_train = 128
+    batch_size_train = 256
     n_epochs = 3
 
     data_loader_train = DataLoader(dataset=dataset_train, batch_size=batch_size_train, shuffle=True)
@@ -577,6 +633,7 @@ def grid_search(dataset_train, dataset_test, tsv_writer):
 
                 i += 1
 
+
 def run_prediction(test_dataset, model_state_path=None):
     # Batch size is the number of training examples used to calculate each iteration's gradient
     batch_size_test = 8192
@@ -593,10 +650,23 @@ def run_prediction(test_dataset, model_state_path=None):
     # Test and get the resulting predicted y values
     y_predict_matrix, x_matrix, coordinates = predict(model=model, loader=data_loader_test)
 
+    # print(x_matrix)
+    # print(y_predict_matrix)
+
     return y_predict_matrix, x_matrix, coordinates
 
 
-def run(train_paths, test_paths, train_length, test_length, load_model=False, model_state_path=None):
+def run(train_paths, test_paths, train_length, test_length, load_model=False, model_state_path=None, use_gpu=False):
+    """
+    This method sets the majority of model and training parameters for convenience of editing
+    :param train_paths:
+    :param test_paths:
+    :param train_length:
+    :param test_length:
+    :param load_model:
+    :param model_state_path:
+    :return:
+    """
     # Batch size is the number of training examples used to calculate each iteration's gradient
     batch_size_train = 128
     batch_size_test = 4096
@@ -612,6 +682,9 @@ def run(train_paths, test_paths, train_length, test_length, load_model=False, mo
     # Instantiate model
     model = ShallowLinear()
 
+    if use_gpu:
+        model.cuda()
+
     # Initialize the optimizer with above parameters
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
@@ -624,7 +697,7 @@ def run(train_paths, test_paths, train_length, test_length, load_model=False, mo
     if not load_model:
         # initialize training set data loader
         data_loader_train = SplitDataloader(file_paths=train_paths, length=train_length, batch_size=batch_size_train,
-                                            downsample=downsample)
+                                            downsample=downsample, use_gpu=use_gpu)
 
         # Train and get the resulting loss per iteration
         loss_per_iteration = train(model=model, loader=data_loader_train, optimizer=optimizer, loss_fn=loss_fn,
@@ -640,8 +713,8 @@ def run(train_paths, test_paths, train_length, test_length, load_model=False, mo
     return loss_per_iteration, y_predict_matrix, y_matrix, x_matrix, metadata, learning_rate, weight_decay, optimizer, loss_fn, model
 
 
-def predict_sites(model_state_path, numpy_dataset):
-    test_dataset = CandidateAlleleNumpyTestDataset(numpy_dataset=numpy_dataset)
+def predict_sites(model_state_path, dataset):
+    test_dataset = CandidateAllelePandasTestDataset(pandas_dataset=dataset)
 
     # print("Test set size: ", test_dataset.length)
 
@@ -649,6 +722,8 @@ def predict_sites(model_state_path, numpy_dataset):
     x_matrix, \
     coordinates_matrix = run_prediction(test_dataset=test_dataset,
                                         model_state_path=model_state_path)
+
+    # print(coordinates_matrix.shape)
 
     predicted_coordinates = subset_coordinates_by_positive_prediction(coordinates_matrix=coordinates_matrix,
                                                                       y_predict_matrix=y_predict_matrix)
@@ -660,12 +735,17 @@ def predict_sites(model_state_path, numpy_dataset):
 
 
 def main():
-    load_model = False
+    load_model = True
+    gpu = False
 
-    model_state_path = "/home/ryan/code/variant_classifier/output/WG_GIAB_0_threshold_run_2018-4-27-10-36-23-4-117/model"
+    model_state_path = "models/filter_model_state"
     output_directory = "output/"
 
-    dataset_log_path = "/home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold/confident/chr1_19__0_all_1_coverage/dataset_log.tsv"
+    dataset_log_path = "/home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold/WG_chr_1-19_0_thresholds_1_coverage_histogram_features/dataset_log.tsv"
+
+    # ensure output directory exists
+    if not path.exists(output_directory):
+        os.mkdir(output_directory)
 
     # training_set_relative_size = 0.7
     # train_paths, test_paths, train_length, test_length = SplitDataloader.partition_dataset_paths(dataset_log_path=dataset_log_path, train_size_proportion=training_set_relative_size)
@@ -696,7 +776,8 @@ def main():
                 train_length=train_length,
                 test_length=test_length,
                 load_model=load_model,
-                model_state_path=model_state_path)
+                model_state_path=model_state_path,
+                use_gpu=gpu)
 
     results_handler = ResultsHandler(y_matrix=y_matrix,
                                      y_predict_matrix=y_predict_matrix,
@@ -719,6 +800,7 @@ def main():
     results_handler.write_full_output_dataset()
     results_handler.save_loss_plot()
 
+    # print some stats directly to stdout (redundant)
     results_handler.print_parameter_info()
     results_handler.print_performance_stats()
 

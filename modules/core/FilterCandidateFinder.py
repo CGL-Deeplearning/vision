@@ -552,6 +552,9 @@ class CandidateFinder:
             alt1 = allele_list[0] if len(allele_list) >= 1 else None
             alt2 = allele_list[1] if len(allele_list) >= 2 else '.'
 
+            # print("--- CANDIDATE FINDER ---")
+            # print(sorted(all_allele_dictionary.items()))
+
             # if there are no edits of this type, skip
             if alt1 is None:
                 continue

@@ -29,6 +29,8 @@ GENOTYPE_NAMES = ["Hom", "Het", "Hom_alt"]
 VCF_OFFSET = 1
 PLOIDY = 4
 
+QUALITY_SCALING_CONSTANT = 1000
+
 # DEBUG_FREQUENCIES = False
 DEBUG_PRINT_ALL = False
 
@@ -263,17 +265,12 @@ class CandidateLabeler:
         split_frequencies = [mismatch_frequencies, insert_frequencies, delete_frequencies]
 
         for allele in frequencies:
-            # print(allele)
             allele_tuple, count, frequency = allele
             allele_sequence, type = allele_tuple
 
             split_frequencies[type-1].append(count)
 
-            # print(allele_sequence, type, frequency)
-
         split_frequencies = [sorted(frequency_list, reverse=True) for frequency_list in split_frequencies]
-
-        # print(split_frequencies)
 
         return split_frequencies
 
@@ -282,50 +279,81 @@ class CandidateLabeler:
         frequencies = self.split_frequencies_by_type(frequencies)
 
         data_list = list()
+        header = list()
 
         # convert list of frequencies into vector with length 3*PLOIDY
         site_frequency_list = self._generate_fixed_size_freq_list(frequencies)
-
-        # normalize by coverage depth
-        site_frequency_vector = numpy.array(site_frequency_list, dtype=numpy.float32)/coverage
 
         chromosome_number = self._get_chromosome_number(chromosome_name)
         label = int(support)
 
         # cap and scale down coverage (max = 1000)
-        coverage = min(coverage, 1000)
-        coverage = float(coverage)/1000
+        # coverage = min(coverage, 1000)
+        # coverage = float(coverage)/1000
 
         # scale down qualities
-        map_quality_ref = [mq/1000 for mq in map_quality_ref]
-        base_quality_ref = [bq/1000 for bq in base_quality_ref]
-        map_quality_non_ref = [mq/1000 for mq in map_quality_non_ref]
-        base_quality_non_ref = [bq/1000 for bq in base_quality_non_ref]
-
-        print(genotypes)
+        # map_quality_ref = [mq/1000 for mq in map_quality_ref]
+        # base_quality_ref = [bq/1000 for bq in base_quality_ref]
+        # map_quality_non_ref = [mq/1000 for mq in map_quality_non_ref]
+        # base_quality_non_ref = [bq/1000 for bq in base_quality_non_ref]
 
         data_list.append(chromosome_number)     # 0
+        header.append("chromosome_number")
+
         data_list.append(int(start))            # 1
+        header.append("position")
+
         data_list.extend(genotypes)             # 2-3
-        l = len(data_list)
-        data_list.extend([0]*PLOIDY*3)          # 4-15
+        header.extend(["genotype_"+str(i+1) for i in range(len(genotypes))])
+
+        data_list.extend(site_frequency_list)   # 4-15
+        header.extend(["frequency_"+str(i+1) for i in range(len(site_frequency_list))])
+
         data_list.append(coverage)              # 16
+        header.append("coverage")
+
         data_list.extend(map_quality_ref)       # 17-22
+        header.extend(["map_quality_ref_"+str(i+1) for i in range(len(map_quality_ref))])
+
         data_list.extend(base_quality_ref)      # 23-28
+        header.extend(["base_quality_ref_"+str(i+1) for i in range(len(base_quality_ref))])
+
         data_list.extend(map_quality_non_ref)   # 29-34
+        header.extend(["map_quality_non_ref_"+str(i+1) for i in range(len(map_quality_non_ref))])
+
         data_list.extend(base_quality_non_ref)  # 35-42
+        header.extend(["base_quality_non_ref_"+str(i+1) for i in range(len(base_quality_non_ref))])
+
         data_list.append(label)                 # 43
+        header.append("label")
 
         # convert data list to numpy Float vector
-        data_vector = numpy.array(data_list, dtype=numpy.double).reshape((len(data_list),1))
+        data_row = pandas.DataFrame([data_list], columns=header)
 
-        # add normalized frequency vector values to the full data vector
-        data_vector[l:l+PLOIDY*3] = site_frequency_vector.reshape((PLOIDY*3,1))
+        return data_row
 
-        print(numpy.array2string(data_vector.T, separator="\t", precision=4, max_line_width=500))
-        print(data_vector.shape)
+    def normalize_data_table(self, data_table):
+        """
+        For the appropriate data types, normalize, cap, or downscale values based on column header names
+        :param data_table:
+        :param coverage:
+        :return:
+        """
+        headers = data_table.columns.values
 
-        return data_vector
+        for header in headers:
+            if header.startswith("frequency"):
+                data_table[header] /= data_table["coverage"]
+
+            if "quality" in header:
+                data_table[header] /= QUALITY_SCALING_CONSTANT
+
+            if header == "coverage":
+                mask = data_table[header] > 1000
+                data_table.loc[mask, header] = 1000
+                data_table[header] /= 1000
+
+        return data_table
 
     def get_labeled_candidates(self, chromosome_name, positional_vcf, candidate_sites):
         """
@@ -360,7 +388,6 @@ class CandidateLabeler:
             frequencies = candidate[FREQUENCIES]
             coverage = candidate[COVERAGE]
 
-            print(candidate)
             map_quality_non_ref = candidate[MAP_QUALITY_NON_REF]
             base_quality_non_ref = candidate[BASE_QUALITY_NON_REF]
             map_quality_ref = candidate[MAP_QUALITY_REF]
@@ -393,14 +420,15 @@ class CandidateLabeler:
 
         # if there is no data for this region, append an empty vector
         if len(all_labeled_vectors) == 0:
-            all_labeled_vectors = numpy.array([[]])
+            data_table = pandas.DataFrame([])
+
         else:
-            all_labeled_vectors = numpy.concatenate(all_labeled_vectors, axis=1)
+            # concatenate
+            data_table = pandas.concat(all_labeled_vectors)
 
-            # table contains only 1 entry, numpy gives it no 2nd dimension... -_-
-            all_labeled_vectors = numpy.atleast_2d(all_labeled_vectors)
+            # normalize
+            data_table = self.normalize_data_table(data_table=data_table)
 
-        numpy.savetxt("test.tsv", all_labeled_vectors.T, delimiter='\t')
-        # print(numpy.array2string(all_labeled_vectors.T, separator="\t", precision=2, max_line_width=500))
+        # data_table.to_csv("test.tsv", sep='\t')
 
-        return all_labeled_vectors
+        return data_table
