@@ -7,7 +7,7 @@ import numpy as np
 
 DEL_TYPE = '3'
 IN_TYPE = '2'
-MATCH_TYPE = '1'
+SNP_TYPE = '1'
 
 
 class VCFWriter:
@@ -40,9 +40,13 @@ class VCFWriter:
             return ref, alt1, alt2
         elif type1 == DEL_TYPE or type2 == DEL_TYPE:
             if type1 == DEL_TYPE and type2 == IN_TYPE:
-                return alt1, ref, alt1 + alt2[1:]
+                return alt1, ref, alt2 + alt1[1:]
             elif type1 == IN_TYPE and type2 == DEL_TYPE:
-                return alt2, alt2 + alt1[1:], ref
+                return alt2, alt1 + alt2[1:], ref
+            elif type1 == DEL_TYPE and type2 == SNP_TYPE:
+                return alt1, ref, alt2 + alt1[1:]
+            elif type1 == SNP_TYPE and type2 == DEL_TYPE:
+                return alt2, alt1 + alt2[1:], ref
             elif type1 == DEL_TYPE:
                 return alt1, ref, alt2
             elif type2 == DEL_TYPE:
