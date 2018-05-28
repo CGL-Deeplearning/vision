@@ -1,4 +1,4 @@
-# Calling Variant with Vision
+# Calling Variants with Vision
 
 ## Set-up
 
