@@ -388,8 +388,15 @@ def predict(model, loader):
 
         batch_index += 1
 
-    y_predict_matrix = numpy.concatenate(y_predict_vectors)
-    x_matrix = numpy.concatenate(x_vectors)
+    try:
+        y_predict_matrix = numpy.concatenate(y_predict_vectors)
+        x_matrix = numpy.concatenate(x_vectors)
+
+    except:
+        print("list length:", len(y_predict_vectors))
+        for i,vector in enumerate(y_predict_vectors):
+            print(vector.shape)
+            print(coordinate_vectors[i])
 
     # print(coordinate_vectors)
     coordinates = numpy.atleast_2d(numpy.concatenate(coordinate_vectors, axis=0).squeeze())
