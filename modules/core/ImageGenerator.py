@@ -146,7 +146,7 @@ class ImageGenerator:
     @staticmethod
     def add_empty_rows(image, empty_rows_to_add, image_width):
         for i in range(empty_rows_to_add):
-            empty_channels = [imageChannels.get_empty_channels() for i in range(image_width)]
+            empty_channels = [imageChannels.get_empty_channels()] * image_width
             image.append(empty_channels)
         return image
 
