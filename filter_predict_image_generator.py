@@ -307,12 +307,12 @@ class View:
             # pass test set to trained model and get predicted candidates
             predicted_candidates = self.predict_true_candidates(vectorized_candidates, candidates)
 
-            # print("candidates:", len(candidates))
-            # print("predicted:", len(predicted_candidates))
-
             if DEBUG_PRINT_CANDIDATES:
                 for candidate in predicted_candidates:
                     print(candidate)
+
+                print("candidates:", len(candidates))
+                print("predicted:", len(predicted_candidates))
 
             # create image generator object with all necessary dictionary
             image_generator = ImageGenerator(dictionaries_for_images)

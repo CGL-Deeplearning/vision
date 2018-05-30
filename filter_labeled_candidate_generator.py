@@ -40,7 +40,7 @@ Output:
 - CSV file: Containing records of images and their location in the H5PY file.
 
 Example usage:
-python3 filter_labeled_image_generator.py --ref ~/data/GIAB/GRCh37_WG.fa --bam ~/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam --vcf ~/data/GIAB/NA12878_GRCh37.vcf.gz --max_threads 30 --output_dir /home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold 
+python3 filter_labeled_candidate_generator.py --ref ~/data/GIAB/GRCh37_WG.fa --bam ~/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam --vcf ~/data/GIAB/NA12878_GRCh37.vcf.gz --max_threads 30 --output_dir /home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold 
 """
 
 # Global debug helpers
