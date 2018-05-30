@@ -452,6 +452,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     :return:
     """
     sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
+
     # create dump directory inside output directory
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
 
@@ -541,14 +542,50 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
 
 
-def test(view_object):
+# def test(view_object):
+#     """
+#     Run a test
+#     :return:
+#     """
+#     start_time = time.time()
+#     view_object.parse_region(start_position=49540000, end_position=49550000, thread_no=1)
+#     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
+
+
+def test(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confident_bed_tree):
     """
     Run a test
     :return:
     """
+    # create dump directory inside output directory
+    output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+
     start_time = time.time()
-    view_object.parse_region(start_position=3039222, end_position=3039223, thread_no=1)
-    print("TOTAL TIME ELAPSED: ", time.time()-start_time)
+    start_position = 46350000
+    end_position = 46400000
+    whole_length = end_position - start_position
+
+    # .5MB segments at once
+    each_segment_length = 50000
+
+    # chunk the chromosome into pieces
+    chunks = int(math.ceil(whole_length / each_segment_length))
+
+    for i in tqdm(range(chunks)):
+        start_position = i * each_segment_length
+        end_position = min((i + 1) * each_segment_length, whole_length)
+        # gather all parameters
+        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
+
+        p = multiprocessing.Process(target=parallel_run, args=args)
+        p.start()
+
+        # wait until we have room for new processes to start
+        while True:
+            if len(multiprocessing.active_children()) < max_threads:
+                break
+
+    print("TOTAL TIME ELAPSED: ", time.time() - start_time)
 
 
 def handle_output_directory(output_dir):
@@ -643,14 +680,17 @@ if __name__ == '__main__':
         sys.stderr.write(TextColor.RED + "CONFIDENT BED IS NULL\n" + TextColor.END)
 
     if FLAGS.test is True:
-        chromosome_output = create_output_dir_for_chromosome(FLAGS.output_dir, FLAGS.chromosome_name)
-        view = View(chromosome_name=FLAGS.chromosome_name,
-                    bam_file_path=FLAGS.bam,
-                    reference_file_path=FLAGS.ref,
-                    vcf_path=FLAGS.vcf,
-                    output_file_path=chromosome_output,
-                    confident_tree=confident_tree_build)
-        test(view)
+        # chromosome_output = create_output_dir_for_chromosome(FLAGS.output_dir, FLAGS.chromosome_name)
+        # view = View(chromosome_name=FLAGS.chromosome_name,
+        #             bam_file_path=FLAGS.bam,
+        #             reference_file_path=FLAGS.ref,
+        #             vcf_path=FLAGS.vcf,
+        #             output_file_path=chromosome_output,
+        #             confident_tree=confident_tree_build)
+        # test(view)
+
+        test(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,FLAGS.max_threads, confident_tree_build)
+
     elif FLAGS.chromosome_name is not None:
         chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
                                          FLAGS.max_threads, confident_tree_build)

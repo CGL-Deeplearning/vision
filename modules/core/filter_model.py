@@ -398,6 +398,8 @@ def predict(model, loader):
             print(vector.shape)
             print(coordinate_vectors[i])
 
+        y_predict_matrix = numpy.concatenate(y_predict_vectors)
+
     # print(coordinate_vectors)
     coordinates = numpy.atleast_2d(numpy.concatenate(coordinate_vectors, axis=0).squeeze())
     # print("after dataloader:", type(coordinate_vectors[0]))
