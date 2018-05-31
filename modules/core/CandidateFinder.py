@@ -13,6 +13,22 @@ Dictionaries it updates:
 - edit_count:           records number of mismatches in a position          {int -> int}
 """
 
+
+MAX_COLOR_VALUE = 254.0
+BASE_QUALITY_CAP = 40.0
+MAP_QUALITY_CAP = 60.0
+MAP_QUALITY_FILTER = 5.0
+MIN_DELETE_QUALITY = 20.0
+MATCH_CIGAR_CODE = 0
+INSERT_CIGAR_CODE = 1
+DELETE_CIGAR_CODE = 2
+IMAGE_DEPTH_THRESHOLD = 300
+
+global_base_color_dictionary = {'A': 254.0, 'C': 100.0, 'G': 180.0, 'T': 30.0, '*': 5.0, '.': 5.0, 'N': 5.0}
+global_cigar_color_dictionary = {0: MAX_COLOR_VALUE, 1: MAX_COLOR_VALUE*0.6, 2: MAX_COLOR_VALUE*0.3}
+
+##testing speed improvements of doing channels without support in method
+
 DEFAULT_MIN_MAP_QUALITY = 5
 MIN_MISMATCH_THRESHOLD = 2
 MIN_MISMATCH_PERCENT_THRESHOLD = 2
@@ -94,8 +110,8 @@ class CandidateFinder:
 
         return ref_alignment_stop
 
-    def _update_base_dictionary(self, read_id, pos, base, quality):
-        self.base_dictionary[read_id][pos] = (base, quality)
+    #def _update_base_dictionary(self, read_id, pos, base, quality):
+        #self.base_dictionary[read_id][pos] = (base, quality)
 
     def _update_insert_dictionary(self, read_id, pos, bases, qualities):
         self.insert_dictionary[read_id][pos] = (bases, qualities)
@@ -152,7 +168,8 @@ class CandidateFinder:
             self.coverage[i] += 1
             allele = read_sequence[i-alignment_position]
             ref = ref_sequence[i-alignment_position]
-            self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
+            self.base_dictionary[read_id][i] = (allele, qualities[i-alignment_position])
+            #self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
             if allele != ref:
                 self.mismatch_count[i] += 1
                 self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE)
@@ -177,7 +194,8 @@ class CandidateFinder:
         self.mismatch_count[alignment_position] += 1
 
         for i in range(start, stop):
-            self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
+            self.base_dictionary[read_id][i] = ('*', MIN_DELETE_QUALITY)
+            #self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
             # increase the coverage
             self.mismatch_count[i] += 1
             self.coverage[i] += 1
@@ -205,14 +223,6 @@ class CandidateFinder:
         self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE)
         self._update_insert_dictionary(read_id, alignment_position, read_sequence, qualities)
 
-    def _update_reference_dictionary(self, position, ref_base):
-        """
-        Update the reference dictionary
-        :param position: Genomic position
-        :param ref_base: Reference base at that position
-        :return:
-        """
-        self.reference_dictionary[position] = ref_base
 
     def find_read_candidates(self, read):
         """
@@ -240,7 +250,7 @@ class CandidateFinder:
         for pos in range(ref_alignment_start, ref_alignment_stop):
             self.read_id_by_position[pos].append((read_id, ref_alignment_start, ref_alignment_stop))
         for i, ref_base in enumerate(ref_sequence):
-            self._update_reference_dictionary(ref_alignment_start + i, ref_base)
+            self.reference_dictionary[ref_alignment_start + i] = ref_base
 
         # read_index: index of read sequence
         # ref_index: index of reference sequence
@@ -423,9 +433,22 @@ class CandidateFinder:
                     base, base_q = self.base_dictionary[read_id][pos]
                     cigar_code = 0 if base != '*' else 1
                     ref_base = self.reference_dictionary[pos]
-                    pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
-                    channel_object = imageChannels(pileup_attributes, ref_base, 0)
-                    read_to_image_row.append(channel_object.get_channels_except_support())
+
+
+                    is_match = True if ref_base == base else False
+
+                    base_color = global_base_color_dictionary[base] \
+                        if base in global_base_color_dictionary else 0.0
+                    base_quality_color = (MAX_COLOR_VALUE * min(base_q, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
+                    map_quality_color = (MAX_COLOR_VALUE * min(mapping_quality, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
+                    strand_color = 240.0 if strand_direction else 70.0
+                    match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
+                    cigar_color = global_cigar_color_dictionary[cigar_code] \
+                        if cigar_code in global_cigar_color_dictionary else 0.0
+                    read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
+
+
+
                 if pos in self.insert_length_info:
                     length_of_insert = self.insert_length_info[pos]
                     total_insert_bases = 0
@@ -437,9 +460,18 @@ class CandidateFinder:
                             base_q = in_qualities[i]
                             cigar_code = 2
                             ref_base = ''
-                            pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
-                            channel_object = imageChannels(pileup_attributes, ref_base, 0)
-                            read_to_image_row.append(channel_object.get_channels_except_support())
+                            is_match = True if ref_base == base else False
+
+                            base_color = global_base_color_dictionary[base] \
+                                if base in global_base_color_dictionary else 0.0
+                            base_quality_color = (MAX_COLOR_VALUE * min(base_q, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
+                            map_quality_color = (MAX_COLOR_VALUE * min(mapping_quality, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
+                            strand_color = 240.0 if strand_direction else 70.0
+                            match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
+                            cigar_color = global_cigar_color_dictionary[cigar_code] \
+                                if cigar_code in global_cigar_color_dictionary else 0.0
+                            read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
+
                     if length_of_insert > total_insert_bases:
                         dot_bases = length_of_insert - total_insert_bases
                         for i in range(dot_bases):
@@ -447,9 +479,17 @@ class CandidateFinder:
                             base_q = MIN_DELETE_QUALITY
                             cigar_code = 2
                             ref_base = ''
-                            pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
-                            channel_object = imageChannels(pileup_attributes, ref_base, 0)
-                            read_to_image_row.append(channel_object.get_channels_except_support())
+                            is_match = True if ref_base == base else False
+
+                            base_color = global_base_color_dictionary[base] \
+                                if base in global_base_color_dictionary else 0.0
+                            base_quality_color = (MAX_COLOR_VALUE * min(base_q, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
+                            map_quality_color = (MAX_COLOR_VALUE * min(mapping_quality, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
+                            strand_color = 240.0 if strand_direction else 70.0
+                            match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
+                            cigar_color = global_cigar_color_dictionary[cigar_code] \
+                                if cigar_code in global_cigar_color_dictionary else 0.0
+                            read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
 
             self.image_row_for_reads[read_id] = (read_to_image_row, star_pos, end_pos)
 

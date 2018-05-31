@@ -159,20 +159,7 @@ class imageChannels:
             if self.cigar_code in global_cigar_color_dictionary else 0.0
 
         return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]
-        '''
-        """
-        Get a bases's channel construction
-        :return: [color spectrum of channels based on base attributes]
-        """
-        base_color = self.get_base_color(self.pileup_base)
-        base_quality_color = imageChannels.get_base_quality_color(self.base_qual)
-        map_quality_color = imageChannels.get_map_quality_color(self.map_qual)
-        strand_color = imageChannels.get_strand_color(self.is_rev)
-        match_color = imageChannels.get_match_ref_color(self.is_match)
-        support_color = imageChannels.get_alt_support_color(self.is_supporting)
-        cigar_color = imageChannels.get_cigar_color(self.cigar_code)
-        return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color]
-         '''
+
     @staticmethod
     def get_channels_for_ref(base):
         """

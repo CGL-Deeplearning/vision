@@ -176,8 +176,15 @@ class ImageGenerator:
             else:
                 break
 
-        whole_image = self.add_empty_rows(whole_image, image_height - len(whole_image), image_width)
-        whole_image = np.array(whole_image)
+        #whole_image = self.add_empty_rows(whole_image, image_height - len(whole_image), image_width)
+
+        #def add_empty_rows(image, empty_rows_to_add, image_width):
+        for i in range(image_height - len(whole_image)):
+                # empty_channels = [imageChannels.get_empty_channels() for i in range(image_width)]
+            empty_channels = [[0, 0, 0, 0, 0, 0, 0]] * image_width
+            whole_image.append(empty_channels)
+            #return image
+        #whole_image = np.array(whole_image)
 
         # analyze_np_array(whole_image, image_width, image_height)
-        return whole_image
+        return np.array(whole_image)
