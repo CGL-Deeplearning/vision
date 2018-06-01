@@ -399,6 +399,7 @@ def predict(model, loader):
             print(coordinate_vectors[i])
 
         y_predict_matrix = numpy.vstack(y_predict_vectors)
+        print("SUCCESS")
 
     # print(coordinate_vectors)
     coordinates = numpy.atleast_2d(numpy.concatenate(coordinate_vectors, axis=0).squeeze())
