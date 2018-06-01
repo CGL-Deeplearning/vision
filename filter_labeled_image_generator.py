@@ -561,7 +561,7 @@ def test(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confi
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
 
     start_time = time.time()
-    start_position = 46350000
+    start_position = 46350000 ##46350004
     end_position = 46400000
     whole_length = end_position - start_position
 

@@ -128,35 +128,6 @@ class View:
             return 2
         return None
 
-    @staticmethod
-    def get_images_for_two_alts(record):
-        """
-        Returns records for sites where we have two alternate alleles.
-        :param record: Record that belong to the site
-        :return: Records of a site
-        """
-        chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
-        # get the genotypes from the record
-        gt1, gt2 = record[-2:]
-        gt1 = gt1[0]
-        gt2 = gt2[0]
-        # get the genotype of the images where both of these alleles are used together
-        gt3 = View.get_combined_gt(gt1, gt2)
-
-        # if gt3 is None that means we have invalid gt1 and gt2
-        if gt3 is None:
-            sys.stderr.write(TextColor.RED + "WEIRD RECORD: " + str(record) + "\n")
-
-        # create two separate records for each of the alleles
-        rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0, gt1]
-        rec_2 = [chr_name, pos_start, pos_end, ref, alt2, '.', rec_type_alt2, 0, gt2]
-        if gt3 is not None:
-            # if gt3 is not invalid create the record where both of the alleles are used together
-            rec_3 = [chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt3]
-            return [rec_1, rec_2, rec_3]
-
-        return [rec_1, rec_2]
-
     def write_training_set(self, data, start, stop):
         """
         Create a npz training set of all labeled candidate sites found in the region
@@ -231,88 +202,6 @@ class View:
 
         return labeled_sites
 
-    def generate_candidate_images(self, candidate_list, image_generator, thread_no):
-        """
-        Generate images from a given labeled candidate list.
-        :param candidate_list: List of candidates.
-        :param image_generator: Image generator object containing all dictionaries to generate the images.
-        :param thread_no: The thread number used to name the files.
-        :return:
-        """
-
-        # declare the size of the image
-        image_height, image_width = 300, 300
-        if len(candidate_list) == 0:
-            return
-
-        # create summary file where the location of each image is recorded
-        contig = str(self.chromosome_name)
-        smry = open(self.output_dir + "summary/" + "summary" + '_' + contig + "_" + str(thread_no) + ".csv", 'w')
-
-        # create a h5py file where the images are stored
-        hdf5_filename = self.output_dir + contig + '_' + str(thread_no) + ".h5"
-        hdf5_file = h5py.File(hdf5_filename, mode='w')
-
-        # list of image records to be generated
-        image_record_set = []
-
-        # expand the records for sites where two alleles are found
-        for record in candidate_list:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
-            gt1, gt2 = record[-2:]
-            gt1 = gt1[0]
-
-            if alt2 != '.':
-                image_record_set.extend(self.get_images_for_two_alts(record))
-            else:
-                image_record_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt1])
-
-        # set of images and labels we are generating
-        img_set = []
-        label_set = []
-
-        # index of the image we generate the images
-        indx = 0
-        for img_record in image_record_set:
-            chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, label = img_record
-
-            # STRATIFICATION RATE is used to reduce the number of homozygous images are generated.
-            # this parameter can be controlled via the global value of STRATIFICATION_RATE
-            if STRATIFICATION_RATE < 1.0 and label == 0:
-                random_draw = random.uniform(0, 1)
-                if random_draw > STRATIFICATION_RATE:
-                    continue
-
-            # list of alts in this record
-            alts = [alt1]
-
-            # list of type of record (IN, DEL, SNP)
-            rec_types = [rec_type_alt1]
-            if alt2 != '.':
-                alts.append(alt2)
-                rec_types.append(rec_type_alt2)
-
-            # the image array
-            image_array = image_generator.create_image(pos_start, ref, alts, rec_types,
-                                                       image_height=image_height, image_width=image_width)
-
-            # the record of the image we want to save in the summary file
-            img_rec = str('\t'.join(str(item) for item in img_record))
-            label_set.append(label)
-            img_set.append(np.array(image_array, dtype=np.int8))
-            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
-            indx += 1
-
-        # the image dataset we save. The index name in h5py is "images".
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8,
-                                            compression='gzip')
-        # the labels for images that we saved
-        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
-
-        # save the images and labels to the h5py file
-        img_dset[...] = img_set
-        label_dset[...] = label_set
-
     def parse_region(self, start_position, end_position, thread_no):
         """
         Generate labeled images of a given region of the genome
@@ -331,11 +220,12 @@ class View:
                                            fasta_handler=self.fasta_handler,
                                            chromosome_name=self.chromosome_name,
                                            region_start_position=start_position,
-                                           region_end_position=end_position)
+                                           region_end_position=end_position,
+                                           preprocess=False)
 
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-        dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
+        # dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
         # if confident tree is defined then subset the candidates to only those intervals
         if self.confident_tree is not None:
@@ -361,13 +251,6 @@ class View:
             if DEBUG_PRINT_CANDIDATES:
                 for candidate in selected_candidates:
                     print(candidate)
-
-            # ---- TRUNCATE PIPELINE ----
-            # # create image generator object with all necessary dictionary
-            # image_generator = ImageGenerator(dictionaries_for_images)
-            #
-            # # generate and save candidate images
-            # self.generate_candidate_images(labeled_sites, image_generator, thread_no)
 
 
 def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
@@ -463,7 +346,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
 
     # .5MB segments at once
-    each_segment_length = 50000
+    each_segment_length = 40000
 
     # chunk the chromosome into pieces
     chunks = int(math.ceil(whole_length / each_segment_length))

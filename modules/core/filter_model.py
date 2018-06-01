@@ -396,6 +396,8 @@ def predict(model, loader):
         print("list length:", len(y_predict_vectors))
         for i,vector in enumerate(y_predict_vectors):
             print(vector.shape)
+            print(vector)
+            numpy.savetxt("error_vector"+str(i)+".out", vector, delimiter=',')
             print(coordinate_vectors[i])
 
         y_predict_matrix = numpy.vstack(y_predict_vectors)

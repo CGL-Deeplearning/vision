@@ -34,7 +34,7 @@ class CandidateFinder:
     Given reads that align to a site and a pointer to the reference fasta file handler,
     candidate finder finds possible variant candidates_by_read of that site.
     """
-    def __init__(self, reads, fasta_handler, chromosome_name, region_start_position, region_end_position):
+    def __init__(self, reads, fasta_handler, chromosome_name, region_start_position, region_end_position, preprocess=True):
         """
         Initialize a candidate finder object.
         :param reads: Reads that align to the site
@@ -78,6 +78,8 @@ class CandidateFinder:
         self.positional_info_position_to_index = defaultdict(int)
         self.allele_dictionary = defaultdict(lambda: defaultdict(list))
         self.read_id_by_position = defaultdict(list)
+
+        self.preprocess = preprocess
 
     @staticmethod
     def get_read_stop_position(read):
@@ -529,8 +531,9 @@ class CandidateFinder:
         if total_reads == 0:
             return []
 
-        self.postprocess_reads(read_id_list)
-        self.postprocess_reference()
+        if self.preprocess:
+            self.postprocess_reads(read_id_list)
+            self.postprocess_reference()
 
         selected_alleles = list()
         for pos in range(self.region_start_position, self.region_end_position):
