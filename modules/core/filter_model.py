@@ -395,13 +395,14 @@ def predict(model, loader):
     except:
         print("list length:", len(y_predict_vectors))
         for i,vector in enumerate(y_predict_vectors):
-            print(vector.shape)
+            print("vector", vector.shape)
+            print("coords", coordinate_vectors[i].shape)
             print(vector)
-            numpy.savetxt("error_vector"+str(i)+".out", vector, delimiter=',')
+            # numpy.savetxt("error_vector"+str(i)+".out", vector, delimiter=',')
             print(coordinate_vectors[i])
 
-        y_predict_matrix = numpy.vstack(y_predict_vectors)
-        print("SUCCESS")
+        # y_predict_matrix = numpy.vstack(y_predict_vectors)
+        # print("SUCCESS")
 
     # print(coordinate_vectors)
     coordinates = numpy.atleast_2d(numpy.concatenate(coordinate_vectors, axis=0).squeeze())
