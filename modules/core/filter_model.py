@@ -383,9 +383,9 @@ def predict(model, loader):
         y_length = y_predict.shape[0]
 
         # enforce shape, remove unnecessary 3rd dimension if exists (effectively is the same as atleast_2d, on dim=1)
-        coordinate_vector = coordinates.squeeze().reshape([c_length,-1])
+        coordinate_vector = coordinates.numpy.squeeze().reshape([c_length,-1])
         x_vector = x.data.numpy.squeeze().reshape([x_length,-1])
-        y_predict_vector = y_predict.data.squeeze().reshape([y_length,-1])
+        y_predict_vector = y_predict.data.numpy.squeeze().reshape([y_length,-1])
 
         coordinate_vectors.append(coordinate_vector)
         x_vectors.append(x_vector)
