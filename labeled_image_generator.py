@@ -426,7 +426,9 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
     # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
-    chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
+    #chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
+    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
+                "chr13", "chr14", "chr15", "chr16", "chr17", "chr18"]
 
     program_start_time = time.time()
 
@@ -487,7 +489,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=1319930, end_position=1319932, thread_no=1)
+    view_object.parse_region(start_position=271544, end_position=345770, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
