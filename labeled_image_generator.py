@@ -396,12 +396,11 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
-        #p.join()
 
         # wait until we have room for new processes to start
-        #while True:
-            #if len(multiprocessing.active_children()) < max_threads:
-                #break
+        while True:
+            if len(multiprocessing.active_children()) < max_threads:
+                break
 
     if singleton_run:
         # wait for the last process to end before file processing
