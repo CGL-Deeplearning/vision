@@ -388,7 +388,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     chunks = int(math.ceil(whole_length / each_segment_length))
     if DEBUG_TEST_PARALLEL:
         chunks = 4
-    pool = multiprocessing.Pool(processes=chunks)
+    pool = multiprocessing.Pool(processes=64)
     jobs = []
     for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
