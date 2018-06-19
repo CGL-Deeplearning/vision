@@ -388,26 +388,19 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     chunks = int(math.ceil(whole_length / each_segment_length))
     if DEBUG_TEST_PARALLEL:
         chunks = 4
-    pool = multiprocessing.Pool(processes=64)
-    jobs = []
     for i in tqdm(range(chunks)):
         start_position = i * each_segment_length
         end_position = min((i + 1) * each_segment_length, whole_length)
         # gather all parameters
         args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
-        p = pool.apply_async(func=parallel_run, args=args)
-        jobs.append(p)
-
-        #while (not all([p.ready() for p in jobs])):
-    p.wait()
+        p = multiprocessing.Process(target=parallel_run, args=args)
+        p.start()
 
         # wait until we have room for new processes to start
-        #while True:
-        #    if len(multiprocessing.active_children()) < max_threads:
-        #        break
-    pool.close()
-    pool.join()
+        while True:
+            if len(multiprocessing.active_children()) < max_threads:
+                break
 
     if singleton_run:
         # wait for the last process to end before file processing
