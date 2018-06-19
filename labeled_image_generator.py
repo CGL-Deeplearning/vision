@@ -396,11 +396,11 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         # gather all parameters
         args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
-        p = pool.apply_async(target=parallel_run, args=args)
+        p = pool.apply_async(func=parallel_run, args=args)
         jobs.append(p)
 
-        while (not all([p.ready() for p in jobs])):
-            p.wait()
+        #while (not all([p.ready() for p in jobs])):
+    p.wait()
 
         # wait until we have room for new processes to start
         #while True:
