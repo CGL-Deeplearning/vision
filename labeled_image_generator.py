@@ -382,7 +382,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
 
     # .5MB segments at once
-    each_segment_length = 100000
+    each_segment_length = 50000
 
     # chunk the chromosome into pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
@@ -396,11 +396,12 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
+        p.join()
 
         # wait until we have room for new processes to start
-        while True:
-            if len(multiprocessing.active_children()) < max_threads:
-                break
+        #while True:
+            #if len(multiprocessing.active_children()) < max_threads:
+                #break
 
     if singleton_run:
         # wait for the last process to end before file processing
