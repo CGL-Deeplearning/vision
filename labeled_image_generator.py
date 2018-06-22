@@ -286,32 +286,35 @@ class View:
                                            chromosome_name=self.chromosome_name,
                                            region_start_position=start_position,
                                            region_end_position=end_position)
+
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-        dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
-        # if confident tree is defined then subset the candidates to only those intervals
-        if self.confident_tree is not None:
-            confident_labeled = []
-            for candidate in selected_candidates:
-                pos_st = candidate[1] + 1
-                pos_end = candidate[1] + 1
-                in_conf = self.in_confident_check(pos_st, pos_end)
-                if in_conf is True:
-                    confident_labeled.append(candidate)
-            selected_candidates = confident_labeled
-
-        # get all labeled candidate sites
-        labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
-        # create image generator object with all necessary dictionary
-        image_generator = ImageGenerator(dictionaries_for_images)
-
-        if DEBUG_PRINT_CANDIDATES:
-            for candidate in labeled_sites:
-                print(candidate)
-
-        # generate and save candidate images
-        self.generate_candidate_images(labeled_sites, image_generator, thread_no)
+        # ---------------------------------------------------------------------------------------------------------
+        # dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
+        #
+        # # if confident tree is defined then subset the candidates to only those intervals
+        # if self.confident_tree is not None:
+        #     confident_labeled = []
+        #     for candidate in selected_candidates:
+        #         pos_st = candidate[1] + 1
+        #         pos_end = candidate[1] + 1
+        #         in_conf = self.in_confident_check(pos_st, pos_end)
+        #         if in_conf is True:
+        #             confident_labeled.append(candidate)
+        #     selected_candidates = confident_labeled
+        #
+        # # get all labeled candidate sites
+        # labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
+        # # create image generator object with all necessary dictionary
+        # image_generator = ImageGenerator(dictionaries_for_images)
+        #
+        # if DEBUG_PRINT_CANDIDATES:
+        #     for candidate in labeled_sites:
+        #         print(candidate)
+        #
+        # # generate and save candidate images
+        # self.generate_candidate_images(labeled_sites, image_generator, thread_no)
 
 
 def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
