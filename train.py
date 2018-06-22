@@ -132,6 +132,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
     if gpu_mode:
         model = torch.nn.DataParallel(model).cuda()
+        criterion = criterion.cuda()
 
     running_test_loss = -1
 
@@ -191,6 +192,11 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
         save_best_model(model, optimizer, file_name+"_epoch_"+str(epoch+1))
 
         # optimizer = exp_lr_scheduler(optimizer, (epoch+1))
+
+        #after each epoch delete images, labels, records
+        del images[:]
+        del labels[:]
+        del records[:]
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
