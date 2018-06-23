@@ -182,13 +182,13 @@ class View:
         # get separate positional variant dictionaries for IN, DEL, and SNP
         positional_variants = self.vcf_handler.get_variant_dictionary()
 
-        # create an object for labling the allele
-        allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler)
+        # create an object for labeling the allele
+        allele_labeler = CandidateLabeler(fasta_handler=self.fasta_handler)
 
         # label the sites
-        labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
-                                                             positional_vcf=positional_variants,
-                                                             candidate_sites=selected_candidate_list)
+        labeled_sites = allele_labeler.get_labeled_candidates(chromosome_name=self.chromosome_name,
+                                                              positional_vcf=positional_variants,
+                                                              candidate_sites=selected_candidate_list)
 
         return labeled_sites
 
@@ -288,7 +288,9 @@ class View:
                                            region_end_position=end_position)
 
         # go through each read and find candidate positions and alleles
-        selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
+        selected_candidates = candidate_finder.get_positional_data(reads=reads)
+
+
 
         # ---------------------------------------------------------------------------------------------------------
         # dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
