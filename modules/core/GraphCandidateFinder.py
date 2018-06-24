@@ -48,7 +48,7 @@ class CandidateFinder:
         self.graph = alignment_graph
 
         # the store which reads are creating candidates in that position
-        self.coverage = defaultdict(int)
+        # self.coverage = defaultdict(int)
         # self.mismatch_count = defaultdict(int)
         # self.match_count = defaultdict(int)
 
@@ -153,7 +153,7 @@ class CandidateFinder:
             if i < self.region_start_position or i > self.region_end_position:
                 continue
 
-            self.coverage[i] += 1
+            self.graph.positional_coverage[i] += 1
             allele = read_sequence[i-alignment_position]
             ref = ref_sequence[i-alignment_position]
             # self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
@@ -197,7 +197,7 @@ class CandidateFinder:
             if i < self.region_start_position or i > self.region_end_position:
                 continue
 
-            self.coverage[i] += 1
+            self.graph.positional_coverage[i] += 1
             self.graph.update_position(read_id=read_id,
                                        position=i,
                                        sequence="*",
@@ -254,7 +254,7 @@ class CandidateFinder:
         ref_alignment_start = read.reference_start
         ref_alignment_stop = self.get_read_stop_position(read)
         # if the region has very high coverage, we are not going to parse through all the reads
-        if self.coverage[ref_alignment_start] > 300:
+        if self.graph.positional_coverage[ref_alignment_start] > 300:
             return False
         cigar_tuples = read.cigartuples
         read_sequence = read.query_sequence

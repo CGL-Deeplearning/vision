@@ -1,6 +1,7 @@
 import random
 import math
 import sys
+from collections import defaultdict
 from matplotlib import pyplot
 from matplotlib import patches
 
@@ -11,6 +12,7 @@ REF = 0
 SNP = 1
 INS = 2
 DEL = 3
+
 
 class Node:
     def __init__(self, position, cigar_code, prev_node=None, next_node=None, sequence=None, coverage=1):
@@ -43,16 +45,18 @@ class Node:
         key = (self.position, self.cigar_code, self.sequence)
         return hash(key)
 
+
 class AlignmentGraph:
-    def __init__(self, chromosome_name, start_position, end_position, positional_reference=None, positional_alleles=None, positional_coverage=None, ploidy=2):
+    def __init__(self, chromosome_name, start_position, end_position, ploidy=2):
         self.chromosome_name = chromosome_name
         self.start_position = start_position
         self.end_position = end_position
         self.length = self.end_position - self.start_position
 
-        self.positional_reference = positional_reference
-        self.positional_alleles = positional_alleles
-        self.positional_coverage = positional_coverage
+        self.positional_reference = defaultdict(int)
+        self.positional_alleles = defaultdict(int)
+        self.positional_coverage = defaultdict(int)
+        self.positional_insert_lengths = dict()
 
         self.node_paths_by_read = dict()
 
@@ -62,7 +66,13 @@ class AlignmentGraph:
         # self.max_alleles_per_type = [0, 0, 0, 0]
         self.positional_n_alleles_per_type = dict()
 
-        self.default_y_position_per_cigar = [0, -1, 1, 2]
+        self.default_y_position_per_cigar = [0, -1, 2, 1]   # [REF, SNP, INS, DEL]
+
+    def update_positional_insert_length(self, position, sequence):
+        if position not in self.positional_insert_lengths:
+            self.positional_insert_lengths[position] = len(sequence)
+        elif len(sequence) > self.positional_insert_lengths[position]:
+            self.positional_insert_lengths[position] = len(sequence)
 
     def initialize_position(self, position):
         template = [{}, {}, {}, {}]
@@ -78,6 +88,10 @@ class AlignmentGraph:
         prev_node = self.node_paths_by_read[read_id][-1]
 
         if sequence not in self.graph[position][cigar_code]:
+            if cigar_code == INS:
+                # keep track of inserts for pileup printing purposes
+                self.update_positional_insert_length(position, sequence)
+
             node = Node(position=position,
                         cigar_code=cigar_code,
                         prev_node=prev_node,
@@ -92,6 +106,9 @@ class AlignmentGraph:
 
         # append node to read path
         self.node_paths_by_read[read_id].append(self.graph[position][cigar_code][sequence])
+
+    def delete_node(self):
+        pass
 
     def initialize_graph_with_reference(self):
         for position in range(self.start_position, self.end_position+1):
@@ -116,11 +133,6 @@ class AlignmentGraph:
         self.positional_n_alleles_per_type[position] = n_alleles_per_type
 
     def get_y_position(self, cigar_code, position, n):
-        # if REF, default pos = 0
-        # if SNP, default pos also = 0
-        # if INS, default pos = -1
-        # if DEL, default pos = 1
-
         default_position = self.default_y_position_per_cigar[cigar_code]
 
         if position not in self.positional_n_alleles_per_type:
@@ -128,13 +140,45 @@ class AlignmentGraph:
 
         n_alleles_per_type = self.positional_n_alleles_per_type[position]
 
-        height = n_alleles_per_type[cigar_code]
+        offset = 0
+        if cigar_code == REF:
+            c = 1
 
-        y_position = default_position + n - (height-1)
+        if cigar_code == SNP:
+            c = -1
+
+        if cigar_code == INS:
+            offset = max(0, n_alleles_per_type[DEL] - 1)
+            c = 1
+
+        if cigar_code == DEL:
+            c = 1
+
+        y_position = default_position + c*n + offset
 
         return y_position
 
+    def get_pileup(self):
+        total_inserts = sum([l for l in self.positional_insert_lengths.values()])
+        total_length = self.length + total_inserts
+        max_coverage = max([c for c in self.positional_coverage.values()])
+
+        pileup = [[None for i in range(total_length)] for j in range(max_coverage)]
+
+        x_offset = 0
+        for path in self.node_paths_by_read.values():
+            for node in path:
+                if node.position < self.start_position or node.position > self.end_position:
+                    continue
+
+                # if position in self.positional_insert_lengths:
+
     def plot_alignment_graph(self):
+        weights = ['light', 'normal', 'medium', 'semibold', 'bold', 'heavy']
+
+        all_positions = range(self.start_position, self.end_position)
+        total_coverage = sum(self.positional_coverage[p] for p in all_positions) / (self.length)
+
         figure = pyplot.figure()
         axes = pyplot.axes()
 
@@ -143,11 +187,11 @@ class AlignmentGraph:
 
         x_offset = 0
         for position in range(self.start_position, self.end_position+1):
-            for cigar_code in [REF, SNP, INS, DEL]:
-
+            for cigar_code in [REF, SNP, DEL, INS]:
                 nodes = self.graph[position][cigar_code].values()
+
                 if cigar_code == INS and len(nodes) > 0:
-                    x_offset += max([len(seq) for seq in [node.sequence for node in nodes]]) - 1
+                    x_offset += max(1,max([len(seq) for seq in [node.sequence for node in nodes]])/2)
 
                 for n,node in enumerate(nodes):
                     x = position - self.start_position + x_offset
@@ -155,19 +199,27 @@ class AlignmentGraph:
                     node.coordinate = [x,y]
 
                     # plot sequence
-                    pyplot.text(x, y, node.sequence, ha="center", va="center", zorder=1)
+                    weight_index = min(int(round(node.coverage/total_coverage))*5,5)
+                    weight = weights[weight_index]
+                    pyplot.text(x, y, node.sequence, ha="center", va="center", zorder=2, weight=weight)
 
                     # plot node shape
-                    p = patches.Circle([x,y], radius=0.33, zorder=0, facecolor="w", edgecolor="k")
+                    width = (node.coverage/total_coverage)*5
+                    p = patches.Circle([x,y], radius=0.33, zorder=1, facecolor="w", edgecolor="k", alpha=1, linewidth=width)
                     axes.add_patch(p)
 
                     # plot edge connecting nodes
                     if len(node.prev_nodes) > 0 and position > self.start_position:
                         for prev_node in node.prev_nodes:
                             x_prev, y_prev = prev_node.coordinate
-                            coverage = min([prev_node.coverage, node.coverage])
-                            width = min(4*coverage/30, 4)
-                            pyplot.plot([x_prev,x], [y_prev,y], lw=width, color="k", zorder=-1)
+                            trainsition_weight = min([prev_node.coverage, node.coverage])
+                            width = min(6*trainsition_weight/total_coverage, 6)
+
+                            if y_prev != y:
+                                p = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
+                                axes.add_patch(p)
+                            else:
+                                pyplot.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
 
                     if y < min_y:
                         min_y = y
@@ -182,11 +234,12 @@ class AlignmentGraph:
 
 # TO DO:
 #   Finish read-only graph
-#       Make plotting method for graph
 #   Make VCF/REF-based graph
 #   Compare read-only graph to VCF/REF-based graph for Nanopore vs Illumina
 #   Generate kmer extraction graph method
 #       Plot kmer frequency distribution AND label the VCF/REF kmers
-#   *** Generate heuristic for cleanup ***
-#   Generate training data for denoising autoencoder using cleaned-up pileup tensors
-#   Graph-to-pileup method?
+#   Generate training data for denoising autoencoder using cleaned-up pileup tensors? Using adjacency??
+#   *** Graph-to-pileup method? ***
+#   Plot adjacency matrix
+#   watershed string idea?
+#   *** Naive idea: delete inserts, flip SNPs ***
