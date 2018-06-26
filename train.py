@@ -193,11 +193,6 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
 
         # optimizer = exp_lr_scheduler(optimizer, (epoch+1))
 
-        #after each epoch delete images, labels, records
-        del images[:]
-        del labels[:]
-        del records[:]
-
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
 
