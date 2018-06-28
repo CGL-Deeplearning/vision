@@ -122,6 +122,7 @@ class ImageGenerator:
                       self.positional_info_position_to_index[read_start]
         end_index = self.positional_info_position_to_index[read_end_new] - \
                       self.positional_info_position_to_index[read_start]
+
         # print(start_index, end_index, end_index-start_index)
         image_row = read_row[start_index:end_index]
 

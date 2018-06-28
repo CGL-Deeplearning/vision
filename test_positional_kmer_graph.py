@@ -1,30 +1,14 @@
-from modules.core.AlignGraphCandidateFinder import CandidateFinder
-from modules.core.AlignmentGraph import AlignmentGraph
+from modules.core.KmerGraphCandidateFinder import CandidateFinder
+from modules.core.PositionalKmerGraph import PositionalKmerGraph
 from modules.handlers.BamHandler import BamHandler
 from modules.handlers.FastaHandler import FastaHandler
 from modules.handlers.VcfHandler import VCFFileProcessor
 import random
 
 
-def test_with_artifical_data():
-    characters = ["A", "C", "G", "T"]
-
-    sequence_length = 8
-    sequence = [random.choice(characters) for i in range(sequence_length)]
-    positional_reference = {pos: sequence for pos, sequence in enumerate(sequence)}
-
-    print(positional_reference)
-
-    graph = AlignmentGraph(chromosome_name="chr1",
-                           start_position=0,
-                           end_position=sequence_length - 1,
-                           positional_reference=positional_reference)
-
-    graph.initialize_graph_with_reference()
-    graph.print_alignment_graph()
-
-
 def test_with_realtime_BAM_data():
+    k = 6
+
     chromosome_name = "1"
     chromosome_name = "chr" + chromosome_name
 
@@ -46,12 +30,13 @@ def test_with_realtime_BAM_data():
     # start_position = 100816140      # chr1 100816142 . TG T 50 PASS
     # end_position = 100816145
 
-    # start_position = 100822960      # chr1 100822965 . A T 50 PASS
-    # end_position = 100822969
+    start_position = 100822960      # chr1 100822965 . A T 50 PASS
+    end_position = 100822969
 
-    start_position = 101114275      # chr1 101114279 . C T 50 PASS
-    end_position = 101114285
+    # start_position = 101114275      # chr1 101114279 . C T 50 PASS
+    # end_position = 101114285
 
+    start_position -= k
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
@@ -74,9 +59,10 @@ def test_with_realtime_BAM_data():
     fasta_handler = FastaHandler(reference_file_path)
     vcf_handler = VCFFileProcessor(file_path=vcf_path)
 
-    alignment_graph = AlignmentGraph(chromosome_name=chromosome_name,
-                                     start_position=start_position,
-                                     end_position=end_position)
+    kmer_graph = PositionalKmerGraph(chromosome_name=chromosome_name,
+                           start_position=start_position,
+                           end_position=end_position,
+                           k=k)
 
     # get the reads that fall in that region
     reads = bam_handler.get_reads(chromosome_name=chromosome_name,
@@ -89,15 +75,13 @@ def test_with_realtime_BAM_data():
                                        chromosome_name=chromosome_name,
                                        region_start_position=start_position,
                                        region_end_position=end_position,
-                                       alignment_graph=alignment_graph)
+                                       kmer_graph=kmer_graph,
+                                       k=k)
 
     candidate_finder.get_read_alignment_data(reads=reads)
 
-    alignment_graph.print_alignment_graph()
-
-    alignment_graph.clean_graph()
-
-    alignment_graph.print_alignment_graph()
+    kmer_graph.print_graph()
+    kmer_graph.plot_graph()
 
 
 if __name__ == "__main__":

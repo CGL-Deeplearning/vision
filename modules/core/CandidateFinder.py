@@ -232,6 +232,7 @@ class CandidateFinder:
         cigar_tuples = read.cigartuples
         read_sequence = read.query_sequence
         read_id = read.query_name
+
         read_quality = read.query_qualities
         ref_sequence = self.fasta_handler.get_sequence(chromosome_name=self.chromosome_name,
                                                        start=ref_alignment_start,
@@ -392,68 +393,72 @@ class CandidateFinder:
                 filtered_list.append((allele, count, frequency))
         return filtered_list
 
-    # def _get_record(self, pos, alt1, alt2, ref, ref_count):
-    #     """
-    #     Given alternate alleles, return a record that we can save in bed file
-    #     :param pos: Genomic position
-    #     :param alt1: alternate allele 1
-    #     :param alt2: alternate allele 2
-    #     :param ref: reference sequence
-    #     :return: A record to be saved in bed file
-    #     """
-    #     alt1_tuple, alt1_count, alt1_freq = alt1
-    #     alt1_seq, alt1_type = alt1_tuple
-    #     if alt2 == '.':
-    #         pos_end = pos + len(alt1_seq) - 1
-    #         return [pos, pos_end, ref, alt1_seq, '.', alt1_type, 0, ref_count, alt1_count, 0, alt1_freq, 0]
-    #     alt2_tuple, alt2_count, alt2_freq = alt2
-    #     alt2_seq, alt2_type = alt2_tuple
-    #     pos_end = pos + max(len(alt1_seq), len(alt2_seq)) - 1
-    #
-    #     return [pos, pos_end, ref, alt1_seq, alt2_seq, alt1_type, alt2_type, ref_count, alt1_count, alt2_count,
-    #             alt1_freq, alt2_freq]
+    def _get_record(self, pos, alt1, alt2, ref, ref_count):
+        """
+        Given alternate alleles, return a record that we can save in bed file
+        :param pos: Genomic position
+        :param alt1: alternate allele 1
+        :param alt2: alternate allele 2
+        :param ref: reference sequence
+        :return: A record to be saved in bed file
+        """
+        alt1_tuple, alt1_count, alt1_freq = alt1
+        alt1_seq, alt1_type = alt1_tuple
+        if alt2 == '.':
+            pos_end = pos + len(alt1_seq) - 1
+            return [pos, pos_end, ref, alt1_seq, '.', alt1_type, 0, ref_count, alt1_count, 0, alt1_freq, 0]
+        alt2_tuple, alt2_count, alt2_freq = alt2
+        alt2_seq, alt2_type = alt2_tuple
+        pos_end = pos + max(len(alt1_seq), len(alt2_seq)) - 1
 
-    # def postprocess_reads(self, read_id_list):
-    #     for read_id in read_id_list:
-    #         star_pos, end_pos, mapping_quality, strand_direction = self.read_info[read_id]
-    #         read_to_image_row = []
-    #         for pos in range(star_pos, end_pos):
-    #             if pos not in self.base_dictionary[read_id] and pos not in self.insert_dictionary[read_id]:
-    #                 print(pos, read_id)
-    #                 continue
-    #             if pos in self.base_dictionary[read_id]:
-    #                 base, base_q = self.base_dictionary[read_id][pos]
-    #                 cigar_code = 0 if base != '*' else 1
-    #                 ref_base = self.reference_dictionary[pos]
-    #                 pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
-    #                 channel_object = imageChannels(pileup_attributes, ref_base, 0)
-    #                 read_to_image_row.append(channel_object.get_channels_except_support())
-    #             if pos in self.insert_length_info:
-    #                 length_of_insert = self.insert_length_info[pos]
-    #                 total_insert_bases = 0
-    #                 if read_id in self.insert_dictionary and pos in self.insert_dictionary[read_id]:
-    #                     in_bases, in_qualities = self.insert_dictionary[read_id][pos]
-    #                     total_insert_bases = len(in_bases)
-    #                     for i in range(total_insert_bases):
-    #                         base = in_bases[i]
-    #                         base_q = in_qualities[i]
-    #                         cigar_code = 2
-    #                         ref_base = ''
-    #                         pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
-    #                         channel_object = imageChannels(pileup_attributes, ref_base, 0)
-    #                         read_to_image_row.append(channel_object.get_channels_except_support())
-    #                 if length_of_insert > total_insert_bases:
-    #                     dot_bases = length_of_insert - total_insert_bases
-    #                     for i in range(dot_bases):
-    #                         base = '*'
-    #                         base_q = MIN_DELETE_QUALITY
-    #                         cigar_code = 2
-    #                         ref_base = ''
-    #                         pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
-    #                         channel_object = imageChannels(pileup_attributes, ref_base, 0)
-    #                         read_to_image_row.append(channel_object.get_channels_except_support())
-    #
-    #         self.image_row_for_reads[read_id] = (read_to_image_row, star_pos, end_pos)
+        return [pos, pos_end, ref, alt1_seq, alt2_seq, alt1_type, alt2_type, ref_count, alt1_count, alt2_count,
+                alt1_freq, alt2_freq]
+
+    def postprocess_reads(self, read_id_list):
+        for read_id in read_id_list:
+            star_pos, end_pos, mapping_quality, strand_direction = self.read_info[read_id]
+            read_to_image_row = []
+
+            for pos in range(star_pos, end_pos):
+                if pos not in self.base_dictionary[read_id] and pos not in self.insert_dictionary[read_id]:
+                    print(pos, read_id)
+                    continue
+
+                if pos in self.base_dictionary[read_id]:
+                    base, base_q = self.base_dictionary[read_id][pos]
+                    cigar_code = 0 if base != '*' else 1
+                    ref_base = self.reference_dictionary[pos]
+                    pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
+                    channel_object = imageChannels(pileup_attributes, ref_base, 0)
+                    read_to_image_row.append(channel_object.get_channels_except_support())
+
+                if pos in self.insert_length_info:
+                    length_of_insert = self.insert_length_info[pos]
+                    total_insert_bases = 0
+                    if read_id in self.insert_dictionary and pos in self.insert_dictionary[read_id]:
+                        in_bases, in_qualities = self.insert_dictionary[read_id][pos]
+                        total_insert_bases = len(in_bases)
+                        for i in range(total_insert_bases):
+                            base = in_bases[i]
+                            base_q = in_qualities[i]
+                            cigar_code = 2
+                            ref_base = ''
+                            pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
+                            channel_object = imageChannels(pileup_attributes, ref_base, 0)
+                            read_to_image_row.append(channel_object.get_channels_except_support())
+
+                    if length_of_insert > total_insert_bases:
+                        dot_bases = length_of_insert - total_insert_bases
+                        for i in range(dot_bases):
+                            base = '*'
+                            base_q = MIN_DELETE_QUALITY
+                            cigar_code = 2
+                            ref_base = ''
+                            pileup_attributes = (base, base_q, mapping_quality, cigar_code, strand_direction)
+                            channel_object = imageChannels(pileup_attributes, ref_base, 0)
+                            read_to_image_row.append(channel_object.get_channels_except_support())
+
+            self.image_row_for_reads[read_id] = (read_to_image_row, star_pos, end_pos)
 
     def get_pileup_dictionaries(self):
         return self.image_row_for_reads, self.image_row_for_ref, self.positional_info_position_to_index, \
