@@ -8,15 +8,23 @@ from matplotlib import patches
 
 REF_READ_ID = "REFERENCE"
 
+# Cigar codes
 REF = 0
 SNP = 1
 INS = 2
 DEL = 3
 
+# Indexes of reference_key list, the combination of keys serve as pointers to node objects in graph
+POSITION = 0
+CIGAR = 1
+SEQUENCE = 2
+
+
 def tanh(x):
     e = 1000
     y = (e**x - e**-x) / (e**x + e**-x)
     return y
+
 
 class Node:
     def __init__(self, position, cigar_code, prev_node=None, next_node=None, sequence=None, coverage=1):
@@ -30,6 +38,8 @@ class Node:
         self.coverage = coverage
 
         self.coordinate = None
+
+        self.mapped_reads = dict()
 
     def __str__(self):
         return ' '.join(map(str, [self.position, self.cigar_code, self.sequence]))
@@ -49,9 +59,9 @@ class AlignmentGraph:
         self.positional_reference = defaultdict(int)
         self.positional_alleles = defaultdict(int)
         self.positional_coverage = defaultdict(int)
-        self.positional_insert_lengths = dict()
+        # self.positional_insert_lengths = dict()
 
-        self.node_paths_by_read = dict()
+        self.paths = defaultdict(list)  # path of keys that point to each node
 
         self.ploidy = ploidy
         self.graph = dict()
@@ -66,42 +76,71 @@ class AlignmentGraph:
             node1.next_nodes.add(node2)
             node2.prev_nodes.add(node1)
 
-    def delete_node(self, node):
-        for prev_node in node.prev_nodes:
+    def delete_node(self, node, splice=False):
+        p = 0
+        n = 0
+
+        for p,prev_node in enumerate(node.prev_nodes):
             prev_node.next_nodes.remove(node)
 
-        for next_node in node.next_nodes:
+        for n,next_node in enumerate(node.next_nodes):
             next_node.prev_nodes.remove(node)
+
+        if splice:
+            if n > 0 and p > 0:
+                for prev_node in node.prev_nodes:
+                    for next_node in node.next_nodes:
+                        prev_node.next_nodes.add(next_node)
+                        next_node.prev_nodes.add(prev_node)
+
+            for read_id, index in node.mapped_reads.items():
+                print("DELETING:",node)
+                self.remove_path_element(read_id=read_id, index=index)
 
         position = node.position
         cigar_code = node.cigar_code
         sequence = node.sequence
 
+        # Erase node object
+        self.graph[position][cigar_code][sequence] = None
+
+        # Remove reference from dictionary
         del self.graph[position][cigar_code][sequence]
 
-    def update_positional_insert_length(self, position, sequence):
-        if position not in self.positional_insert_lengths:
-            self.positional_insert_lengths[position] = len(sequence)
-        elif len(sequence) > self.positional_insert_lengths[position]:
-            self.positional_insert_lengths[position] = len(sequence)
+    def remove_path_element(self, read_id, index):
+        # needs to handle end cases where index = 0 or index = len
+        path = self.paths[read_id]
+
+        print(path[index])
+        print("before",len(path))
+        self.paths[read_id] = path[:index] + path[index+1:]
+        print("after",len(path[:index] + path[index+1:]))
+
+    # def update_positional_insert_length(self, position, sequence):
+    #     if position not in self.positional_insert_lengths:
+    #         self.positional_insert_lengths[position] = len(sequence)
+    #     elif len(sequence) > self.positional_insert_lengths[position]:
+    #         self.positional_insert_lengths[position] = len(sequence)
 
     def initialize_position(self, position):
         template = [{}, {}, {}, {}]
         self.graph[position] = template
 
     def update_position(self, read_id, position, sequence, cigar_code, coverage=1):
-        if read_id not in self.node_paths_by_read:
-            self.node_paths_by_read[read_id] = [None]
-
         if position not in self.graph:
             self.initialize_position(position=position)
 
-        prev_node = self.node_paths_by_read[read_id][-1]
+        if len(self.paths[read_id]) > 0:
+            prev_node_keys = self.paths[read_id][-1]
+            prev_position, prev_cigar, prev_sequence = prev_node_keys
+            prev_node = self.graph[prev_position][prev_cigar][prev_sequence]
+        else:
+            prev_node = None
 
         if sequence not in self.graph[position][cigar_code]:
-            if cigar_code == INS:
-                # keep track of inserts for pileup printing purposes
-                self.update_positional_insert_length(position, sequence)
+            # if cigar_code == INS:
+                # Keep track of inserts for pileup printing purposes
+                # self.update_positional_insert_length(position, sequence)
 
             node = Node(position=position,
                         cigar_code=cigar_code,
@@ -114,11 +153,19 @@ class AlignmentGraph:
             node = self.graph[position][cigar_code][sequence]
             node.coverage += 1
 
-        # make pointers between nodes
-        self.link_nodes(node1=prev_node, node2=node)
+        # Make pointers between nodes
+        if prev_node is not None:
+            self.link_nodes(node1=prev_node, node2=node)
 
-        # append node to read path
-        self.node_paths_by_read[read_id].append(self.graph[position][cigar_code][sequence])
+        # Get read path
+        path = self.paths[read_id]
+
+        # Add reference to node path to the node itself (god this is convoluted)
+        self.graph[position][cigar_code][sequence].mapped_reads[read_id] = len(path)
+
+        # Append reference to node to read path
+        reference_keys = [position, cigar_code, sequence]
+        path.append(reference_keys)
 
     def initialize_graph_with_reference(self):
         for position in range(self.start_position, self.end_position+1):
@@ -161,20 +208,110 @@ class AlignmentGraph:
 
         return y_position
 
+    # def get_insert_length(self, position):
+    #     length = 0
+    #     if position in self.positional_insert_lengths:
+    #         length += self.positional_insert_lengths[position]
+    #
+    #     return length
+
+    def get_insert_length(self, position):
+        max_length = 0
+        for sequence in self.graph[position][INS]:
+            max_length = max(len(sequence), max_length)
+
+        return max_length
+
+    def get_insert_status_of_next_node(self, path, index):
+        """
+        Inserts are assigned to the positional graph based on their anchor position, so when printing the pileup,
+        multiple nodes may be in the same position if there is an insert. To determine whether a sequence element should
+        be followed by a filler character, it is necessary to know whether the next node is an insert, but the data
+        contained in a node is not sufficient to learn this.
+        :param path:
+        :param index:
+        :return:
+        """
+        status = False
+
+        if index < len(path) -1:
+            next_node_keys = path[index+1]
+            next_position, next_cigar, next_sequence = next_node_keys
+            next_node = self.graph[next_position][next_cigar][next_sequence]
+
+            if next_node.cigar_code == INS:
+                status = True
+
+        return status
+
     def generate_pileup(self):
-        total_inserts = sum([l for l in self.positional_insert_lengths.values()])
-        total_length = self.length + total_inserts
+        # total_inserts = sum([l for l in self.positional_insert_lengths.values()])
+        total_length = self.length + 20
         max_coverage = max([c for c in self.positional_coverage.values()])
 
-        pileup = [[None for i in range(total_length)] for j in range(max_coverage)]
+        insert_lengths = list()
+        for position in range(self.start_position, self.end_position+1):
+            insert_lengths.append(str(self.get_insert_length(position)))
 
-        x_offset = 0
-        for path in self.node_paths_by_read.values():
-            for node in path:
+        pileup = [['_' for i in range(total_length+1)] for j in range(max_coverage+1)]
+
+        for p,path in enumerate(self.paths.values()):
+            index = path[0][POSITION] - self.start_position
+            offset = 0
+
+            for reference_key in path:
+                position, cigar_code, sequence = reference_key
+
+                try:
+                    node = self.graph[position][cigar_code][sequence]
+                except(KeyError):
+                    continue
+
+                # Skip this position if not in the range specified by user
                 if node.position < self.start_position or node.position > self.end_position:
                     continue
 
-                # if position in self.positional_insert_lengths:
+                # position = node.position
+                # sequence = node.sequence
+                # cigar_code = node.cigar_code
+                insert_length = self.get_insert_length(position)
+
+                try:
+                    next_is_insert = self.get_insert_status_of_next_node(path, index)
+                except(KeyError):
+                    next_is_insert = False
+
+                # If theres an insert, then iterate through it as though each character was a node
+                # for each character, increment a temporary offset +1, and increment global offset AFTER iterating
+                #   all characters using positional_insert_lengths
+                # If there's no insert, use positional_insert_lengths to increment the offset AFTER iterating the node
+
+                # Insert at this position
+                if cigar_code == INS:
+                    for c,character in enumerate(sequence):
+                        pileup[p][index+offset+c] = character
+
+                    insert_difference = insert_length - len(sequence)
+                    for i in range(0, insert_difference):
+                        pileup[p][index+offset+c+i+1] = '*'
+
+                    offset += insert_length - 1
+
+                # Not an insert character, but could be in an anchor position that is followed by
+                else:
+                    pileup[p][index+offset] = sequence
+
+                    if insert_length > 0 and not next_is_insert:
+                        for i in range(insert_length):
+                            pileup[p][index+offset+i+1] = '*'
+
+                        offset += insert_length
+                index += 1
+
+        read_strings = ([''.join(row) for row in pileup])
+        pileup_string = '\n'.join(read_strings)
+
+        return pileup_string
 
     def clean_graph(self):
         figure, (axes1, axes2) = pyplot.subplots(nrows=2)
@@ -188,13 +325,12 @@ class AlignmentGraph:
                 for s,sequence in enumerate(sequences):
                     node = self.graph[position][cigar_code][sequence]
                     relative_coverage = node.coverage/self.positional_coverage[position]
-                    # print(node.coverage, self.positional_coverage[position], relative_coverage, tanh(relative_coverage))
 
                     if cigar_code == INS and relative_coverage < 0.2:
                         self.delete_node(self.graph[position][cigar_code][sequence])
 
-                    elif cigar_code != DEL and random.random() > tanh(relative_coverage):
-                        self.delete_node(self.graph[position][cigar_code][sequence])
+                    # elif cigar_code != DEL and random.random() > tanh(relative_coverage):
+                    #     self.delete_node(self.graph[position][cigar_code][sequence])
 
         self.plot_alignment_graph(axes=axes2, show=False)
 
@@ -226,7 +362,7 @@ class AlignmentGraph:
                 nodes = self.graph[position][cigar_code].values()
 
                 if cigar_code == INS and len(nodes) > 0:
-                    x_offset += max(1,max([len(seq) for seq in [node.sequence for node in nodes]])/2)
+                    x_offset += max(1, max([len(seq) for seq in [node.sequence for node in nodes]])/2)
 
                 for n,node in enumerate(nodes):
                     x = position - self.start_position + x_offset
@@ -269,6 +405,19 @@ class AlignmentGraph:
             pyplot.show()
 
         return axes
+
+# Solutions to the problem of deleting and re-assigning nodes in a path:
+#   Make a separate path object
+#       Path objects can each have a mapping of keys to the index of the the corresponding node, which is updated when
+#       nodes are deleted
+
+#       ISSUE: what does the key refer to if the node is deleted? Erase key?
+#       ISSUE: all remaining keys must also be updated to reflect the earlier change
+
+#   Make paths a linked list of pointers to nodes, and have pointers to each pointer addressable by pos:cigar:seq
+#
+
+
 # TO DO:
 #   Finish read-only graph
 #   Make VCF/REF-based graph

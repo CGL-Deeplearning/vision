@@ -50,7 +50,7 @@ def test_with_realtime_BAM_data():
     # end_position = 100822969
 
     start_position = 101114275      # chr1 101114279 . C T 50 PASS
-    end_position = 101114285
+    end_position = 101114291
 
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
@@ -94,10 +94,15 @@ def test_with_realtime_BAM_data():
     candidate_finder.get_read_alignment_data(reads=reads)
 
     alignment_graph.print_alignment_graph()
+    pileup_string_dirty = alignment_graph.generate_pileup()
 
     alignment_graph.clean_graph()
 
     alignment_graph.print_alignment_graph()
+    pileup_string_clean = alignment_graph.generate_pileup()
+
+    print(pileup_string_dirty)
+    print(pileup_string_clean)
 
 
 if __name__ == "__main__":
