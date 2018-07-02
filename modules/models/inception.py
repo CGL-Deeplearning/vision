@@ -56,6 +56,7 @@ class Inception3(nn.Module):
         self.Mixed_7c = InceptionE(2048)
         self.fc = nn.Linear(2048, num_classes)
 
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 import scipy.stats as stats
@@ -349,3 +350,7 @@ class BasicConv2d(nn.Module):
         x = self.conv(x)
         x = self.bn(x)
         return F.relu(x, inplace=True)
+
+#model = Inception3()
+#pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+#print("pytorch_total_params", pytorch_total_params)
