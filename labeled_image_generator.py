@@ -202,7 +202,7 @@ class View:
         """
 
         # declare the size of the image
-        image_height, image_width = 300, 300
+        image_height, image_width = 100, 200
         if len(candidate_list) == 0:
             return
 
@@ -489,7 +489,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=271544, end_position=345770, thread_no=1)
+    view_object.parse_region(start_position=260000, end_position=262501, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

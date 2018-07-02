@@ -24,6 +24,7 @@ class TextColor:
 
 class PileupDataset(Dataset):
     """
+    Creates a pile up image from hdf5 file as specified by csv file.
     Arguments:
         A CSV file path
     """

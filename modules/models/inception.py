@@ -36,9 +36,9 @@ class Inception3(nn.Module):
         super(Inception3, self).__init__()
         self.aux_logits = aux_logits
         self.transform_input = transform_input
-        self.Conv2d_1a_3x3 = BasicConv2d(7, 32, kernel_size=3, stride=2)
+        self.Conv2d_1a_3x3 = BasicConv2d(7, 32, kernel_size=3, stride=1)# 1/2
         self.Conv2d_2a_3x3 = BasicConv2d(32, 32, kernel_size=3)
-        self.Conv2d_2b_3x3 = BasicConv2d(32, 64, kernel_size=3, padding=1)
+        self.Conv2d_2b_3x3 = BasicConv2d(32, 64, kernel_size=2, padding=1)
         self.Conv2d_3b_1x1 = BasicConv2d(64, 80, kernel_size=1)
         self.Conv2d_4a_3x3 = BasicConv2d(80, 192, kernel_size=3)
         self.Mixed_5b = InceptionA(192, pool_features=32)
@@ -70,52 +70,75 @@ class Inception3(nn.Module):
 
     def forward(self, x):
         x *= 254
-        # 299 x 299 x 3
+        #print("forward x: ",x)
+        # print("tensor shape 0: ", x.shape)
+        # 7 x 100 x 200
         x = self.Conv2d_1a_3x3(x)
-        # 149 x 149 x 32
+        print("conv1a : ", x.shape)
+        # 32 x 98 x 198
         x = self.Conv2d_2a_3x3(x)
-        # 147 x 147 x 32
+        print("conv2a: ", x.shape)
+        # 32 x 96 x 196
         x = self.Conv2d_2b_3x3(x)
-        # 147 x 147 x 64
-        x = F.max_pool2d(x, kernel_size=3, stride=2)
-        # 73 x 73 x 64
+        print("conv2b: ", x.shape)
+        # 64, 97, 197]
+        # x = F.max_pool2d(x, kernel_size=3, stride=2)
+        # print("F.max_pool2d 1:", x.shape)
+
         x = self.Conv2d_3b_1x1(x)
-        # 73 x 73 x 80
+        print("conv3b: ", x.shape)
+        # 80, 97, 197
         x = self.Conv2d_4a_3x3(x)
-        # 71 x 71 x 192
+        print("conv4a: ", x.shape)
+        # 192, 95, 195
         x = F.max_pool2d(x, kernel_size=3, stride=2)
-        # 35 x 35 x 192
+        # print("F.max_pool2d 2:", x.shape)
+
         x = self.Mixed_5b(x)
-        # 35 x 35 x 256
+        print("mixed 5b:", x.shape)
+        # 256, 95, 195
         x = self.Mixed_5c(x)
+        print("mixed 5c:", x.shape)
         # 35 x 35 x 288
         x = self.Mixed_5d(x)
-        # 35 x 35 x 288
+        print("mixed 5d:", x.shape)
+        # 288, 95, 195
         x = self.Mixed_6a(x)
+        print("mixed 6a:", x.shape)
         # 17 x 17 x 768
         x = self.Mixed_6b(x)
+        print("mixed 6b:", x.shape)
         # 17 x 17 x 768
         x = self.Mixed_6c(x)
+        print("mixed 6c:", x.shape)
 
         # 17 x 17 x 768
         x = self.Mixed_6d(x)
+        print("mixed 6d:", x.shape)
         # 17 x 17 x 768
         x = self.Mixed_6e(x)
+        print("mixed 6e:", x.shape)
         # 17 x 17 x 768
         if self.training and self.aux_logits:
             aux = self.AuxLogits(x)
         # 17 x 17 x 768
         x = self.Mixed_7a(x)
+        print("mixed 7a:", x.shape)
         # 8 x 8 x 1280
         x = self.Mixed_7b(x)
+        print("mixed 7b:", x.shape)
         # 8 x 8 x 2048
         x = self.Mixed_7c(x)
-        # 8 x 8 x 2048
-        x = F.avg_pool2d(x, kernel_size=8)
+        print("mixed 7c:", x.shape)
+        # 2048, 23, 48
+        print("HERE", x.size())
+        x = F.avg_pool2d(x, kernel_size=(11, 23))
+        print("Avg pool", x.size())
         # 1 x 1 x 2048
         x = F.dropout(x, training=self.training)
         # 1 x 1 x 2048
         x = x.view(x.size(0), -1)
+        print(x.size())
         # 2048
         x = self.fc(x)
         # 1000 (num_classes)
@@ -142,18 +165,19 @@ class InceptionA(nn.Module):
 
     def forward(self, x):
         branch1x1 = self.branch1x1(x)
-
+        print("branch 1x1",branch1x1.shape)
         branch5x5 = self.branch5x5_1(x)
         branch5x5 = self.branch5x5_2(branch5x5)
 
         branch3x3dbl = self.branch3x3dbl_1(x)
         branch3x3dbl = self.branch3x3dbl_2(branch3x3dbl)
         branch3x3dbl = self.branch3x3dbl_3(branch3x3dbl)
-
+        print("branch3x3dbl:", branch3x3dbl.shape)
         branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1)
         branch_pool = self.branch_pool(branch_pool)
 
         outputs = [branch1x1, branch5x5, branch3x3dbl, branch_pool]
+        print ("torch cat/return",(torch.cat(outputs,1)).shape)
         return torch.cat(outputs, 1)
 
 
@@ -299,7 +323,7 @@ class InceptionAux(nn.Module):
 
     def forward(self, x):
         # 17 x 17 x 768
-        x = F.avg_pool2d(x, kernel_size=5, stride=3, ceil_mode=True)
+        x = F.avg_pool2d(x, kernel_size=5, stride=2, ceil_mode=True)
         # 5 x 5 x 768
         x = self.conv0(x)
         # 5 x 5 x 128
