@@ -109,6 +109,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
         sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
                          str(len(testloader)) + "\n" + TextColor.END)
+        sys.stderr.flush()
 
     return prediction_dict
 
@@ -235,3 +236,4 @@ if __name__ == '__main__':
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PREDICTION COMPLETED SUCCESSFULLY.\n")
     produce_vcf(record_dict, FLAGS.bam_file, FLAGS.sample_name, FLAGS.output_dir)
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "FINISHED CALLING VARIANT.\n")
+    sys.stderr.flush()
