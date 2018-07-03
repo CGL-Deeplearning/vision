@@ -92,7 +92,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     for counter, (images, records) in enumerate(testloader):
         images = torch.tensor(images, requires_grad=True)
-        torch.enable_grad()
+        torch.no_grad()
         #images = Variable(images, volatile=True)
 
         if gpu_mode:
