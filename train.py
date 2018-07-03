@@ -124,8 +124,8 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     model = Inception3()
 
     #print out total number of trainable parameters in model
-    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print("pytorch_total_params", pytorch_total_params)
+    #pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    #print("pytorch_total_params", pytorch_total_params)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00021723010296152584, weight_decay=1.4433597247180705e-06)
     if gpu_mode:
@@ -177,6 +177,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
             if batches_done % 10 == 0:
                 avg_loss = (total_loss / total_images) if total_images else 0
                 print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(total_loss) + "\t" + str(avg_loss))
+                sys.stdout.flush()
                 sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
                                  + " / " + str(len(train_loader)) + "\n" + TextColor.END)
                 sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
@@ -191,6 +192,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
                          "\n" + TextColor.END)
 
         print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
+        sys.stdout.flush()
 
         # After each epoch do validation
         test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
