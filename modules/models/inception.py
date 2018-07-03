@@ -70,48 +70,69 @@ class Inception3(nn.Module):
 
     def forward(self, x):
         x *= 254
+        print("input tensor size x: ",x.shape)
         # 299 x 299 x 3
         x = self.Conv2d_1a_3x3(x)
+        print("conv1a : ", x.shape)
         # 149 x 149 x 32
         x = self.Conv2d_2a_3x3(x)
+        print("conv2a: ", x.shape)
         # 147 x 147 x 32
         x = self.Conv2d_2b_3x3(x)
+        print("conv2b: ", x.shape)
         # 147 x 147 x 64
         x = F.max_pool2d(x, kernel_size=3, stride=2)
+        print("F.max_pool2d 1:", x.shape)
         # 73 x 73 x 64
         x = self.Conv2d_3b_1x1(x)
+        print("conv3b: ", x.shape)
         # 73 x 73 x 80
         x = self.Conv2d_4a_3x3(x)
+        print("conv4a: ", x.shape)
         # 71 x 71 x 192
         x = F.max_pool2d(x, kernel_size=3, stride=2)
+        print("F.max_pool2d 2:", x.shape)
         # 35 x 35 x 192
         x = self.Mixed_5b(x)
+        print("mixed 5b:", x.shape)
         # 35 x 35 x 256
         x = self.Mixed_5c(x)
+        print("mixed 5c:", x.shape)
         # 35 x 35 x 288
         x = self.Mixed_5d(x)
+        print("mixed 5d:", x.shape)
         # 35 x 35 x 288
         x = self.Mixed_6a(x)
+        print("mixed 6a:", x.shape)
         # 17 x 17 x 768
         x = self.Mixed_6b(x)
+        print("mixed 6b:", x.shape)
         # 17 x 17 x 768
         x = self.Mixed_6c(x)
+        print("mixed 6c:", x.shape)
 
         # 17 x 17 x 768
         x = self.Mixed_6d(x)
+        print("mixed 6d:", x.shape)
         # 17 x 17 x 768
         x = self.Mixed_6e(x)
+        print("mixed 6e:", x.shape)
         # 17 x 17 x 768
         if self.training and self.aux_logits:
             aux = self.AuxLogits(x)
         # 17 x 17 x 768
         x = self.Mixed_7a(x)
+        print("mixed 7a:", x.shape)
         # 8 x 8 x 1280
         x = self.Mixed_7b(x)
+        print("mixed 7b:", x.shape)
         # 8 x 8 x 2048
         x = self.Mixed_7c(x)
+        print("mixed 7c:", x.shape)
         # 8 x 8 x 2048
+        print("HERE", x.size())
         x = F.avg_pool2d(x, kernel_size=8)
+        print("Avg pool", x.size())
         # 1 x 1 x 2048
         x = F.dropout(x, training=self.training)
         # 1 x 1 x 2048
