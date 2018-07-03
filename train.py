@@ -177,9 +177,10 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
             if batches_done % 10 == 0:
                 avg_loss = (total_loss / total_images) if total_images else 0
                 print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(total_loss) + "\t" + str(avg_loss))
-                sys.stdout.flush()
+                #sys.stdout.flush()
                 sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
                                  + " / " + str(len(train_loader)) + "\n" + TextColor.END)
+                sys.stderr.flush()
                 sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
                 sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
                                  "\n" + TextColor.END)
