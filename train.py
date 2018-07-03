@@ -122,6 +122,11 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
     model = Inception3()
+
+    # print numer of trainable parameters in model
+    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("pytorch_total_params", pytorch_total_params)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00021723010296152584, weight_decay=1.4433597247180705e-06)
     if gpu_mode:
         model = model.cuda()
