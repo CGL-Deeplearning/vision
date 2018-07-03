@@ -58,7 +58,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     if gpu_mode is False:
         checkpoint = torch.load(model_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
-        print("test1")
+        # print("test1")
 
         # In state dict keys there is an extra word inserted by model parallel: "module.". We remove it here
         from collections import OrderedDict
@@ -73,7 +73,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.cpu()
     else:
         checkpoint = torch.load(model_path, map_location='cpu')
-        print("test2")
+        # print("test2")
         state_dict = checkpoint['state_dict']
         from collections import OrderedDict
         new_state_dict = OrderedDict()
@@ -97,7 +97,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
         if gpu_mode:
             images = images.cuda()
-            print("test3")
+            # print("test3")
 
         preds = model(images)
         # One dimensional softmax is used to convert the logits to probability distribution
@@ -114,7 +114,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
                                             prob_hom, prob_het, prob_hom_alt))
 
-        print("test4")
+        # print("test4")
 
         sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
                          str(len(testloader)) + "\n" + TextColor.END)
@@ -135,7 +135,7 @@ def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
     # object that can write and handle VCF
     vcf_writer = VCFWriter(bam_file_path, sample_name, output_dir)
 
-    print("test5")
+    # print("test5")
 
     # collate multi-allelic records to a single record
     all_calls = []
