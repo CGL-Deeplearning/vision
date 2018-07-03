@@ -1,16 +1,18 @@
 import argparse
 import sys
+import operator
+import os
+from modules.models.inception import Inception3
+from modules.core.dataloader_predict import PileupDataset, TextColor
+from collections import defaultdict
+from modules.handlers.VcfWriter import VCFWriter
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import Variable
-from modules.models.inception import Inception3
-from modules.core.dataloader_predict import PileupDataset, TextColor
-from collections import defaultdict
-from modules.handlers.VcfWriter import VCFWriter
-import operator
-import os
+
+
 """
 This script uses a trained model to call variants on a given set of images generated from the genome.
 The process is:
