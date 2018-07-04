@@ -90,35 +90,34 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     # Change model to 'eval' mode (BN uses moving mean/var).
     model.eval()
 
-    for counter, (images, records) in enumerate(testloader):
-        images = torch.tensor(images, requires_grad=True)
-        torch.no_grad()
-        #images = Variable(images, volatile=True)
+    with torch.no_grad():
+        for counter, (images, records) in enumerate(testloader):
+            images = Variable(images)
 
-        if gpu_mode:
-            images = images.cuda()
-            # print("test3")
+            if gpu_mode:
+                images = images.cuda()
+                # print("test3")
 
-        preds = model(images)
-        # One dimensional softmax is used to convert the logits to probability distribution
-        m = nn.Softmax(dim=1)
-        soft_probs = m(preds)
-        preds = soft_probs.cpu()
+            preds = model(images)
+            # One dimensional softmax is used to convert the logits to probability distribution
+            m = nn.Softmax(dim=1)
+            soft_probs = m(preds)
+            preds = soft_probs.cpu()
 
-        # record each of the predictions from a batch prediction
-        for i in range(0, preds.size(0)):
-            rec = records[i]
-            chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
-            probs = preds[i].data.numpy()
-            prob_hom, prob_het, prob_hom_alt = probs
-            prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
-                                            prob_hom, prob_het, prob_hom_alt))
+            # record each of the predictions from a batch prediction
+            for i in range(0, preds.size(0)):
+                rec = records[i]
+                chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
+                probs = preds[i].data.numpy()
+                prob_hom, prob_het, prob_hom_alt = probs
+                prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
+                                                prob_hom, prob_het, prob_hom_alt))
 
-        # print("test4")
+            # print("test4")
 
-        sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
-                         str(len(testloader)) + "\n" + TextColor.END)
-        sys.stderr.flush()
+            sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
+                             str(len(testloader)) + "\n" + TextColor.END)
+            sys.stderr.flush()
 
     return prediction_dict
 

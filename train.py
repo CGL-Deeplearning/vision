@@ -62,28 +62,29 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     total_images = 0
     batches_done = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
-    for i, (images, labels, records) in enumerate(validation_loader):
-        if gpu_mode is True and images.size(0) % 8 != 0:
-            continue
+    with torch.no_grad():
+        for i, (images, labels, records) in enumerate(validation_loader):
+            if gpu_mode is True and images.size(0) % 8 != 0:
+                continue
 
-        images = Variable(images, volatile=True)
-        labels = Variable(labels, volatile=True)
-        if gpu_mode:
-            images = images.cuda()
-            labels = labels.cuda()
+            images = Variable(images, volatile=True)
+            labels = Variable(labels, volatile=True)
+            if gpu_mode:
+                images = images.cuda()
+                labels = labels.cuda()
 
-        # Predict + confusion_matrix + loss
-        outputs = test_model(images)
-        confusion_matrix.add(outputs.data, labels.data)
-        test_loss = test_criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
-        # Loss count
-        total_loss += float(test_loss.data[0])
-        total_images += float(images.size(0))
-        batches_done += 1
-        if batches_done % 10 == 0:
-            sys.stderr.write(str(confusion_matrix.conf)+"\n")
-            sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
-                             "\n" + TextColor.END)
+            # Predict + confusion_matrix + loss
+            outputs = test_model(images)
+            confusion_matrix.add(outputs.data, labels.data)
+            test_loss = test_criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
+            # Loss count
+            total_loss += float(test_loss.data[0])
+            total_images += float(images.size(0))
+            batches_done += 1
+            if batches_done % 10 == 0:
+                sys.stderr.write(str(confusion_matrix.conf)+"\n")
+                sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
+                                 "\n" + TextColor.END)
 
     avg_loss = total_loss / total_images if total_images else 0
     print('Test Loss: ' + str(avg_loss))
@@ -196,9 +197,10 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
         print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
         sys.stdout.flush()
 
+        save_best_model(model, optimizer, file_name + "_epoch_" + str(epoch + 1))
         # After each epoch do validation
         test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
-        save_best_model(model, optimizer, file_name+"_epoch_"+str(epoch+1))
+
 
         # optimizer = exp_lr_scheduler(optimizer, (epoch+1))
 
