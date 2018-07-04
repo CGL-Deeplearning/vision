@@ -185,13 +185,14 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
                 sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
                                  "\n" + TextColor.END)
                 start_time = time.time()
+                sys.stderr.flush()
 
         avg_loss = (total_loss / total_images) if total_images else 0
         sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Completed: " + str(i+1) + "\n" + TextColor.END)
         sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
         sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - epoch_start_time) +
                          "\n" + TextColor.END)
-
+        sys.stderr.flush()
         print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
         sys.stdout.flush()
 
