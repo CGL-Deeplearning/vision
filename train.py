@@ -43,7 +43,7 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     validation_loader = DataLoader(validation_data,
                                    batch_size=batch_size,
                                    shuffle=False,
-                                   num_workers=num_workers,
+                                   num_workers=num_workers/2,
                                    pin_memory=gpu_mode
                                    )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
