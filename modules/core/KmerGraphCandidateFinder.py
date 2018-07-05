@@ -567,7 +567,16 @@ class CandidateFinder:
         st_time = time.time()
         read_id_list = []
         total_reads = 0
+
+        # prev_read_ids = set()
         for read in reads:
+            read_id = read.query_name
+
+            # print(read_id)
+            # if read_id in prev_read_ids:
+            #     print("DUPLICATE READS DETECTED")
+            # prev_read_ids.add(read_id)
+
             # check if the read is usable
             if read.mapping_quality >= DEFAULT_MIN_MAP_QUALITY and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:

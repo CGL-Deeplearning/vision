@@ -49,7 +49,7 @@ class PositionalKmerGraph:
 
         self.positional_reference = defaultdict(int)
         self.positional_kmers = defaultdict(list)
-        self.positional_coverage = defaultdict(int)
+        self.positional_coverage = defaultdict(lambda: 0)
 
         self.node_paths_by_read = dict()
 
@@ -113,7 +113,7 @@ class PositionalKmerGraph:
     def print_graph(self):
         positional_nodes = defaultdict(list)
 
-        for position in self.graph:
+        for position in sorted(self.graph):
             print(position)
 
             for kmer in self.graph[position]:
@@ -135,8 +135,11 @@ class PositionalKmerGraph:
         all_positions = range(self.start_position, self.end_position)
         total_coverage = sum(self.positional_coverage[p] for p in all_positions) / (self.length)
 
+        # print(list(self.positional_coverage.items()))
+
         if axes is None:
             figure = pyplot.figure()
+            figure.set_size_inches(w=14,h=4)
             axes = pyplot.axes()
 
         min_y = sys.maxsize
@@ -144,16 +147,28 @@ class PositionalKmerGraph:
         min_x = sys.maxsize
         max_x = -sys.maxsize
 
-        for p, position in enumerate(self.graph):
+        # for p, position in enumerate(sorted(self.graph)):
+        #     nodes = self.graph[position].values()
+        #     # nodes = sorted(nodes, key=lambda x: x.coverage, reverse=True)
+        #     for n, node in enumerate(nodes):
+        #         x = p * self.k
+        #         y = n
+        #
+        #         node.coordinate = [x,y]
+
+        for p, position in enumerate(sorted(self.graph)):
             nodes = self.graph[position].values()
             # nodes = sorted(nodes, key=lambda x: x.coverage, reverse=True)
             for n, node in enumerate(nodes):
                 kmer = node.kmer
+
+                # total_coverage = self.positional_coverage[position] + 1
+                # print(total_coverage)
+
                 prev_nodes = node.prev_nodes
 
-                print(node)
-
-                x = p*self.k
+                # x,y = node.coordinate
+                x = p * self.k
                 y = n
 
                 if node.coordinate is None:
@@ -171,7 +186,7 @@ class PositionalKmerGraph:
                 # plot sequence
                 weight_index = min(int(round(node.coverage/total_coverage))*5,5)
                 weight = weights[weight_index]
-                # axes.text(x, y, "O", ha="center", va="center", zorder=2, weight=weight)
+                # axes.text(x, y, kmer, ha="center", va="center", zorder=2, weight=weight)
 
                 # plot node shape
                 width = (node.coverage/total_coverage)*5
@@ -181,23 +196,28 @@ class PositionalKmerGraph:
                 # plot edge connecting nodes
                 if len(prev_nodes) > 0 and position > self.start_position:
                     for prev_node in prev_nodes:
-                        print("prev", prev_node)
+                        # print("prev", prev_node)
+
+                        # if position - prev_node.position > 2:
+                        #     continue
+                        #
+                        # if prev_node.coordinate is None:
+                        #     continue
+
                         x_prev, y_prev = prev_node.coordinate
 
                         transition_weight = min([prev_node.coverage, node.coverage])
                         width = min(6*transition_weight/total_coverage, 6)
 
-                        print(x,y,x_prev,y_prev)
+                        # print(x,y,x_prev,y_prev)
 
                         if y_prev != y:
                             patch = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
                             axes.add_patch(patch)
-
                         else:
                             axes.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
 
-
-        print(min_x, max_x)
+        # print(min_x, max_x)
         axes.set_xlim(min_x-self.k, max_x + self.k)
         axes.set_ylim(min_y-self.k, max_y+self.k)
         axes.set_aspect("equal")

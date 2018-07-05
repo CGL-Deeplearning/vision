@@ -49,9 +49,11 @@ def test_with_realtime_BAM_data():
     # start_position = 100822960      # chr1 100822965 . A T 50 PASS
     # end_position = 100822969
 
-    start_position = 101114275      # chr1 101114279 . C T 50 PASS
-    end_position = 101114291
+    # start_position = 101114275      # chr1 101114279 . C T 50 PASS
+    # end_position = 101114280
 
+    start_position = 100866203      # chr1 100866204 . G A 50 PASS
+    end_position = 100866205
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
@@ -67,7 +69,6 @@ def test_with_realtime_BAM_data():
     bam_file_path = "/home/ryan/data/Nanopore/whole_genome_nanopore.bam"
     reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
     vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
-
     # -------------------------------------------------------------------------
 
     bam_handler = BamHandler(bam_file_path)
@@ -94,15 +95,32 @@ def test_with_realtime_BAM_data():
     candidate_finder.get_read_alignment_data(reads=reads)
 
     alignment_graph.print_alignment_graph()
+
+    # alignment_graph.print_alignment_graph()
     pileup_string_dirty = alignment_graph.generate_pileup()
+
+    # alignment_graph.plot_alignment_graph()
 
     alignment_graph.clean_graph()
 
-    alignment_graph.print_alignment_graph()
+    # alignment_graph.plot_alignment_graph()
+
+    # alignment_graph.print_alignment_graph()
     pileup_string_clean = alignment_graph.generate_pileup()
 
     print(pileup_string_dirty)
     print(pileup_string_clean)
+
+    # test_coverage(graph=alignment_graph, start=start_position, end=end_position)
+
+
+def test_coverage(graph, start, end):
+    for position in range(start, end+1):
+        iteration_derived_positional_coverage = graph.positional_coverage[position]
+        node_derived_positional_coverage = graph.get_positional_coverage(position)
+
+        if iteration_derived_positional_coverage != node_derived_positional_coverage:
+            print(position, iteration_derived_positional_coverage, node_derived_positional_coverage)
 
 
 if __name__ == "__main__":

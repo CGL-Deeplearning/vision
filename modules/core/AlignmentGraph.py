@@ -1,5 +1,6 @@
 import random
 import math
+import numpy
 import sys
 from collections import defaultdict
 from matplotlib import pyplot
@@ -37,7 +38,7 @@ class Node:
         self.sequence = sequence
         self.coverage = coverage
 
-        self.coordinate = None
+        # self.coordinate = None
 
         self.mapped_reads = dict()
 
@@ -58,7 +59,8 @@ class AlignmentGraph:
 
         self.positional_reference = defaultdict(int)
         self.positional_alleles = defaultdict(int)
-        self.positional_coverage = defaultdict(int)
+        self.positional_coverage = defaultdict(lambda: 0)
+        self.positional_node_count = defaultdict(lambda: 0)
         # self.positional_insert_lengths = dict()
 
         self.paths = defaultdict(list)  # path of keys that point to each node
@@ -66,32 +68,88 @@ class AlignmentGraph:
         self.ploidy = ploidy
         self.graph = dict()
 
+        self.node_coordinates = dict()  # for plotting the graph
+
         # self.max_alleles_per_type = [0, 0, 0, 0]
         self.positional_n_alleles_per_type = dict()
 
         self.default_y_position_per_cigar = [0, -1, 2, 1]   # [REF, SNP, INS, DEL]
+
+    def reassign_node(self, node1, node2, delete=False):
+        """
+        Switch the identity of node1 to node2 so that all reads previously mapped to node1 it now map to node2,
+        optionally delete node1
+        :param node1:
+        :param node2:
+        :return:
+        """
+        position = node1.position
+        cigar_code = node1.cigar_code
+        sequence = node1.sequence
+
+        for path_element in node1.mapped_reads.items():
+            # Reassign all paths that refer to this node
+            # Reassign previous and next node linkages, and ensure that the destination node has been linked to node1's
+            #   linkages
+            # Optionally delete node1
+
+            read_id, path_index = path_element
+
+            self.paths[read_id][path_index] = [position, cigar_code, sequence]
+
+            node2.coverage += 1
+            node1.coverage -= 1
+
+            # print(node1.coverage, node2.coverage)
+
+        prev_nodes = node1.prev_nodes
+        next_nodes = node1.next_nodes
+
+        if len(prev_nodes) > 0:
+            for prev_node in prev_nodes:
+                try:
+                    prev_node.next_nodes.remove(node1)
+                    self.link_nodes(node1=prev_node, node2=node2)
+                except(KeyError):
+                    pass
+
+        if len(next_nodes) > 0:
+            for next_node in next_nodes:
+                try:
+                    next_node.prev_nodes.remove(node1)
+                    self.link_nodes(node1=next_node, node2=node2)
+                except(KeyError):
+                    pass
+
+        if delete:
+            self.delete_node(node1, dereference=False)
 
     def link_nodes(self, node1, node2):
         if node1 is not None and node2 is not None:
             node1.next_nodes.add(node2)
             node2.prev_nodes.add(node1)
 
-    def delete_node(self, node, splice=False):
+    def delete_node(self, node, dereference=True, splice=False):
         p = 0
         n = 0
 
-        for p,prev_node in enumerate(node.prev_nodes):
-            prev_node.next_nodes.remove(node)
+        if dereference:
+            for p,prev_node in enumerate(node.prev_nodes):
+                prev_node.next_nodes.remove(node)
 
-        for n,next_node in enumerate(node.next_nodes):
-            next_node.prev_nodes.remove(node)
+            for n,next_node in enumerate(node.next_nodes):
+                next_node.prev_nodes.remove(node)
 
         if splice:
             if n > 0 and p > 0:
                 for prev_node in node.prev_nodes:
                     for next_node in node.next_nodes:
-                        prev_node.next_nodes.add(next_node)
-                        next_node.prev_nodes.add(prev_node)
+                        position = next_node.position
+                        cigar_code = next_node.cigar_code
+                        sequence = next_node.sequence
+
+                        prev_node.next_nodes.add(self.graph[position][cigar_code][sequence])
+                        next_node.prev_nodes.add(self.graph[position][cigar_code][sequence])
 
             for read_id, index in node.mapped_reads.items():
                 print("DELETING:",node)
@@ -101,7 +159,7 @@ class AlignmentGraph:
         cigar_code = node.cigar_code
         sequence = node.sequence
 
-        # Erase node object
+        # Erase node object (is this necessary?)
         self.graph[position][cigar_code][sequence] = None
 
         # Remove reference from dictionary
@@ -130,18 +188,10 @@ class AlignmentGraph:
         if position not in self.graph:
             self.initialize_position(position=position)
 
-        if len(self.paths[read_id]) > 0:
-            prev_node_keys = self.paths[read_id][-1]
-            prev_position, prev_cigar, prev_sequence = prev_node_keys
-            prev_node = self.graph[prev_position][prev_cigar][prev_sequence]
-        else:
-            prev_node = None
+        prev_node = self.get_previous_node(read_id)
 
+        # if node doesn't already exist, create it
         if sequence not in self.graph[position][cigar_code]:
-            # if cigar_code == INS:
-                # Keep track of inserts for pileup printing purposes
-                # self.update_positional_insert_length(position, sequence)
-
             node = Node(position=position,
                         cigar_code=cigar_code,
                         sequence=sequence,
@@ -157,6 +207,23 @@ class AlignmentGraph:
         if prev_node is not None:
             self.link_nodes(node1=prev_node, node2=node)
 
+        # append the read path
+        self.update_read_path(read_id=read_id, position=position, cigar_code=cigar_code, sequence=sequence)
+
+        # update coverage stats for this position
+        self.update_coverage(position=position, cigar_code=cigar_code)
+
+    def get_previous_node(self, read_id):
+        if len(self.paths[read_id]) > 0:
+            prev_node_keys = self.paths[read_id][-1]
+            prev_position, prev_cigar, prev_sequence = prev_node_keys
+            prev_node = self.graph[prev_position][prev_cigar][prev_sequence]
+        else:
+            prev_node = None
+
+        return prev_node
+
+    def update_read_path(self, read_id, position, cigar_code, sequence):
         # Get read path
         path = self.paths[read_id]
 
@@ -166,6 +233,12 @@ class AlignmentGraph:
         # Append reference to node to read path
         reference_keys = [position, cigar_code, sequence]
         path.append(reference_keys)
+
+    def update_coverage(self, position, cigar_code):
+        if cigar_code != INS:
+            self.positional_coverage[position] += 1
+
+        self.positional_node_count[position] += 1
 
     def initialize_graph_with_reference(self):
         for position in range(self.start_position, self.end_position+1):
@@ -304,7 +377,6 @@ class AlignmentGraph:
                     if insert_length > 0 and not next_is_insert:
                         for i in range(insert_length):
                             pileup[p][index+offset+i+1] = '*'
-
                         offset += insert_length
                 index += 1
 
@@ -313,24 +385,97 @@ class AlignmentGraph:
 
         return pileup_string
 
+    def get_positional_coverage(self, position):
+        # print(position)
+        positional_coverage = 0
+        for cigar_code in [REF, SNP, DEL, INS]:
+            for sequence in self.graph[position][cigar_code]:
+                node = self.graph[position][cigar_code][sequence]
+                positional_coverage += node.coverage
+
+                # print(node)
+                # print(node.coverage)
+
+        return positional_coverage
+
+    def get_normalized_node_frequencies(self, position, include_inserts=False):
+        """
+        Calculate the relative proportion of each node at a position. If include_inserts, take into account the fact
+        that inserts and refs both map to the same position, and ignore ref nodes that precede inserts? I guess?
+        :param position:
+        :param include_inserts: boolean flag
+        :return:
+        """
+        frequencies = list()
+        nodes = list()
+        cigar_codes = [REF, SNP, DEL]
+
+        if include_inserts:
+            cigar_codes.append(INS)
+
+        for cigar_code in cigar_codes:
+            for sequence in self.graph[position][cigar_code]:
+                node = self.graph[position][cigar_code][sequence]
+                coverage = node.coverage
+
+                if include_inserts and cigar_code == REF:
+                    # the number of inserts is the total nodes minus the positional coverage
+                    coverage -= (self.positional_node_count[position] - self.positional_coverage[position])
+
+                frequency = coverage / self.positional_coverage[position]
+
+                nodes.append(node)
+                frequencies.append(frequency)
+
+        return nodes, frequencies
+
+    def reassign_by_coverage(self, position):
+        nodes, frequencies = self.get_normalized_node_frequencies(position, include_inserts=False)
+
+        # squared_frequencies = [f**2 for f in frequencies]
+        # squared_sum = sum(squared_frequencies)
+        #
+        # frequencies = [f**2/squared_sum for f in squared_frequencies]
+        # print(frequencies)
+
+        for n,node in enumerate(nodes):
+            choice = numpy.random.multinomial(1, frequencies)
+            choice = int(choice.nonzero()[0])
+            reassignment_node = nodes[choice]
+
+            print("REASSIGNING")
+            print(node, "->", reassignment_node)
+
+            if reassignment_node != node:
+                # self.plot_alignment_graph()
+                self.reassign_node(node1=node, node2=reassignment_node, delete=True)
+
+                nodes, frequencies = self.get_normalized_node_frequencies(position=position, include_inserts=False)
+
+            else:
+                print("Reassignment to self, skipping node")
+
+            # self.plot_alignment_graph()
+
     def clean_graph(self):
         figure, (axes1, axes2) = pyplot.subplots(nrows=2)
 
         self.plot_alignment_graph(axes=axes1, show=False)
 
         for position in range(self.start_position, self.end_position+1):
-            for cigar_code in [REF, SNP, DEL, INS]:
-                sequences = [key for key in self.graph[position][cigar_code]]
+            sequences = [s for s in self.graph[position][INS]]
 
-                for s,sequence in enumerate(sequences):
-                    node = self.graph[position][cigar_code][sequence]
-                    relative_coverage = node.coverage/self.positional_coverage[position]
+            for sequence in sequences:
+                node = self.graph[position][INS][sequence]
 
-                    if cigar_code == INS and relative_coverage < 0.2:
-                        self.delete_node(self.graph[position][cigar_code][sequence])
+                print(node)
+                print(node.coverage)
 
-                    # elif cigar_code != DEL and random.random() > tanh(relative_coverage):
-                    #     self.delete_node(self.graph[position][cigar_code][sequence])
+                if node.coverage < 2:
+                    print("DELETING NODE ^")
+                    self.delete_node(node)
+
+            self.reassign_by_coverage(position=position)
 
         self.plot_alignment_graph(axes=axes2, show=False)
 
@@ -344,7 +489,27 @@ class AlignmentGraph:
                   "INS", [node.sequence for node in self.graph[position][INS].values()])
         print()
 
+    def calculate_coordinates_for_plot(self, reset=True):
+        if reset:
+            self.node_coordinates = dict()
+
+        x_offset = 0
+        for position in range(self.start_position, self.end_position+1):
+            for cigar_code in [REF, SNP, DEL, INS]:
+                nodes = self.graph[position][cigar_code].values()
+
+                if cigar_code == INS and len(nodes) > 0:
+                    x_offset += max(1, max([len(seq) for seq in [node.sequence for node in nodes]])/2)
+
+                for n,node in enumerate(nodes):
+                    x = position - self.start_position + x_offset
+                    y = self.get_y_position(cigar_code, position, n)
+
+                    self.node_coordinates[node] = [x,y]
+
     def plot_alignment_graph(self, axes=None, show=True):
+        self.calculate_coordinates_for_plot()
+
         weights = ['light', 'normal', 'medium', 'semibold', 'bold', 'heavy']
 
         all_positions = range(self.start_position, self.end_position)
@@ -365,9 +530,11 @@ class AlignmentGraph:
                     x_offset += max(1, max([len(seq) for seq in [node.sequence for node in nodes]])/2)
 
                 for n,node in enumerate(nodes):
-                    x = position - self.start_position + x_offset
-                    y = self.get_y_position(cigar_code, position, n)
-                    node.coordinate = [x,y]
+                    # x = position - self.start_position + x_offset
+                    # y = self.get_y_position(cigar_code, position, n)
+                    # node.coordinate = [x,y]
+
+                    x,y = self.node_coordinates[node]
 
                     # plot sequence
                     weight_index = min(int(round(node.coverage/total_coverage))*5,5)
@@ -382,9 +549,14 @@ class AlignmentGraph:
                     # plot edge connecting nodes
                     if len(node.prev_nodes) > 0 and position > self.start_position:
                         for prev_node in node.prev_nodes:
-                            x_prev, y_prev = prev_node.coordinate
+                            x_prev, y_prev = self.node_coordinates[prev_node]
                             transition_weight = min([prev_node.coverage, node.coverage])
                             width = min(6*transition_weight/total_coverage, 6)
+
+                            # if y_prev > 0 or y > 0:
+                            #     print("ERROR")
+                            #     print(node)
+                            #     print(prev_node)
 
                             if y_prev != y:
                                 p = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
@@ -405,6 +577,12 @@ class AlignmentGraph:
             pyplot.show()
 
         return axes
+
+
+# BUGS TO FIX!!
+#   Case where read doesn't start on start_position
+#   Switch to explicit edge objects?
+#   CC 201 node doesn't exist??
 
 # Solutions to the problem of deleting and re-assigning nodes in a path:
 #   Make a separate path object

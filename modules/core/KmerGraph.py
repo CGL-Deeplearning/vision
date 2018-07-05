@@ -64,18 +64,19 @@ class KmerGraph:
         self.end_position = end_position
         self.length = self.end_position - self.start_position
         self.k = k
+        self.ploidy = ploidy
 
         self.positional_reference = defaultdict(int)
         self.positional_kmers = defaultdict(list)
         self.positional_coverage = defaultdict(int)
 
         self.node_paths_by_read = dict()
-
-        self.ploidy = ploidy
         self.graph = dict()
 
         # self.max_alleles_per_type = [0, 0, 0, 0]
         self.positional_n_alleles_per_type = dict()
+
+        self.kmer_frequencies = defaultdict(lambda: 0)
 
         self.default_y_position_per_cigar = [0, -1, 2, 1]   # [REF, SNP, INS, DEL]
 

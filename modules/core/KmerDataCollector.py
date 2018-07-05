@@ -3,6 +3,8 @@ from modules.handlers.ImageChannels import imageChannels
 import operator
 import time
 import math
+import sys
+
 """
 CandidateFinder finds possible positions based on edits we see in reads.
 It parses through each read of a site and finds possible candidate positions.
@@ -26,12 +28,12 @@ DEL = 3
 MIN_DELETE_QUALITY = 20
 
 
-class CandidateFinder:
+class KmerDataCollector:
     """
     Given reads that align to a site and a pointer to the reference fasta file handler,
     candidate finder finds possible variant candidates_by_read of that site.
     """
-    def __init__(self, reads, fasta_handler, chromosome_name, region_start_position, region_end_position, alignment_graph, preprocess=True):
+    def __init__(self, reads, fasta_handler, chromosome_name, region_start_position, region_end_position, kmer_graph, k, preprocess=True):
         """
         Initialize a candidate finder object.
         :param reads: Reads that align to the site
@@ -45,7 +47,7 @@ class CandidateFinder:
         self.chromosome_name = chromosome_name
         self.fasta_handler = fasta_handler
         self.reads = reads
-        self.graph = alignment_graph
+        self.graph = kmer_graph
 
         # the store which reads are creating candidates in that position
         # self.coverage = defaultdict(int)
@@ -71,6 +73,10 @@ class CandidateFinder:
         # self.positional_info_position_to_index = defaultdict(int)
         # self.allele_dictionary = defaultdict(lambda: defaultdict(list))
         self.read_id_by_position = defaultdict(list)
+        self.kmer_frequencies = defaultdict(lambda: 0)
+
+        # track the last kmer to be sent to graph algorithm
+        self.k = k
 
         # self.preprocess = preprocess
 
@@ -136,7 +142,21 @@ class CandidateFinder:
     #     self.positional_allele_dictionary[pos][(allele, type)] += 1
     #     self.allele_dictionary[read_id][pos].append((allele, type))
 
-    def parse_match(self, read_id, alignment_position, length, read_sequence, ref_sequence, qualities):
+    def update_kmer(self, kmer, character):
+        if len(kmer) == self.k:
+            # add terminal character and remove first character from kmer (kind of like a circular buffer)
+            kmer = kmer[1:]
+            kmer.append(character)
+        else:
+            # add terminal character only, because the kmer has not reached length k yet
+            kmer.append(character)
+
+        return kmer
+
+    def get_kmer_sequence(self, kmer):
+        return ''.join(kmer)
+
+    def parse_match(self, kmer, read_id, alignment_position, length, read_sequence, ref_sequence, qualities):
         """
         Process a cigar operation that is a match
         :param alignment_position: Position where this match happened
@@ -149,33 +169,26 @@ class CandidateFinder:
         """
         start = alignment_position
         stop = start + length
+
         for i in range(start, stop):
             if i < self.region_start_position or i > self.region_end_position:
                 continue
 
-            # self.graph.positional_coverage[i] += 1
-            allele = read_sequence[i-alignment_position]
-            ref = ref_sequence[i-alignment_position]
+            self.graph.positional_coverage[i] += 1
+            allele = read_sequence[i-start]
+
+            kmer = self.update_kmer(kmer=kmer, character=allele)
+
+            # ref = ref_sequence[i-alignment_position]
             # self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
 
-            if allele != ref:
-                self.graph.update_position(read_id=read_id,
-                                           position=i,
-                                           sequence=allele,
-                                           cigar_code=SNP)
+            if len(kmer) == self.k:
+                kmer_sequence = self.get_kmer_sequence(kmer)
+                self.kmer_frequencies[kmer_sequence] += 1
 
-                # self.mismatch_count[i] += 1
-                # self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE)
+        return kmer
 
-            else:
-                self.graph.update_position(read_id=read_id,
-                                           position=i,
-                                           sequence=allele,
-                                           cigar_code=REF)
-                # this slows things down a lot. Don't add reference allele to the dictionary if we don't use them
-                # self._update_read_allele_dictionary(i, allele, MATCH_ALLELE)
-
-    def parse_delete(self, read_id, alignment_position, length, ref_sequence):
+    def parse_delete(self, kmer, read_id, alignment_position, length, ref_sequence):
         """
         Process a cigar operation that is a delete
         :param alignment_position: Alignment position
@@ -193,22 +206,16 @@ class CandidateFinder:
         for i in range(start, stop):
             # self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
             # increase the coverage
-            # self.mismatch_count[i] += 1
             if i < self.region_start_position or i > self.region_end_position:
                 continue
 
-            # self.graph.positional_coverage[i] += 1
-            self.graph.update_position(read_id=read_id,
-                                       position=i,
-                                       sequence="*",
-                                       cigar_code=DEL)
+            self.graph.positional_coverage[i] += 1
 
-            # the allele is the anchor + what's being deleted
-        # allele = self.reference_dictionary[alignment_position] + ref_sequence
-        # record the delete where it first starts
-        # self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, DELETE_ALLELE)
+            # NO NEED TO UPDATE GRAPH, no new kmers are created at a delete position
 
-    def parse_insert(self, read_id, alignment_position, read_sequence, qualities):
+        return kmer
+
+    def parse_insert(self, kmer, read_id, alignment_position, read_sequence, qualities):
         """
         Process a cigar operation where there is an insert
         :param alignment_position: Position where the insert happened
@@ -220,18 +227,22 @@ class CandidateFinder:
         # the allele is the anchor + what's being deleted
         allele = read_sequence
 
-        if alignment_position < self.region_start_position or alignment_position > self.region_end_position:
-            return
-
-        self.graph.update_position(read_id=read_id,
-                                   position=alignment_position,
-                                   sequence=allele,
-                                   cigar_code=INS)
-
-        # # record the insert where it first starts
+        start = alignment_position + 1
+        stop = start + len(allele)
         # self.mismatch_count[alignment_position] += 1
-        # self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE)
-        # self._update_insert_dictionary(read_id, alignment_position, read_sequence, qualities)
+
+        for i in range(start, stop):
+            if alignment_position < self.region_start_position or alignment_position > self.region_end_position:
+                continue
+
+            character = allele[i-start]
+            kmer = self.update_kmer(kmer=kmer, character=character)
+
+            if len(kmer) == self.k:
+                kmer_sequence = self.get_kmer_sequence(kmer)
+                self.kmer_frequencies[kmer_sequence] += 1
+
+        return kmer
 
     def _update_reference_dictionary(self, position, ref_base):
         """
@@ -252,6 +263,9 @@ class CandidateFinder:
         """
         self.read_allele_dictionary = {}
         ref_alignment_start = read.reference_start
+
+        sys.stdout.write("\r%d"%(ref_alignment_start))
+
         ref_alignment_stop = self.get_read_stop_position(read)
         # if the region has very high coverage, we are not going to parse through all the reads
         if self.graph.positional_coverage[ref_alignment_start] > 300:
@@ -269,6 +283,8 @@ class CandidateFinder:
             self.read_id_by_position[pos].append((read_id, ref_alignment_start, ref_alignment_stop))
         for i, ref_base in enumerate(ref_sequence):
             self._update_reference_dictionary(ref_alignment_start + i, ref_base)
+
+        kmer = list()   # sequence of length k
 
         # read_index: index of read sequence
         # ref_index: index of reference sequence
@@ -290,8 +306,9 @@ class CandidateFinder:
             found_valid_cigar = True
 
             # send the cigar tuple to get attributes we got by this operation
-            ref_index_increment, read_index_increment = \
-                self.parse_cigar_tuple(cigar_code=cigar_code,
+            ref_index_increment, read_index_increment, kmer = \
+                self.parse_cigar_tuple(kmer=kmer,
+                                       cigar_code=cigar_code,
                                        length=length,
                                        alignment_position=ref_alignment_start+ref_index,
                                        ref_sequence=ref_sequence_segment,
@@ -302,6 +319,9 @@ class CandidateFinder:
             # increase the read index iterator
             read_index += read_index_increment
             ref_index += ref_index_increment
+
+            if kmer is None:
+                exit()
 
         # after collecting all alleles from reads, update the global dictionary
         # for position in self.read_allele_dictionary.keys():
@@ -330,7 +350,7 @@ class CandidateFinder:
             #                                                   read.mapping_quality)
         return True
 
-    def parse_cigar_tuple(self, cigar_code, length, alignment_position, ref_sequence, read_sequence, read_id, quality):
+    def parse_cigar_tuple(self, kmer, cigar_code, length, alignment_position, ref_sequence, read_sequence, read_id, quality):
         """
         Parse through a cigar operation to find possible candidate variant positions in the read
         :param cigar_code: Cigar operation code
@@ -357,30 +377,40 @@ class CandidateFinder:
         # deal different kinds of operations
         if cigar_code == 0:
             # match
-            self.parse_match(read_id=read_id,
-                             alignment_position=alignment_position,
-                             length=length,
-                             read_sequence=read_sequence,
-                             ref_sequence=ref_sequence,
-                             qualities=quality)
+            kmer = self.parse_match(kmer=kmer,
+                                    read_id=read_id,
+                                    alignment_position=alignment_position,
+                                    length=length,
+                                    read_sequence=read_sequence,
+                                    ref_sequence=ref_sequence,
+                                    qualities=quality)
+
         elif cigar_code == 1:
             # insert
             # alignment position is where the next alignment starts, for insert and delete this
             # position should be the anchor point hence we use a -1 to refer to the anchor point
-            self.parse_insert(read_id=read_id,
-                              alignment_position=alignment_position-1,
-                              read_sequence=read_sequence,
-                              qualities=quality)
+
             ref_index_increment = 0
+
+            kmer = self.parse_insert(kmer=kmer,
+                                     read_id=read_id,
+                                     alignment_position=alignment_position-1,
+                                     read_sequence=read_sequence,
+                                     qualities=quality)
+
         elif cigar_code == 2 or cigar_code == 3:
             # delete or ref_skip
             # alignment position is where the next alignment starts, for insert and delete this
             # position should be the anchor point hence we use a -1 to refer to the anchor point
-            self.parse_delete(read_id=read_id,
-                              alignment_position=alignment_position-1,
-                              ref_sequence=ref_sequence,
-                              length=length)
+
             read_index_increment = 0
+
+            kmer = self.parse_delete(kmer=kmer,
+                                     read_id=read_id,
+                                     alignment_position=alignment_position-1,
+                                     ref_sequence=ref_sequence,
+                                     length=length)
+
         elif cigar_code == 4:
             # soft clip
             ref_index_increment = 0
@@ -398,7 +428,7 @@ class CandidateFinder:
         else:
             raise("INVALID CIGAR CODE: %s" % cigar_code)
 
-        return ref_index_increment, read_index_increment
+        return ref_index_increment, read_index_increment, kmer
 
     # def _filter_alleles(self, position, allele_frequency_list):
     #     """
@@ -507,7 +537,7 @@ class CandidateFinder:
     #
     #     self.image_row_for_ref = (reference_to_image_row, left_position, right_position)
 
-    def get_read_alignment_data(self, reads):
+    def get_read_data(self, reads):
         """
         Parse reads to aligned to a site to find variants
         :param reads: Set of reads aligned
@@ -529,4 +559,6 @@ class CandidateFinder:
         if total_reads == 0:
             return None
 
-        return
+        print()
+
+        return self.kmer_frequencies

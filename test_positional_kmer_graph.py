@@ -10,7 +10,6 @@ def test_with_realtime_BAM_data():
     k = 6
 
     chromosome_name = "1"
-    chromosome_name = "chr" + chromosome_name
 
     # --- chr3 PG ---
     # start_position = 73600    # insert
@@ -27,14 +26,20 @@ def test_with_realtime_BAM_data():
     # end_position = 3039241
 
     # --- chr1 ---
+
+    # GRCh38 !!!
     # start_position = 100816140      # chr1 100816142 . TG T 50 PASS
     # end_position = 100816145
 
-    start_position = 100822960      # chr1 100822965 . A T 50 PASS
-    end_position = 100822969
+    start_position = 100866202      # chr1	100866204	.	G	A	50	PASS
+    end_position = 100866210
 
     # start_position = 101114275      # chr1 101114279 . C T 50 PASS
     # end_position = 101114285
+
+    # GRCh37 !!!
+    # start_position = 100861727      # 100861729	rs61811382	G	A	50	PASS
+    # end_position = 100861736
 
     start_position -= k
 
@@ -49,6 +54,7 @@ def test_with_realtime_BAM_data():
     # vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh37.vcf.gz"
 
     # ---- Nanopore (dev machine) ---------------------------------------------
+    chromosome_name = "chr" + chromosome_name
     bam_file_path = "/home/ryan/data/Nanopore/whole_genome_nanopore.bam"
     reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
     vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
@@ -60,9 +66,9 @@ def test_with_realtime_BAM_data():
     vcf_handler = VCFFileProcessor(file_path=vcf_path)
 
     kmer_graph = PositionalKmerGraph(chromosome_name=chromosome_name,
-                           start_position=start_position,
-                           end_position=end_position,
-                           k=k)
+                                     start_position=start_position,
+                                     end_position=end_position,
+                                     k=k)
 
     # get the reads that fall in that region
     reads = bam_handler.get_reads(chromosome_name=chromosome_name,
