@@ -52,8 +52,11 @@ def test_with_realtime_BAM_data():
     # start_position = 101114275      # chr1 101114279 . C T 50 PASS
     # end_position = 101114280
 
-    start_position = 100866203      # chr1 100866204 . G A 50 PASS
-    end_position = 100866205
+    # start_position = 100866203      # chr1 100866204 . G A 50 PASS
+    # end_position = 100866205
+
+    start_position = 100000000      # arbitrary test region ... takes about 2-3 min to build graph (July 6)
+    end_position = 101000000
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
@@ -94,22 +97,22 @@ def test_with_realtime_BAM_data():
 
     candidate_finder.get_read_alignment_data(reads=reads)
 
-    alignment_graph.print_alignment_graph()
+    # alignment_graph.print_alignment_graph()
 
     # alignment_graph.print_alignment_graph()
-    pileup_string_dirty = alignment_graph.generate_pileup()
+    # pileup_string_dirty = alignment_graph.generate_pileup()
 
     # alignment_graph.plot_alignment_graph()
 
-    alignment_graph.clean_graph()
+    # alignment_graph.clean_graph()
 
     # alignment_graph.plot_alignment_graph()
 
     # alignment_graph.print_alignment_graph()
-    pileup_string_clean = alignment_graph.generate_pileup()
+    # pileup_string_clean = alignment_graph.generate_pileup()
 
-    print(pileup_string_dirty)
-    print(pileup_string_clean)
+    # print(pileup_string_dirty)
+    # print(pileup_string_clean)
 
     # test_coverage(graph=alignment_graph, start=start_position, end=end_position)
 

@@ -109,7 +109,7 @@ class CandidateLabeler:
     @staticmethod
     def get_label_of_allele(positional_vcf, candidate_allele, allele_types):
         """
-        Given positional VCFs (IN, DEL, SNP), variant type and a candidate allele, return the try genotype.
+        Given positional VCFs (IN, DEL, SNP), variant type and a candidate allele, return the true genotype.
         :param positional_vcf: Three dictionaries for each position
         :param candidate_allele: Candidate allele
         :param allele_types: Alt allele type: IN,DEL,SNP

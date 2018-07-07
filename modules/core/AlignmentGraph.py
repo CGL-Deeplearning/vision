@@ -28,7 +28,7 @@ def tanh(x):
 
 
 class Node:
-    def __init__(self, position, cigar_code, prev_node=None, next_node=None, sequence=None, coverage=1):
+    def __init__(self, position, cigar_code, prev_node=None, next_node=None, sequence=None):
         # transition keys will be based on position:cigar_code:sequence which is always unique
         self.prev_nodes = set()
         self.next_nodes = set()
@@ -36,7 +36,7 @@ class Node:
         self.position = position
         self.cigar_code = cigar_code
         self.sequence = sequence
-        self.coverage = coverage
+        self.coverage = 0
 
         # self.coordinate = None
 
@@ -184,7 +184,7 @@ class AlignmentGraph:
         template = [{}, {}, {}, {}]
         self.graph[position] = template
 
-    def update_position(self, read_id, position, sequence, cigar_code, coverage=1):
+    def update_position(self, read_id, position, sequence, cigar_code, coverage=0):
         if position not in self.graph:
             self.initialize_position(position=position)
 
@@ -194,16 +194,17 @@ class AlignmentGraph:
         if sequence not in self.graph[position][cigar_code]:
             node = Node(position=position,
                         cigar_code=cigar_code,
-                        sequence=sequence,
-                        coverage=coverage)
+                        sequence=sequence)
 
             self.graph[position][cigar_code][sequence] = node
 
         else:
             node = self.graph[position][cigar_code][sequence]
-            node.coverage += 1
 
-        # Make pointers between nodes
+        # update node coverage
+        node.coverage += 1
+
+        # make pointers between nodes
         if prev_node is not None:
             self.link_nodes(node1=prev_node, node2=node)
 
@@ -227,7 +228,7 @@ class AlignmentGraph:
         # Get read path
         path = self.paths[read_id]
 
-        # Add reference to node path to the node itself (god this is convoluted)
+        # Add reference to the node position in the read path (isn't safe for deleting nodes!!)
         self.graph[position][cigar_code][sequence].mapped_reads[read_id] = len(path)
 
         # Append reference to node to read path
@@ -483,7 +484,8 @@ class AlignmentGraph:
 
     def print_alignment_graph(self):
         for position in range(self.start_position, self.end_position+1):
-            print("REF", [node.sequence for node in self.graph[position][REF].values()],
+            print(position,
+                  "REF", [node.sequence for node in self.graph[position][REF].values()],
                   "SNP", [node.sequence for node in self.graph[position][SNP].values()],
                   "DEL", [node.sequence for node in self.graph[position][DEL].values()],
                   "INS", [node.sequence for node in self.graph[position][INS].values()])
@@ -580,9 +582,8 @@ class AlignmentGraph:
 
 
 # BUGS TO FIX!!
-#   Case where read doesn't start on start_position
+#   Case where read doesn't start on start_position for generating pileup
 #   Switch to explicit edge objects?
-#   CC 201 node doesn't exist??
 
 # Solutions to the problem of deleting and re-assigning nodes in a path:
 #   Make a separate path object
