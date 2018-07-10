@@ -3,13 +3,13 @@ import os
 import sys
 import time
 
+from tqdm import tqdm
 import torch
 import torchnet.meter as meter
 import torch.nn.parallel
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torch.autograd import Variable
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
 from modules.models.inception import Inception3
@@ -63,35 +63,24 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     batches_done = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
     with torch.no_grad():
-        for i, (images, labels, records) in enumerate(validation_loader):
-            if gpu_mode is True and images.size(0) % 8 != 0:
-                continue
+        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, dynamic_ncols=True) as pbar:
+            for i, (images, labels, records) in enumerate(validation_loader):
+                if gpu_mode:
+                    images = images.cuda()
+                    labels = labels.cuda()
 
-            images = Variable(images, volatile=True)
-            labels = Variable(labels, volatile=True)
-            if gpu_mode:
-                images = images.cuda()
-                labels = labels.cuda()
+                # Predict + confusion_matrix + loss
+                outputs = test_model(images)
+                confusion_matrix.add(outputs.data, labels.data)
 
-            # Predict + confusion_matrix + loss
-            outputs = test_model(images)
-            confusion_matrix.add(outputs.data, labels.data)
-            test_loss = test_criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
-            # Loss count
-            total_loss += float(test_loss.data[0])
-            total_images += float(images.size(0))
-            batches_done += 1
-            if batches_done % 10 == 0:
-                sys.stderr.write(str(confusion_matrix.conf)+"\n")
-                sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
-                                 "\n" + TextColor.END)
+                # Progress bar update
+                pbar.update(1)
+                cm_value = confusion_matrix.value()
+                denom = (cm_value.sum() - cm_value[0][0]) if (cm_value.sum() - cm_value[0][0]) > 0 else 1.0
+                accuracy = 100.0 * (cm_value[1][1] + cm_value[2][2]) / denom
+                pbar.set_description("Accuracy: " + str(accuracy))
 
-    avg_loss = total_loss / total_images if total_images else 0
-    print('Test Loss: ' + str(avg_loss))
     print('Confusion Matrix: \n', confusion_matrix.conf)
-    # print summaries
-    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(avg_loss) + "\n"+TextColor.END)
-    sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
 
 def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_model,
@@ -156,56 +145,37 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     for epoch in range(start_epoch, epoch_limit, 1):
         total_loss = 0
         total_images = 0
-        epoch_start_time = time.time()
-        start_time = time.time()
         batches_done = 0
-        for i, (images, labels, records) in enumerate(train_loader):
-            if gpu_mode is True and images.size(0) % 8 != 0:
-                continue
+        with tqdm(total=len(train_loader), desc='Loss', leave=True, dynamic_ncols=True) as progress_bar:
+            for i, (images, labels, records) in enumerate(train_loader):
+                if gpu_mode:
+                    images = images.cuda()
+                    labels = labels.cuda()
 
-            images = Variable(images)
-            labels = Variable(labels)
-            if gpu_mode:
-                images = images.cuda()
-                labels = labels.cuda()
+                x = images
+                y = labels
 
-            x = images
-            y = labels
+                # Forward + Backward + Optimize
+                optimizer.zero_grad()
+                outputs = model(x)
+                loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
+                loss.backward()
+                optimizer.step()
 
-            # Forward + Backward + Optimize
-            optimizer.zero_grad()
-            outputs = model(x)
-            loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
-            loss.backward()
-            optimizer.step()
+                # loss count
+                total_loss += loss.item()
+                total_images += (x.size(0))
+                batches_done += 1
 
-            # loss count
-            total_loss += loss.data[0]
-            total_images += (x.size(0))
-            batches_done += 1
-
-            if batches_done % 10 == 0:
+                # update progress bar
                 avg_loss = (total_loss / total_images) if total_images else 0
-                print(str(epoch + 1) + "\t" + str(i + 1) + "\t" + str(total_loss) + "\t" + str(avg_loss))
-                #sys.stdout.flush()
-                sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
-                                 + " / " + str(len(train_loader)) + "\n" + TextColor.END)
-                sys.stderr.flush()
-                sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
-                                 "\n" + TextColor.END)
-                start_time = time.time()
-                sys.stderr.flush()
+                progress_bar.set_description("Loss: " + str(avg_loss))
+                # train_loss_logger.write(str(epoch + 1) + "," + str(batch_no) + "," + str(avg_loss) + "\n")
+                progress_bar.refresh()
+                progress_bar.update(1)
+                # batch_no += 1
 
-        avg_loss = (total_loss / total_images) if total_images else 0
-        sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Completed: " + str(i+1) + "\n" + TextColor.END)
-        sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
-        sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - epoch_start_time) +
-                         "\n" + TextColor.END)
-        sys.stderr.flush()
-        print(str(epoch+1) + "\t" + str(i + 1) + "\t" + str(avg_loss))
-        sys.stdout.flush()
-
+        progress_bar.close()
         save_best_model(model, optimizer, file_name + "_epoch_" + str(epoch + 1))
         # After each epoch do validation
         test(validation_file, batch_size, gpu_mode, model, num_classes, num_workers)
@@ -315,6 +285,7 @@ if __name__ == '__main__':
         default=40,
         help="Epoch size for training iteration."
     )
+
     FLAGS, unparsed = parser.parse_known_args()
     directory_control(FLAGS.model_out.rpartition('/')[0]+"/")
     train(FLAGS.train_file, FLAGS.test_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
