@@ -94,8 +94,8 @@ def test(data_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
 
-def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_mode,
-          model_path, num_classes=3):
+def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_mode, num_workers, retrain_model,
+          retrain_model_path, num_classes=3):
     """
     Train a model and save
     :param train_file: A CSV file containing train image information
@@ -123,12 +123,21 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
     model = Inception3()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00021723010296152584, weight_decay=1.4433597247180705e-06)
 
     #print out total number of trainable parameters in model
     #pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     #print("pytorch_total_params", pytorch_total_params)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00021723010296152584, weight_decay=1.4433597247180705e-06)
+    if retrain_model is True:
+        if os.path.isfile(retrain_model_path) is False:
+            sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO RETRAIN PATH MODEL --retrain_model_path\n")
+            exit(1)
+        sys.stderr.write(TextColor.GREEN + "INFO: RETRAIN MODEL LOADING\n" + TextColor.END)
+        model = ModelHandler.load_model_for_training(model, retrain_model_path)
+        optimizer = ModelHandler.load_optimizer(optimizer, retrain_model_path, gpu_mode)
+        sys.stderr.write(TextColor.GREEN + "INFO: RETRAIN MODEL LOADED SUCCESSFULLY\n" + TextColor.END)
+
     if gpu_mode:
         model = model.cuda()
 
@@ -216,11 +225,11 @@ def save_best_model(best_model, optimizer, file_name):
     :return:
     """
     sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
-    if os.path.isfile(file_name + '_model.pkl'):
-        os.remove(file_name + '_model.pkl')
+    # if os.path.isfile(file_name + '_model.pkl'):
+    #     os.remove(file_name + '_model.pkl')
     if os.path.isfile(file_name + '_checkpoint.pkl'):
         os.remove(file_name + '_checkpoint.pkl')
-    torch.save(best_model, file_name + '_model.pkl')
+    # torch.save(best_model, file_name + '_model.pkl')
     ModelHandler.save_checkpoint({
         'state_dict': best_model.state_dict(),
         'optimizer': optimizer.state_dict(),
@@ -239,25 +248,6 @@ def directory_control(file_path):
         os.stat(directory)
     except:
         os.mkdir(directory)
-
-
-def get_model_and_optimizer(model_retrain, model_checkpoint_path, gpu_mode):
-    """
-    Load or get a model
-    :param model_retrain: If true then load an existing model
-    :param model_checkpoint_path: Path to an already trained model's checkpoint
-    :param gpu_mode: If True then the model will be trained on GPU
-    :return:
-    """
-    if model_retrain is True:
-        model = ModelHandler.load_model_for_training(model_checkpoint_path, gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
-        optimizer = ModelHandler.load_optimizer(optimizer, model_checkpoint_path, gpu_mode)
-        return model, optimizer
-    else:
-        model = ModelHandler.get_new_model(gpu_mode)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001)
-        return model, optimizer
 
 
 if __name__ == '__main__':
@@ -306,7 +296,7 @@ if __name__ == '__main__':
         help="If true then retrain a pre-trained mode."
     )
     parser.add_argument(
-        "--model_path",
+        "--retrain_model_path",
         type=str,
         required=False,
         default='./model',
@@ -326,9 +316,6 @@ if __name__ == '__main__':
         help="Epoch size for training iteration."
     )
     FLAGS, unparsed = parser.parse_known_args()
-    training_model, training_optimizer = get_model_and_optimizer(FLAGS.retrain_model, FLAGS.model_path, FLAGS.gpu_mode)
     directory_control(FLAGS.model_out.rpartition('/')[0]+"/")
     train(FLAGS.train_file, FLAGS.test_file, FLAGS.batch_size, FLAGS.epoch_size, FLAGS.model_out, FLAGS.gpu_mode,
-          FLAGS.num_workers, FLAGS.retrain_model, FLAGS.model_path)
-
-
+          FLAGS.num_workers, FLAGS.retrain_model, FLAGS.retrain_model_path)
