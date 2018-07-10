@@ -184,7 +184,7 @@ class AlignmentGraph:
         template = [{}, {}, {}, {}]
         self.graph[position] = template
 
-    def update_position(self, read_id, position, sequence, cigar_code, coverage=0):
+    def update_position(self, read_id, position, sequence, cigar_code, increment_coverage=True):
         if position not in self.graph:
             self.initialize_position(position=position)
 
@@ -202,7 +202,8 @@ class AlignmentGraph:
             node = self.graph[position][cigar_code][sequence]
 
         # update node coverage
-        node.coverage += 1
+        if increment_coverage:
+            node.coverage += 1
 
         # make pointers between nodes
         if prev_node is not None:
@@ -318,6 +319,16 @@ class AlignmentGraph:
 
         return status
 
+    def get_cumulative_insert_length(self, position):
+        cumulative_length = 0
+        for pos in range(self.start_position, position):
+            print(pos)
+            cumulative_length += self.get_insert_length(position)
+
+        print(position, cumulative_length)
+
+        return cumulative_length
+
     def generate_pileup(self):
         # total_inserts = sum([l for l in self.positional_insert_lengths.values()])
         total_length = self.length + 20
@@ -330,7 +341,7 @@ class AlignmentGraph:
         pileup = [['_' for i in range(total_length+1)] for j in range(max_coverage+1)]
 
         for p,path in enumerate(self.paths.values()):
-            index = path[0][POSITION] - self.start_position
+            index = path[0][POSITION] - self.start_position + self.get_cumulative_insert_length(path[0][POSITION])
             offset = 0
 
             for reference_key in path:
@@ -371,7 +382,7 @@ class AlignmentGraph:
 
                     offset += insert_length - 1
 
-                # Not an insert character, but could be in an anchor position that is followed by
+                # Not an insert character, but could be in an anchor position that is followed by an insert
                 else:
                     pileup[p][index+offset] = sequence
 
@@ -379,6 +390,7 @@ class AlignmentGraph:
                         for i in range(insert_length):
                             pileup[p][index+offset+i+1] = '*'
                         offset += insert_length
+
                 index += 1
 
         read_strings = ([''.join(row) for row in pileup])
@@ -504,7 +516,7 @@ class AlignmentGraph:
                     x_offset += max(1, max([len(seq) for seq in [node.sequence for node in nodes]])/2)
 
                 for n,node in enumerate(nodes):
-                    x = position - self.start_position + x_offset
+                    x = position - self.start_position + x_offset/2
                     y = self.get_y_position(cigar_code, position, n)
 
                     self.node_coordinates[node] = [x,y]
@@ -549,7 +561,8 @@ class AlignmentGraph:
                     axes.add_patch(p)
 
                     # plot edge connecting nodes
-                    if len(node.prev_nodes) > 0 and position > self.start_position:
+                    if len(node.prev_nodes) > 0:
+
                         for prev_node in node.prev_nodes:
                             x_prev, y_prev = self.node_coordinates[prev_node]
                             transition_weight = min([prev_node.coverage, node.coverage])

@@ -1,7 +1,10 @@
 from modules.core.VCFGraphGenerator import VCFGraphGenerator
+from modules.core.AlignGraphCandidateFinder import CandidateFinder
 from modules.core.AlignmentGraph import AlignmentGraph
 from modules.handlers.FastaHandler import FastaHandler
 from modules.handlers.VcfHandler import VCFFileProcessor
+from modules.handlers.BamHandler import BamHandler
+from matplotlib import pyplot
 import random
 
 
@@ -52,8 +55,11 @@ def test_with_realtime_BAM_data():
     # start_position = 100885615      #   100885619	.	C	CACACATAT,CACATATAT	50	PASS
     # end_position = 100885623
 
-    start_position = 100717470  # 100717475	rs75444938	TTTAGTTATA	T	50	PASS
-    end_position = 100717479
+    # start_position = 100717470        # 100717475	rs75444938	TTTAGTTATA	T	50	PASS
+    # end_position = 100717486
+
+    start_position = 100285630        # 100285631	.	GGAAA	GGAAAGAAA,G	50	PASS
+    end_position = 100285635
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
@@ -71,6 +77,26 @@ def test_with_realtime_BAM_data():
     # vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
     # -------------------------------------------------------------------------
 
+    figure, (axes1, axes2) = pyplot.subplots(nrows=2)
+
+    generate_vcf_graph(reference_file_path=reference_file_path,
+                       vcf_path=vcf_path,
+                       chromosome_name=chromosome_name,
+                       start_position=start_position,
+                       end_position=end_position,
+                       axes=axes1)
+
+    generate_alignment_graph(reference_file_path=reference_file_path,
+                             bam_file_path=bam_file_path,
+                             chromosome_name=chromosome_name,
+                             start_position=start_position,
+                             end_position=end_position,
+                             axes=axes2)
+
+    pyplot.show()
+
+
+def generate_vcf_graph(reference_file_path, vcf_path, chromosome_name, start_position, end_position, axes):
     fasta_handler = FastaHandler(reference_file_path)
     vcf_handler = VCFFileProcessor(file_path=vcf_path)
 
@@ -79,7 +105,7 @@ def test_with_realtime_BAM_data():
                                                     start=start_position,
                                                     stop=end_position+1)
 
-    # collecting 1 extra vcf entry doesn't cause conflicts, because queries are positional
+    # collecting 1 extra vcf entry doesn't cause conflicts, because query keys are positional
     vcf_handler.populate_dictionary(contig=chromosome_name,
                                     start_pos=start_position,
                                     end_pos=end_position+1)
@@ -87,20 +113,61 @@ def test_with_realtime_BAM_data():
     positional_variants = vcf_handler.get_variant_dictionary()
 
     alignment_graph = AlignmentGraph(chromosome_name=chromosome_name,
+                                         start_position=start_position,
+                                         end_position=end_position)
+
+    # create graphbuilder object which iterates and parses the reference+VCF
+    vcf_graph_builder = VCFGraphGenerator(reference_sequence=reference_sequence,
+                                          positional_variants=positional_variants,
+                                          chromosome_name=chromosome_name,
+                                          start_position=start_position,
+                                          end_position=end_position,
+                                          graph=alignment_graph)
+
+    vcf_graph_builder.parse_region()
+
+    # vcf_alignment_graph.print_alignment_graph()
+    #
+    # pileup_string = vcf_alignment_graph.generate_pileup()
+    #
+    # print(pileup_string)
+
+    alignment_graph.plot_alignment_graph(axes=axes, show=False)
+    pileup_string = alignment_graph.generate_pileup()
+
+    print("\nVCF GRAPH:")
+    print(pileup_string)
+
+
+def generate_alignment_graph(reference_file_path, bam_file_path, chromosome_name, start_position, end_position, axes):
+    bam_handler = BamHandler(bam_file_path)
+    fasta_handler = FastaHandler(reference_file_path)
+
+    alignment_graph = AlignmentGraph(chromosome_name=chromosome_name,
                                      start_position=start_position,
                                      end_position=end_position)
 
-    # create graphbuilder object which iterates and parses the reference+VCF
-    graph_builder = VCFGraphGenerator(reference_sequence=reference_sequence,
-                                      positional_variants=positional_variants,
-                                      chromosome_name=chromosome_name,
-                                      start_position=start_position,
-                                      end_position=end_position,
-                                      graph=alignment_graph)
+    # get the reads that fall in that region
+    reads = bam_handler.get_reads(chromosome_name=chromosome_name,
+                                  start=start_position,
+                                  stop=end_position)
 
-    graph_builder.parse_region()
-    alignment_graph.print_alignment_graph()
-    alignment_graph.plot_alignment_graph()
+    # create candidate finder object
+    candidate_finder = CandidateFinder(reads=reads,
+                                       fasta_handler=fasta_handler,
+                                       chromosome_name=chromosome_name,
+                                       region_start_position=start_position,
+                                       region_end_position=end_position,
+                                       alignment_graph=alignment_graph)
+
+    candidate_finder.get_read_alignment_data(reads=reads)
+
+    alignment_graph.plot_alignment_graph(axes=axes, show=False)
+
+    pileup_string = alignment_graph.generate_pileup()
+
+    print("\nBAM GRAPH:")
+    print(pileup_string)
 
 if __name__ == "__main__":
     test_with_realtime_BAM_data()

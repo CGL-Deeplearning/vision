@@ -1,14 +1,21 @@
 from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.handlers.FastaHandler import FastaHandler
+from collections import defaultdict
+import math
 import random
 
+PLOIDY = 2
 VCF_OFFSET = 1
 REF = 0
 SNP = 1
 INS = 2
 DEL = 3
 
+# vcf record indices
 VCF_SNP, VCF_INS, VCF_DEL = 0, 1, 2
+
+# allele object indices
+SEQ, COUNT, INDEX = 0, 1, 2
 
 READ_IDS = ["HAPLOTYPE1", "HAPLOTYPE2"]
 
@@ -22,22 +29,198 @@ class VCFGraphGenerator:
         self.chromosome_name = chromosome_name
         self.reference_sequence = reference_sequence
         self.positional_variants = positional_variants
+        self.positional_genotypes = defaultdict(list)
+        self.positional_alleles = defaultdict(lambda: [list(),list(),list(),list()])
         self.graph = graph
 
-        self.vcf_offset = 1
+    def test_position_for_VCF_conflicts(self, position):
+        gt_set = set()
+        for genotype in self.positional_genotypes[position]:
+            if len(gt_set) == 0:
+                gt_set.add(genotype[0])
+                gt_set.add(genotype[1])
+
+            if genotype[0] not in gt_set or genotype[1] not in gt_set:
+                print("WARNING: Non compatible genotypes found at position:", position, self.positional_genotypes[position])
+
+    def test_position_for_ref_allele(self, position):
+        # print(self.positional_genotypes[position])
+
+        contains_ref_allele = False
+        for gt in self.positional_genotypes[position]:
+            print(gt)
+            gt1, gt2 = gt
+            if gt1 == 0 or gt2 == 0:
+                contains_ref_allele = True
+
+        # print(contains_ref_allele)
+        return contains_ref_allele
+
+    def get_n_alleles_from_zygosity(self, zygosity):
+        if zygosity == "Het":
+            n = 1
+        else:
+            n = 2
+
+        return n
+
+    def preprocess_mismatch(self, position, ref_sequence, alt_sequence, haplotype_index, genotype, zygosity):
+        ref_allele = ref_sequence
+        alt_allele = alt_sequence
+        adjusted_position = position - VCF_OFFSET
+
+        n = self.get_n_alleles_from_zygosity(zygosity)
+        allele = (alt_allele, n, haplotype_index)
+
+        self.positional_genotypes[adjusted_position].append(genotype)
+        self.positional_alleles[adjusted_position][SNP].append(allele)
+
+    def preprocess_insert(self, position, ref_sequence, alt_sequence, haplotype_index, genotype, zygosity):
+        ref_allele = ref_sequence
+        alt_allele = alt_sequence[1:]
+        adjusted_position = position - VCF_OFFSET
+
+        n = self.get_n_alleles_from_zygosity(zygosity)
+        allele = (alt_allele, n, haplotype_index)
+
+        self.positional_genotypes[adjusted_position].append(genotype)
+        self.positional_alleles[adjusted_position][INS].append(allele)
+
+    def preprocess_delete(self, position, ref_sequence, alt_sequence, haplotype_index, genotype, zygosity):
+        ref_length = len(ref_sequence)
+        ref_allele = ref_sequence[0]
+        alt_allele = "*"
+
+        n = self.get_n_alleles_from_zygosity(zygosity)
+        allele = (alt_allele, n, haplotype_index)
+
+        for i in range(1, ref_length):
+            adjusted_position = position + i - VCF_OFFSET
+
+            self.positional_genotypes[adjusted_position].append(genotype)
+            self.positional_alleles[adjusted_position][DEL].append(allele)
+
+    def print_positional_alleles(self):
+        for position in self.positional_alleles:
+            print(position,
+                  "REF:", list(self.positional_alleles[position][REF]),
+                  "SNP:", list(self.positional_alleles[position][SNP]),
+                  "INS:", list(self.positional_alleles[position][INS]),
+                  "DEL:", list(self.positional_alleles[position][DEL]))
+
+    def preprocess_positional_variants(self):
+        for position in self.positional_variants:
+            alt_haplotype_index = 1
+
+            variant_record = self.positional_variants[position]
+            variant_types = list()
+            n_hets = 0
+
+            for variant_code in [VCF_SNP, VCF_INS, VCF_DEL]:
+                for variant in variant_record[variant_code]:
+                    # get variant attributes
+                    zygosity = variant.type
+                    alt_sequence = variant.alt
+                    ref_sequence = variant.ref
+                    genotype = variant.genotype
+
+                    variant_types.append(variant_code)
+
+                    # print(position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
+
+                    alt_haplotype_index -= n_hets
+                    if zygosity == "Het":
+                        n_hets += 1
+
+                    if variant_code == VCF_SNP:
+                        self.preprocess_mismatch(position=position,
+                                                 ref_sequence=ref_sequence,
+                                                 alt_sequence=alt_sequence,
+                                                 haplotype_index=alt_haplotype_index,
+                                                 genotype=genotype,
+                                                 zygosity=zygosity)
+
+                    if variant_code == VCF_INS:
+                        self.preprocess_insert(position=position,
+                                               ref_sequence=ref_sequence,
+                                               alt_sequence=alt_sequence,
+                                               haplotype_index=alt_haplotype_index,
+                                               genotype=genotype,
+                                               zygosity=zygosity)
+
+                    if variant_code == VCF_DEL:
+                        self.preprocess_delete(position=position,
+                                               ref_sequence=ref_sequence,
+                                               alt_sequence=alt_sequence,
+                                               haplotype_index=alt_haplotype_index,
+                                               genotype=genotype,
+                                               zygosity=zygosity)
+
+            # print(self.positional_genotypes[position])
+
+            if len(self.positional_genotypes[position]) == 0:
+                self.positional_genotypes[position].append((0,0))
+
+            self.test_position_for_VCF_conflicts(position)
+
+    def get_other_haplotype(self, haplotype_index):
+        other_haplotype_index = abs(1-haplotype_index)
+
+        return other_haplotype_index
 
     def parse_region(self):
+        self.preprocess_positional_variants()
+        # self.print_positional_alleles()
+
         for i,position in enumerate(range(self.start_position, self.end_position+1)):
             reference_sequence = self.reference_sequence[i]
 
-            if position + VCF_OFFSET in self.positional_variants:
+            if position in self.positional_alleles:
                 # get cigar data, sequences (up to 2 ploidy for human), and update the graph for each true allele
-                print("VARIANT at position", position, self.positional_variants[position+VCF_OFFSET])
+                # print("VARIANT at position", position, self.positional_alleles[position])
 
-                self.parse_positional_variants(position=position+VCF_OFFSET)
+                haplotype_set = {0,1}
+                insert_found = len(self.positional_alleles[position][INS]) > 0
+
+                if insert_found:
+                    inserts = self.positional_alleles[position][INS]
+
+                    for insert in inserts:
+                        haplotype_index = insert[INDEX]
+                        # print("ADDING REF", haplotype_index, position)
+
+                        self.graph.update_position(read_id=READ_IDS[haplotype_index],
+                                                   position=position,
+                                                   sequence=reference_sequence,
+                                                   cigar_code=REF)
+
+                for cigar_code in [SNP, INS, DEL]:
+                    for allele in self.positional_alleles[position][cigar_code]:
+                        allele_sequence, n_alleles, haplotype_index = allele
+
+                        for n in range(n_alleles):
+                            if n > 0:
+                                haplotype_index = self.get_other_haplotype(haplotype_index)
+
+                            # print("hap", haplotype_index, "allele", allele_sequence)
+                            self.graph.update_position(read_id=READ_IDS[haplotype_index],
+                                                       position=position,
+                                                       sequence=allele_sequence,
+                                                       cigar_code=cigar_code)
+
+                            haplotype_set.remove(haplotype_index)
+
+                # if all haplotypes have not been used for this position, there must be a reference allele
+                for haplotype_index in haplotype_set:
+                    # print("ADDING REF", haplotype_index, position)
+                    self.graph.update_position(read_id=READ_IDS[haplotype_index],
+                                               position=position,
+                                               sequence=reference_sequence,
+                                               cigar_code=REF)
+
 
             else:
-                # update with reference allele (once per imaginary haplotype)
+                # update using reference allele for both imaginary haplotypes
                 self.graph.update_position(read_id=READ_IDS[0],
                                            position=position,
                                            sequence=reference_sequence,
@@ -47,131 +230,3 @@ class VCFGraphGenerator:
                                            position=position,
                                            sequence=reference_sequence,
                                            cigar_code=REF)
-
-    def parse_mismatch(self, position, alt_sequence, haplotype_index):
-        self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                   position=position,
-                                   sequence=alt_sequence,
-                                   cigar_code=SNP)
-
-    def parse_insert(self, position, alt_sequence, haplotype_index):
-        self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                   position=position,
-                                   sequence=alt_sequence,
-                                   cigar_code=INS)
-
-    def parse_delete(self, position, alt_sequence, ref_sequence, haplotype_index):
-        # --------------------------
-        # HOW TO DEAL WITH DELETES??
-        # --------------------------
-        length = len(ref_sequence) - len(alt_sequence)
-
-        for offset in range(length):
-            self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                       position=position,
-                                       sequence=alt_sequence,
-                                       cigar_code=DEL)
-
-    def update_reference_at_variant_position(self, position, genotypes, reference_sequence, haplotype_index):
-        reference_allele_exists = False
-
-        for gt_pair in genotypes:
-            for gt in gt_pair:
-                if int(gt) == REF:
-                    reference_allele_exists = True
-
-        if reference_allele_exists:
-            self.graph.update_position(read_id=random.choice(READ_IDS[haplotype_index]),
-                                       position=position,
-                                       sequence=reference_sequence,
-                                       cigar_code=REF)
-
-    def parse_positional_variants(self, position):
-        ref_haplotype_index = 0
-        alt_haplotype_index = 1
-
-        ref_sequence = None
-        variant_record = self.positional_variants[position]
-        genotypes = list()
-        variant_types = list()
-        n_hets = 0
-
-        for variant_code in [VCF_SNP, VCF_INS, VCF_DEL]:
-            for variant in variant_record[variant_code]:
-                # get variant attributes
-                zygosity = variant.type
-                alt_sequence = variant.alt
-                ref_sequence = variant.ref
-                genotype = variant.genotype
-
-                genotypes.append(genotype)
-                variant_types.append(variant_code)
-
-                print(position, "zyg:", zygosity, "alt_seq:", alt_sequence, "ref_seq:", ref_sequence)
-
-                alt_haplotype_index -= n_hets
-                if zygosity == "Het":
-                    n_hets += 1
-
-                if variant_code == VCF_SNP:
-                    self.parse_mismatch(position=position-VCF_OFFSET,
-                                        alt_sequence=alt_sequence,
-                                        haplotype_index=alt_haplotype_index)
-
-                if variant_code == VCF_INS:
-                    self.parse_insert(position=position-VCF_OFFSET,
-                                      alt_sequence=alt_sequence,
-                                      haplotype_index=alt_haplotype_index)
-
-                if variant_code == VCF_DEL:
-                    self.parse_delete(position=position-VCF_OFFSET,
-                                      alt_sequence=alt_sequence,
-                                      haplotype_index=alt_haplotype_index)
-
-        print(genotypes)
-
-        self.update_reference_at_variant_position(position=position-VCF_OFFSET,
-                                                  genotypes=genotypes,
-                                                  reference_sequence=reference_sequence,
-                                                  haplotype_index=ref_haplotype_index)
-
-
-        # fetch alleles from positional variant dictionary
-        # pos_start, pos_stop, ref, alts = candidate_allele
-        # # get all records of that position
-        # records = []
-        # if pos_start + VCF_OFFSET in positional_vcf.keys():
-        #     records = positional_vcf[pos_start + VCF_OFFSET]
-        #     records = [record for type in records for record in type]
-        #
-        # refined_alts = []
-        # for i, alt in enumerate(alts):
-        #     ref_ret = ref
-        #     alt_seq, alt_type = alt, allele_types[i]
-        #     if alt_type == DEL_CANDIDATE:
-        #         ref_ret, alt_seq = alt_seq, ref_ret
-        #     refined_alts.append([ref_ret, alt_seq, alt_type])
-        # vcf_recs = []
-        # for record in records:
-        #     # get the alt allele of the record
-        #     rec_alt = record.alt
-        #
-        #     if record.type == '':
-        #         record.type = 'Hom'
-        #     # if the alt allele of the record is same as candidate allele
-        #     vcf_recs.append((record.ref, rec_alt, record.type, record.filter, record.mq, record.gq, record.gt))
-        # gts = list()
-        # for alt in refined_alts:
-        #     ref_seq, alt_seq, alt_type = alt
-        #     gt = [0, '.']
-        #     for vcf_alt in vcf_recs:
-        #         vcf_ref, vcf_alt, vcf_genotype, vcf_filter, vcf_mq, vcf_gq, vcf_gt = vcf_alt
-        #
-        #         if ref_seq == vcf_ref and alt_seq == vcf_alt:
-        #             gt = [GENOTYPE_DICT[vcf_genotype], vcf_filter, vcf_mq, vcf_gq, vcf_gt]
-        #     gts.append(gt)
-        #
-        # return gts
-
-        # parse as though parsing operations in candidate finder
-
