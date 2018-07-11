@@ -1,9 +1,6 @@
-import glob
+from FileManager import FileManager
 import numpy as np
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 import h5py
-warnings.resetwarnings()
 
 class H5_Handler:
     """
@@ -12,31 +9,32 @@ class H5_Handler:
     def __init__(self,path):
         """
         Creates a dictionary containing all read_id to nanopore file_paths
-        Work needed: change glob import to file manager
-        :param read_id
+        :param folder path to directory containing fast5 files.
         """
-        read_id_key = []
-        h5_file_path_values = []
-        for self.h5_file_path in glob.iglob(path+'*.fast5'): #Needs directory of nanopore_signals
+        read_id_list = []
+        file_path_list = []
+        file_manager = FileManager()
+        file_paths = file_manager.get_file_paths_from_directory(path)
+        for file in file_paths: #Needs directory of nanopore_signals
             try:
-                self.h5_file = h5py.File(self.h5_file_path,'r')
-                # print(self.h5_file_path)
-            except:
-                raise IOError("FAST5 FILE READ ERROR")
+                h5_file = h5py.File(file,'r')
+                read_id = str(h5_file['Analyses/Basecall_1D_000/Configuration/general'].attrs['uuid'])
+                read_id_list.append(read_id)
+                file_path_list.append(file)
+            except(IOError):
+                print("FAST5 FILE READ ERROR")
                 pass
-            try:
-                read_id_directory_location = self.h5_file['/Analyses/Basecall_1D_000/BaseCalled_template/Fastq']
-                read_id_event_data = np.array(read_id_directory_location)
-            except:
-                pass
-            h5_list = str(read_id_event_data, 'UTF8')
-            h5_read_Id = h5_list.split()
-            h5_read_Id = h5_read_Id[0][1:]
-            h5_read_Id.join('')
-            read_id_key.append(h5_read_Id)
-            h5_file_path_values.append(self.h5_file_path)
-        self.myData = dict(zip(read_id_key, h5_file_path_values))
-        print(len(self.myData))
+        self.h5_read_id_file_dir_dict = dict(zip(read_id_list,file_path_list))
+    def get_all_Event_Data(self,read_id):
+        """
+        Returns all event data for a given read_id       
+        :return: h5_dataset
+        """
+        try:
+            h5_file = h5py.File(self.h5_read_id_file_dir_dict[read_id],'r')
+            return h5_file['/Analyses/Basecall_1D_000/BaseCalled_template/Events']
+        except:
+            raise IOError("FAST5 DIRECTORY ERROR")
     def get_Event_Data(self,read_id):
         """
         Navigates to event data of nanopore file inside H5 object,
@@ -46,9 +44,9 @@ class H5_Handler:
         :return: list of two lists
         """
         try:
-            h5_file = h5py.File(self.myData[read_id],'r')
+            print(self.h5_read_id_file_dir_dict[read_id])
+            h5_file = h5py.File(self.h5_read_id_file_dir_dict[read_id],'r')
             event_data = h5_file['/Analyses/Basecall_1D_000/BaseCalled_template/Events']
-            event_data = np.array(event_data)
             mean_list = []
             st_dv_list = []
             kmer_event_list = []
@@ -64,22 +62,7 @@ class H5_Handler:
             return kmer_event_list
         except:
             raise IOError("FAST5 FILE READ ERROR")
+
  
-    def histogram_data(self):
-        """
-        Navigates to event data of nanopore file inside H5 object,
-        returns a list of mean and a list of st.dv for each kmer.
-        Kmer length is 5 in the Fast_5 data structure.
-        Possible improvements: Research alternative ways to remove duplication of kmers in Fast5 files.
-        :return: list of two lists
-        """
-        try:
-            for read_id in self.myData:
-                h5_file = h5py.File(self.myData[read_id],'r')
-                # print(h5_file)
-                event_data = h5_file['/Analyses/Basecall_1D_000/BaseCalled_template/Events']
-                event_data = np.array(event_data)
-                return event_data
-        except:
-            raise IOError("FAST5 FILE READ ERROR")
+
            
