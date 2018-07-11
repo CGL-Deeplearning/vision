@@ -1,16 +1,18 @@
 import argparse
 import sys
+import operator
+import os
+from modules.models.inception import Inception3
+from modules.core.dataloader_predict import PileupDataset, TextColor
+from collections import defaultdict
+from modules.handlers.VcfWriter import VCFWriter
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import Variable
-from modules.models.inception import Inception3
-from modules.core.dataloader_predict import PileupDataset, TextColor
-from collections import defaultdict
-from modules.handlers.VcfWriter import VCFWriter
-import operator
-import os
+
+
 """
 This script uses a trained model to call variants on a given set of images generated from the genome.
 The process is:
@@ -56,6 +58,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     if gpu_mode is False:
         checkpoint = torch.load(model_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
+        # print("test1")
 
         # In state dict keys there is an extra word inserted by model parallel: "module.". We remove it here
         from collections import OrderedDict
@@ -70,6 +73,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.cpu()
     else:
         checkpoint = torch.load(model_path, map_location='cpu')
+        # print("test2")
         state_dict = checkpoint['state_dict']
         from collections import OrderedDict
         new_state_dict = OrderedDict()
@@ -86,29 +90,34 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     # Change model to 'eval' mode (BN uses moving mean/var).
     model.eval()
 
-    for counter, (images, records) in enumerate(testloader):
-        images = Variable(images, volatile=True)
+    with torch.no_grad():
+        for counter, (images, records) in enumerate(testloader):
+            images = Variable(images)
 
-        if gpu_mode:
-            images = images.cuda()
+            if gpu_mode:
+                images = images.cuda()
+                # print("test3")
 
-        preds = model(images)
-        # One dimensional softmax is used to convert the logits to probability distribution
-        m = nn.Softmax(dim=1)
-        soft_probs = m(preds)
-        preds = soft_probs.cpu()
+            preds = model(images)
+            # One dimensional softmax is used to convert the logits to probability distribution
+            m = nn.Softmax(dim=1)
+            soft_probs = m(preds)
+            preds = soft_probs.cpu()
 
-        # record each of the predictions from a batch prediction
-        for i in range(0, preds.size(0)):
-            rec = records[i]
-            chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
-            probs = preds[i].data.numpy()
-            prob_hom, prob_het, prob_hom_alt = probs
-            prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
-                                            prob_hom, prob_het, prob_hom_alt))
+            # record each of the predictions from a batch prediction
+            for i in range(0, preds.size(0)):
+                rec = records[i]
+                chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = rec.rstrip().split('\t')[0:8]
+                probs = preds[i].data.numpy()
+                prob_hom, prob_het, prob_hom_alt = probs
+                prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
+                                                prob_hom, prob_het, prob_hom_alt))
 
-        sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
-                         str(len(testloader)) + "\n" + TextColor.END)
+            # print("test4")
+
+            sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
+                             str(len(testloader)) + "\n" + TextColor.END)
+            sys.stderr.flush()
 
     return prediction_dict
 
@@ -124,6 +133,8 @@ def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
     """
     # object that can write and handle VCF
     vcf_writer = VCFWriter(bam_file_path, sample_name, output_dir)
+
+    # print("test5")
 
     # collate multi-allelic records to a single record
     all_calls = []
@@ -235,3 +246,4 @@ if __name__ == '__main__':
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PREDICTION COMPLETED SUCCESSFULLY.\n")
     produce_vcf(record_dict, FLAGS.bam_file, FLAGS.sample_name, FLAGS.output_dir)
     sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "FINISHED CALLING VARIANT.\n")
+    sys.stderr.flush()
