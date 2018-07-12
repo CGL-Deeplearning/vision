@@ -38,6 +38,9 @@ class Node:
         self.sequence = sequence
         self.coverage = 0
 
+        self.n = None
+        self.true_variant = False
+
         # self.coordinate = None
 
         self.mapped_reads = dict()
@@ -52,28 +55,29 @@ class Node:
 
 class AlignmentGraph:
     def __init__(self, chromosome_name, start_position, end_position, ploidy=2):
+        # Predefined constants
         self.chromosome_name = chromosome_name
         self.start_position = start_position
         self.end_position = end_position
         self.length = self.end_position - self.start_position
+        self.ploidy = ploidy
 
+        # Positional data
         self.positional_reference = defaultdict(int)
         self.positional_alleles = defaultdict(int)
         self.positional_coverage = defaultdict(lambda: 0)
         self.positional_node_count = defaultdict(lambda: 0)
-        # self.positional_insert_lengths = dict()
 
         self.paths = defaultdict(list)  # path of keys that point to each node
-
-        self.ploidy = ploidy
         self.graph = dict()
 
+        # Plotting
         self.node_coordinates = dict()  # for plotting the graph
-
-        # self.max_alleles_per_type = [0, 0, 0, 0]
         self.positional_n_alleles_per_type = dict()
-
         self.default_y_position_per_cigar = [0, -1, 2, 1]   # [REF, SNP, INS, DEL]
+
+        # Adjacency matrix
+        self.n_nodes = 0
 
     def reassign_node(self, node1, node2, delete=False):
         """
@@ -198,6 +202,12 @@ class AlignmentGraph:
 
             self.graph[position][cigar_code][sequence] = node
 
+            # update node's n index for generating adjacency matrix
+            node.n = self.n_nodes
+
+            # update total number of nodes
+            self.n_nodes += 1
+
         else:
             node = self.graph[position][cigar_code][sequence]
 
@@ -290,13 +300,6 @@ class AlignmentGraph:
     #
     #     return length
 
-    def get_insert_length(self, position):
-        max_length = 0
-        for sequence in self.graph[position][INS]:
-            max_length = max(len(sequence), max_length)
-
-        return max_length
-
     def get_insert_status_of_next_node(self, path, index):
         """
         Inserts are assigned to the positional graph based on their anchor position, so when printing the pileup,
@@ -309,7 +312,7 @@ class AlignmentGraph:
         """
         status = False
 
-        if index < len(path) -1:
+        if index < len(path) - 1:
             next_node_keys = path[index+1]
             next_position, next_cigar, next_sequence = next_node_keys
             next_node = self.graph[next_position][next_cigar][next_sequence]
@@ -319,54 +322,50 @@ class AlignmentGraph:
 
         return status
 
+    def get_insert_length(self, position):
+        max_length = 0
+        for sequence in self.graph[position][INS]:
+            if len(sequence) > max_length:
+                max_length = len(sequence)
+
+        return max_length
+
     def get_cumulative_insert_length(self, position):
         cumulative_length = 0
         for pos in range(self.start_position, position):
-            print(pos)
-            cumulative_length += self.get_insert_length(position)
-
-        print(position, cumulative_length)
+            cumulative_length += self.get_insert_length(pos)
 
         return cumulative_length
 
     def generate_pileup(self):
-        # total_inserts = sum([l for l in self.positional_insert_lengths.values()])
-        total_length = self.length + 20
-        max_coverage = max([c for c in self.positional_coverage.values()])
+        total_length = self.length + 50
 
         insert_lengths = list()
         for position in range(self.start_position, self.end_position+1):
             insert_lengths.append(str(self.get_insert_length(position)))
 
-        pileup = [['_' for i in range(total_length+1)] for j in range(max_coverage+1)]
+        pileup = [['_' for i in range(total_length+1)] for j in range(len(self.paths))]
 
         for p,path in enumerate(self.paths.values()):
-            index = path[0][POSITION] - self.start_position + self.get_cumulative_insert_length(path[0][POSITION])
+            # print(self.graph[path[0][0]][path[0][1]][path[0][2]])
+            start_index = path[0][POSITION] - self.start_position + self.get_cumulative_insert_length(path[0][POSITION])
+            index = int(start_index)
             offset = 0
 
-            for reference_key in path:
-                position, cigar_code, sequence = reference_key
+            for node_index, node_keys in enumerate(path):
+                position, cigar_code, sequence = node_keys
 
-                try:
-                    node = self.graph[position][cigar_code][sequence]
-                except(KeyError):
-                    continue
+                node = self.graph[position][cigar_code][sequence]
 
                 # Skip this position if not in the range specified by user
                 if node.position < self.start_position or node.position > self.end_position:
                     continue
 
-                # position = node.position
-                # sequence = node.sequence
-                # cigar_code = node.cigar_code
                 insert_length = self.get_insert_length(position)
 
-                try:
-                    next_is_insert = self.get_insert_status_of_next_node(path, index)
-                except(KeyError):
-                    next_is_insert = False
+                next_is_insert = self.get_insert_status_of_next_node(path, node_index)
 
-                # If theres an insert, then iterate through it as though each character was a node
+                # If there's an insert, then iterate through it as though each character was a node
                 # for each character, increment a temporary offset +1, and increment global offset AFTER iterating
                 #   all characters using positional_insert_lengths
                 # If there's no insert, use positional_insert_lengths to increment the offset AFTER iterating the node
@@ -382,7 +381,8 @@ class AlignmentGraph:
 
                     offset += insert_length - 1
 
-                # Not an insert character, but could be in an anchor position that is followed by an insert
+                # Not an insert character, but could be in an anchor node that is followed by an insert node in
+                # the same position
                 else:
                     pileup[p][index+offset] = sequence
 
@@ -399,15 +399,11 @@ class AlignmentGraph:
         return pileup_string
 
     def get_positional_coverage(self, position):
-        # print(position)
         positional_coverage = 0
         for cigar_code in [REF, SNP, DEL, INS]:
             for sequence in self.graph[position][cigar_code]:
                 node = self.graph[position][cigar_code][sequence]
                 positional_coverage += node.coverage
-
-                # print(node)
-                # print(node.coverage)
 
         return positional_coverage
 
@@ -513,16 +509,19 @@ class AlignmentGraph:
                 nodes = self.graph[position][cigar_code].values()
 
                 if cigar_code == INS and len(nodes) > 0:
-                    x_offset += max(1, max([len(seq) for seq in [node.sequence for node in nodes]])/2)
+                    x_offset += max(1, max([len(seq) for seq in [node.sequence for node in nodes]])/4)
 
                 for n,node in enumerate(nodes):
-                    x = position - self.start_position + x_offset/2
+                    x = position - self.start_position + x_offset
                     y = self.get_y_position(cigar_code, position, n)
 
                     self.node_coordinates[node] = [x,y]
 
-    def plot_alignment_graph(self, axes=None, show=True):
+    def plot_alignment_graph(self, axes=None, show=True, set_axis_limits=True):
         self.calculate_coordinates_for_plot()
+
+        default_color = [0, 0, 0]
+        variant_color = [0/255, 153/255, 96/255]
 
         weights = ['light', 'normal', 'medium', 'semibold', 'bold', 'heavy']
 
@@ -536,8 +535,9 @@ class AlignmentGraph:
         max_y = -sys.maxsize
 
         x_offset = 0
+        cigar_codes = [REF, SNP, DEL, INS]
         for position in range(self.start_position, self.end_position+1):
-            for cigar_code in [REF, SNP, DEL, INS]:
+            for cigar_code in cigar_codes:
                 nodes = self.graph[position][cigar_code].values()
 
                 if cigar_code == INS and len(nodes) > 0:
@@ -548,6 +548,10 @@ class AlignmentGraph:
                     # y = self.get_y_position(cigar_code, position, n)
                     # node.coordinate = [x,y]
 
+                    node_color = default_color
+                    if node.true_variant:
+                        node_color = variant_color
+
                     x,y = self.node_coordinates[node]
 
                     # plot sequence
@@ -557,10 +561,10 @@ class AlignmentGraph:
 
                     # plot node shape
                     width = (node.coverage/total_coverage)*5
-                    p = patches.Circle([x,y], radius=0.33, zorder=1, facecolor="w", edgecolor="k", alpha=1, linewidth=width)
+                    p = patches.Circle([x,y], radius=0.33, zorder=1, facecolor="w", edgecolor=node_color, alpha=1, linewidth=width)
                     axes.add_patch(p)
 
-                    # plot edge connecting nodes
+                    # plot edge that connects node with previous nodes
                     if len(node.prev_nodes) > 0:
 
                         for prev_node in node.prev_nodes:
@@ -568,34 +572,77 @@ class AlignmentGraph:
                             transition_weight = min([prev_node.coverage, node.coverage])
                             width = min(6*transition_weight/total_coverage, 6)
 
-                            # if y_prev > 0 or y > 0:
-                            #     print("ERROR")
-                            #     print(node)
-                            #     print(prev_node)
+                            edge_color = default_color
+                            if prev_node.true_variant and node.true_variant:
+                                edge_color = variant_color
 
                             if y_prev != y:
-                                p = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
+                                p = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], color=edge_color, zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
                                 axes.add_patch(p)
                             else:
-                                axes.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
+                                axes.plot([x_prev,x], [y_prev,y], lw=width, color=edge_color, zorder=0, alpha=1)
 
                     if y < min_y:
                         min_y = y
                     if y > max_y:
                         max_y = y
 
-        axes.set_xlim(-1, self.length + x_offset + 1)
-        axes.set_ylim(min_y-1, max_y+1)
-        axes.set_aspect("equal")
+        x_limits = [-1, self.length + x_offset + 1]
+        y_limits = [min_y-1, max_y+1]
+
+        if set_axis_limits:
+            axes.set_xlim(-1, self.length + x_offset + 1)
+            axes.set_ylim(min_y-1, max_y+1)
+            axes.set_aspect("equal")
 
         if show:
             pyplot.show()
 
-        return axes
+        return axes, x_limits, y_limits
+
+    def generate_stepwise_incidence_matrix(self):
+        pass
+
+    def generate_adjacency_matrix(self, label_variants=False):
+        cigar_codes = [REF, SNP, DEL, INS]
+
+        # n_channels = 2
+
+        matrix = numpy.zeros([self.n_nodes, self.n_nodes], dtype=numpy.uint8)
+
+        for position in range(self.start_position, self.end_position+1):
+            for cigar_code in cigar_codes:
+                sequences = self.graph[position][cigar_code].keys()
+
+                for sequence in sequences:
+                    node = self.graph[position][cigar_code][sequence]
+                    n1 = node.n
+
+                    for next_node in node.next_nodes:
+                        transition_weight = min(node.coverage, next_node.coverage)
+
+                        if label_variants:
+                            if node.true_variant and next_node.true_variant:
+                                transition_weight = 1
+                            else:
+                                continue
+
+                        n2 = next_node.n
+
+                        if matrix[n1,n2] != 0:
+                            print("WARNING: adjacency matrix overwrite conflict detected:", n1, n2)
+
+                        matrix[n1,n2] = transition_weight
+                        matrix[n2,n1] = transition_weight
+
+        return matrix
+
+        print()
+        print(matrix)
+
 
 
 # BUGS TO FIX!!
-#   Case where read doesn't start on start_position for generating pileup
 #   Switch to explicit edge objects?
 
 # Solutions to the problem of deleting and re-assigning nodes in a path:
@@ -607,8 +654,6 @@ class AlignmentGraph:
 #       ISSUE: all remaining keys must also be updated to reflect the earlier change
 
 #   Make paths a linked list of pointers to nodes, and have pointers to each pointer addressable by pos:cigar:seq
-#
-
 
 # TO DO:
 #   Finish read-only graph

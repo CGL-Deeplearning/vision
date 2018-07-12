@@ -22,7 +22,7 @@ READ_IDS = ["HAPLOTYPE1", "HAPLOTYPE2"]
 # POS, QUALITY, REF_SEQ, ALT_SEQ, ZYGOSITY, FILTER, ALLELE_TUPLE = 0,1,2,3,4,5,6
 
 
-class VCFGraphGenerator:
+class AlignmentGraphLabeler:
     def __init__(self, chromosome_name, start_position, end_position, reference_sequence, positional_variants, graph):
         self.start_position = start_position
         self.end_position = end_position
@@ -126,8 +126,6 @@ class VCFGraphGenerator:
 
                     variant_types.append(variant_code)
 
-                    # print(position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
-
                     alt_haplotype_index -= n_hets
                     if zygosity == "Het":
                         n_hets += 1
@@ -156,8 +154,6 @@ class VCFGraphGenerator:
                                                genotype=genotype,
                                                zygosity=zygosity)
 
-            # print(self.positional_genotypes[position])
-
             if len(self.positional_genotypes[position]) == 0:
                 self.positional_genotypes[position].append((0,0))
 
@@ -168,16 +164,20 @@ class VCFGraphGenerator:
 
         return other_haplotype_index
 
+    def flag_node_as_variant(self, position, cigar_code, sequence):
+        if sequence in self.graph.graph[position][cigar_code]:
+            self.graph.graph[position][cigar_code][sequence].true_variant = True
+        else:
+            print("WARNING: VCF node not found in BAM:", position, cigar_code, sequence)
+
     def parse_region(self):
         self.preprocess_positional_variants()
-        # self.print_positional_alleles()
 
         for i,position in enumerate(range(self.start_position, self.end_position+1)):
             reference_sequence = self.reference_sequence[i]
 
             if position in self.positional_alleles:
                 # get cigar data, sequences (up to 2 ploidy for human), and update the graph for each true allele
-                # print("VARIANT at position", position, self.positional_alleles[position])
 
                 haplotype_set = {0,1}
                 insert_found = len(self.positional_alleles[position][INS]) > 0
@@ -187,12 +187,7 @@ class VCFGraphGenerator:
 
                     for insert in inserts:
                         haplotype_index = insert[INDEX]
-                        # print("ADDING REF", haplotype_index, position)
-
-                        self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                                   position=position,
-                                                   sequence=reference_sequence,
-                                                   cigar_code=REF)
+                        self.flag_node_as_variant(position=position, cigar_code=REF, sequence=reference_sequence)
 
                 for cigar_code in [SNP, INS, DEL]:
                     for allele in self.positional_alleles[position][cigar_code]:
@@ -202,30 +197,14 @@ class VCFGraphGenerator:
                             if n > 0:
                                 haplotype_index = self.get_other_haplotype(haplotype_index)
 
-                            # print("hap", haplotype_index, "allele", allele_sequence)
-                            self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                                       position=position,
-                                                       sequence=allele_sequence,
-                                                       cigar_code=cigar_code)
+                            self.flag_node_as_variant(position=position, cigar_code=cigar_code, sequence=allele_sequence)
 
                             haplotype_set.remove(haplotype_index)
 
                 # if all haplotypes have not been used for this position, there must be a reference allele
                 for haplotype_index in haplotype_set:
-                    # print("ADDING REF", haplotype_index, position)
-                    self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                               position=position,
-                                               sequence=reference_sequence,
-                                               cigar_code=REF)
+                    self.flag_node_as_variant(position=position, cigar_code=REF, sequence=reference_sequence)
 
             else:
                 # update using reference allele for both imaginary haplotypes
-                self.graph.update_position(read_id=READ_IDS[0],
-                                           position=position,
-                                           sequence=reference_sequence,
-                                           cigar_code=REF)
-
-                self.graph.update_position(read_id=READ_IDS[1],
-                                           position=position,
-                                           sequence=reference_sequence,
-                                           cigar_code=REF)
+                self.flag_node_as_variant(position=position, cigar_code=REF, sequence=reference_sequence)
