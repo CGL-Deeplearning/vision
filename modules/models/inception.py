@@ -55,6 +55,7 @@ class Inception3(nn.Module):
         self.Mixed_7b = InceptionE(1280)
         self.Mixed_7c = InceptionE(2048)
         self.fc = nn.Linear(2048, num_classes)
+        # expected 2048 at end
 
 
         for m in self.modules():
@@ -71,81 +72,86 @@ class Inception3(nn.Module):
 
     def forward(self, x):
         x *= 254
-        print("input start x: ", x.shape)
-        # print("tensor shape 0: ", x.shape)
-        # 7 x 100 x 200
+        # print("input start x: ", x.shape)
+        # 7 x 30 x 100
         x = self.Conv2d_1a_3x3(x)
-        print("conv1a : ", x.shape)
-        # 32 x 98 x 198
+        # print("conv1a : ", x.shape)
+        # 32 x 28 x 98
         x = self.Conv2d_2a_3x3(x)
-        print("conv2a: ", x.shape)
-        # 32 x 96 x 196
+        # print("conv2a: ", x.shape)
+        # 32 x 26 x 96
         x = self.Conv2d_2b_3x3(x)
-        print("conv2b: ", x.shape)
-        # 64, 97, 197]
+        # print("conv2b: ", x.shape)
+        # 64 x 27 x 97
         x = F.max_pool2d(x, kernel_size=3, stride=1)
-        print("F.max_pool2d 1:", x.shape)
+        # print("F.max_pool2d 1:", x.shape)
+        # 64 x 25 x 95
 
         x = self.Conv2d_3b_1x1(x)
-        print("conv3b: ", x.shape)
-        # 80, 97, 197
+        # print("conv3b: ", x.shape)
+        # 80 x 25 x 95
         x = self.Conv2d_4a_3x3(x)
-        print("conv4a: ", x.shape)
-        # 192, 95, 195
+        # print("conv4a: ", x.shape)
+        # 192 x 23 x 93
         x = F.max_pool2d(x, kernel_size=3, stride=2)
-        print("F.max_pool2d 2:", x.shape)
+        # print("F.max_pool2d 2:", x.shape)
+        # 192 x 11 x 46
 
         x = self.Mixed_5b(x)
-        print("mixed 5b:", x.shape)
-        # 256, 95, 195
+        # print("mixed 5b:", x.shape)
+        # 256 x 11 x 46
         x = self.Mixed_5c(x)
-        print("mixed 5c:", x.shape)
-        # 35 x 35 x 288
+        # print("mixed 5c:", x.shape)
+        # 288 x 11 x 46
         x = self.Mixed_5d(x)
-        print("mixed 5d:", x.shape)
-        # 288, 95, 195
-        x = self.Mixed_6a(x)
-        print("mixed 6a:", x.shape)
-        # 17 x 17 x 768
-        x = self.Mixed_6b(x)
-        print("mixed 6b:", x.shape)
-        # 17 x 17 x 768
-        x = self.Mixed_6c(x)
-        print("mixed 6c:", x.shape)
+        # print("mixed 5d:", x.shape)
+        # 288 x 11 x 195
 
-        # 17 x 17 x 768
+
+        x = self.Mixed_6a(x)
+        # print("mixed 6a:", x.shape)
+        # 768 x 5 x 22
+        x = self.Mixed_6b(x)
+        # print("mixed 6b:", x.shape)
+        # 768 x 5 x 22
+        x = self.Mixed_6c(x)
+        # print("mixed 6c:", x.shape)
+        # 768 x 5 x 22
         x = self.Mixed_6d(x)
-        print("mixed 6d:", x.shape)
-        # 17 x 17 x 768
+        # print("mixed 6d:", x.shape)
+        # 768 x 5 x 22
         x = self.Mixed_6e(x)
-        print("mixed 6e:", x.shape)
-        # 17 x 17 x 768
+        # print("mixed 6e:", x.shape)
+        # 768 x 5 x 22
         if self.training and self.aux_logits:
             aux = self.AuxLogits(x)
-        # 17 x 17 x 768
+
+
+
         x = self.Mixed_7a(x)
-        print("mixed 7a:", x.shape)
-        # 8 x 8 x 1280
+        # print("mixed 7a:", x.shape)
+        # 1280 x 2 x 10
         x = self.Mixed_7b(x)
-        print("mixed 7b:", x.shape)
-        # 8 x 8 x 2048
+        # print("mixed 7b:", x.shape)
+        # 1280 x 2 x 10
         x = self.Mixed_7c(x)
-        print("mixed 7c:", x.shape)
-        # 2048, 23, 48
-        print("HERE", x.size())
+        # print("mixed 7c:", x.shape)
+        # 1280 x 2 x 10
+        # print("HERE", x.size())
+        # 2048 x 2 x 10
         x = F.avg_pool2d(x, kernel_size=(2, 10))
-        print("Avg pool", x.size())
-        # 1 x 1 x 2048
+        # print("Avg pool", x.size())
+        # 2048 x 1 x 1
         x = F.dropout(x, training=self.training)
-        # 1 x 1 x 2048
         x = x.view(x.size(0), -1)
-        print(x.size())
+        # print(x.size())
         # 2048
+
+
         x = self.fc(x)
         # 1000 (num_classes)
         if self.training and self.aux_logits:
             return x, aux
-
         return x
 
 
