@@ -185,8 +185,14 @@ class AlignmentGraphLabeler:
                 if insert_found:
                     inserts = self.positional_alleles[position][INS]
 
-                    for insert in inserts:
-                        haplotype_index = insert[INDEX]
+                    for insert_allele in inserts:
+                        allele_sequence, n_alleles, haplotype_index = insert_allele
+
+                        for n in range(n_alleles):
+                            if n > 0:
+                                haplotype_index = self.get_other_haplotype(haplotype_index)
+
+                            # print(n, haplotype_index)
                         self.flag_node_as_variant(position=position, cigar_code=REF, sequence=reference_sequence)
 
                 for cigar_code in [SNP, INS, DEL]:

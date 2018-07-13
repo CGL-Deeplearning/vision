@@ -84,42 +84,63 @@ def test_with_realtime_BAM_data():
     vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
     # -------------------------------------------------------------------------
 
-    figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True, sharey=True)
+    vcf_handler = VCFFileProcessor(vcf_path)
 
-    axes1, x_limits1, y_limits1 = generate_alignment_graph(reference_file_path=reference_file_path,
-                                                           bam_file_path=bam_file_path,
-                                                           vcf_path=vcf_path,
-                                                           chromosome_name=chromosome_name,
-                                                           start_position=start_position,
-                                                           end_position=end_position,
-                                                           axes=axes1)
+    start_position = 800000
+    end_position = 830000
 
-    axes2, x_limits2, y_limits2 = generate_vcf_graph(reference_file_path=reference_file_path,
-                                                     vcf_path=vcf_path,
-                                                     chromosome_name=chromosome_name,
-                                                     start_position=start_position,
-                                                     end_position=end_position,
-                                                     axes=axes2)
+    # collecting 1 extra vcf entry doesn't cause conflicts, because query keys are positional
+    vcf_handler.populate_dictionary(contig=chromosome_name,
+                                    start_pos=start_position,
+                                    end_pos=end_position)
 
-    axes2.set_aspect("equal")
-    axes1.set_aspect("equal")
+    positional_variants = vcf_handler.get_variant_dictionary()
 
-    y_lower = min(y_limits1[0], y_limits2[0])
-    y_upper = max(y_limits1[1], y_limits2[1])
+    for position in positional_variants:
+        if position != 826577:
+            continue
 
-    x_lower = min(x_limits1[0], x_limits2[0])
-    x_upper = max(x_limits1[1], x_limits2[1])
+        print(position)
 
-    axes1.set_xlim(x_lower, x_upper)
-    axes2.set_xlim(x_lower, x_upper)
+        start_position = position-3
+        end_position = position + 10
 
-    axes1.set_ylim(y_lower, y_upper)
-    axes2.set_ylim(y_lower, y_upper)
+        figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True, sharey=True)
 
-    # print(x_lower, x_upper)
-    # print(y_lower, y_upper)
+        axes1, x_limits1, y_limits1 = generate_alignment_graph(reference_file_path=reference_file_path,
+                                                               bam_file_path=bam_file_path,
+                                                               vcf_path=vcf_path,
+                                                               chromosome_name=chromosome_name,
+                                                               start_position=start_position,
+                                                               end_position=end_position,
+                                                               axes=axes1)
 
-    pyplot.show()
+        axes2, x_limits2, y_limits2 = generate_vcf_graph(reference_file_path=reference_file_path,
+                                                         vcf_path=vcf_path,
+                                                         chromosome_name=chromosome_name,
+                                                         start_position=start_position,
+                                                         end_position=end_position,
+                                                         axes=axes2)
+
+        axes2.set_aspect("equal")
+        axes1.set_aspect("equal")
+
+        y_lower = min(y_limits1[0], y_limits2[0])
+        y_upper = max(y_limits1[1], y_limits2[1])
+
+        x_lower = min(x_limits1[0], x_limits2[0])
+        x_upper = max(x_limits1[1], x_limits2[1])
+
+        axes1.set_xlim(x_lower, x_upper)
+        axes2.set_xlim(x_lower, x_upper)
+
+        axes1.set_ylim(y_lower, y_upper)
+        axes2.set_ylim(y_lower, y_upper)
+
+        # print(x_lower, x_upper)
+        # print(y_lower, y_upper)
+
+        pyplot.show()
 
 
 def generate_vcf_graph(reference_file_path, vcf_path, chromosome_name, start_position, end_position, axes):

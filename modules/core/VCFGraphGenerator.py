@@ -126,7 +126,7 @@ class VCFGraphGenerator:
 
                     variant_types.append(variant_code)
 
-                    # print(position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
+                    print(position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
 
                     alt_haplotype_index -= n_hets
                     if zygosity == "Het":
@@ -185,14 +185,21 @@ class VCFGraphGenerator:
                 if insert_found:
                     inserts = self.positional_alleles[position][INS]
 
-                    for insert in inserts:
-                        haplotype_index = insert[INDEX]
-                        # print("ADDING REF", haplotype_index, position)
+                    for insert_allele in inserts:
+                        allele_sequence, n_alleles, haplotype_index = insert_allele
 
-                        self.graph.update_position(read_id=READ_IDS[haplotype_index],
-                                                   position=position,
-                                                   sequence=reference_sequence,
-                                                   cigar_code=REF)
+                        for n in range(n_alleles):
+                            if n > 0:
+                                haplotype_index = self.get_other_haplotype(haplotype_index)
+
+                            # print(n, haplotype_index)
+
+                            self.graph.update_position(read_id=READ_IDS[haplotype_index],
+                                                       position=position,
+                                                       sequence=reference_sequence,
+                                                       cigar_code=REF)
+
+                    haplotype_set = {0, 1}
 
                 for cigar_code in [SNP, INS, DEL]:
                     for allele in self.positional_alleles[position][cigar_code]:
