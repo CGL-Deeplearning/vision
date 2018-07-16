@@ -102,12 +102,12 @@ def test_with_realtime_BAM_data():
 
         print(position)
 
-        start_position = position-3
+        start_position = position - 3
         end_position = position + 10
 
-        figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True, sharey=True)
+        figure, (axes1, axes2, axes3) = pyplot.subplots(nrows=3, sharex=True, sharey=True)
 
-        axes1, x_limits1, y_limits1 = generate_alignment_graph(reference_file_path=reference_file_path,
+        alignment_graph = generate_alignment_graph(reference_file_path=reference_file_path,
                                                                bam_file_path=bam_file_path,
                                                                vcf_path=vcf_path,
                                                                chromosome_name=chromosome_name,
@@ -115,32 +115,54 @@ def test_with_realtime_BAM_data():
                                                                end_position=end_position,
                                                                axes=axes1)
 
-        axes2, x_limits2, y_limits2 = generate_vcf_graph(reference_file_path=reference_file_path,
+        vcf_graph = generate_vcf_graph(reference_file_path=reference_file_path,
                                                          vcf_path=vcf_path,
                                                          chromosome_name=chromosome_name,
                                                          start_position=start_position,
                                                          end_position=end_position,
-                                                         axes=axes2)
+                                                         axes=axes3)
 
-        axes2.set_aspect("equal")
+        axes1, x_limits1, y_limits1 = visualize_graph(alignment_graph=alignment_graph, axes=axes1)
+        alignment_graph.clean_graph()
+
+        axes2, x_limits2, y_limits2 = visualize_graph(alignment_graph=alignment_graph, axes=axes2)
+        axes3, x_limits3, y_limits3 = visualize_graph(alignment_graph=vcf_graph, axes=axes3)
+
+        axes3.set_aspect("equal")
         axes1.set_aspect("equal")
 
-        y_lower = min(y_limits1[0], y_limits2[0])
-        y_upper = max(y_limits1[1], y_limits2[1])
+        y_lower = min(y_limits1[0], y_limits3[0])
+        y_upper = max(y_limits1[1], y_limits3[1])
 
-        x_lower = min(x_limits1[0], x_limits2[0])
-        x_upper = max(x_limits1[1], x_limits2[1])
+        x_lower = min(x_limits1[0], x_limits3[0])
+        x_upper = max(x_limits1[1], x_limits3[1])
 
         axes1.set_xlim(x_lower, x_upper)
-        axes2.set_xlim(x_lower, x_upper)
+        axes3.set_xlim(x_lower, x_upper)
 
         axes1.set_ylim(y_lower, y_upper)
-        axes2.set_ylim(y_lower, y_upper)
+        axes3.set_ylim(y_lower, y_upper)
 
         # print(x_lower, x_upper)
         # print(y_lower, y_upper)
 
         pyplot.show()
+
+
+def visualize_graph(alignment_graph, axes):
+    axes, x_limits, y_limits = alignment_graph.plot_alignment_graph(axes=axes, show=False, set_axis_limits=False)
+
+    pileup_string = alignment_graph.generate_pileup()
+    print("\nBAM GRAPH:")
+    print(pileup_string)
+
+    matrix = alignment_graph.generate_adjacency_matrix()
+    matrix_label = alignment_graph.generate_adjacency_matrix(label_variants=True)
+
+    numpy.savetxt("test_matrix.tsv", matrix, fmt="%d", delimiter='\t')
+    numpy.savetxt("test_matrix_label.tsv", matrix_label, fmt="%d", delimiter='\t')
+
+    return axes, x_limits, y_limits
 
 
 def generate_vcf_graph(reference_file_path, vcf_path, chromosome_name, start_position, end_position, axes):
@@ -188,7 +210,7 @@ def generate_vcf_graph(reference_file_path, vcf_path, chromosome_name, start_pos
     alignment_graph.generate_adjacency_matrix()
     alignment_graph.generate_adjacency_matrix(label_variants=True)
 
-    return axes, x_limits, y_limits
+    return alignment_graph
 
 
 def generate_alignment_graph(reference_file_path, vcf_path, bam_file_path, chromosome_name, start_position, end_position, axes):
@@ -235,19 +257,7 @@ def generate_alignment_graph(reference_file_path, vcf_path, bam_file_path, chrom
 
     labeler.parse_region()
 
-    axes, x_limits, y_limits = alignment_graph.plot_alignment_graph(axes=axes, show=False, set_axis_limits=False)
-
-    pileup_string = alignment_graph.generate_pileup()
-    print("\nBAM GRAPH:")
-    print(pileup_string)
-
-    matrix = alignment_graph.generate_adjacency_matrix()
-    matrix_label = alignment_graph.generate_adjacency_matrix(label_variants=True)
-
-    numpy.savetxt("test_matrix.tsv", matrix, fmt="%d", delimiter='\t')
-    numpy.savetxt("test_matrix_label.tsv", matrix_label, fmt="%d", delimiter='\t')
-
-    return axes, x_limits, y_limits
+    return alignment_graph
 
 
 if __name__ == "__main__":
