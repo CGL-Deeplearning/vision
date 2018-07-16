@@ -18,9 +18,11 @@ This script uses a trained model to call variants on a given set of images gener
 The process is:
 - Create a prediction table/dictionary using a trained neural network
 - Convert those predictions to a VCF file
+
 INPUT:
 - A trained model
 - Set of images for prediction
+
 Output:
 - A VCF file containing all the variants.
 """
@@ -54,6 +56,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     # load the model
     if gpu_mode is False:
+        print("test gpu mode false")
         checkpoint = torch.load(model_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
         # print("test1")
@@ -70,6 +73,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.load_state_dict(new_state_dict)
         model.cpu()
     else:
+        print("test gpu mode true")
         checkpoint = torch.load(model_path, map_location='cpu')
         # print("test2")
         state_dict = checkpoint['state_dict']
@@ -93,6 +97,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             images = Variable(images)
 
             if gpu_mode:
+                print("test gpu true torch no grad")
                 images = images.cuda()
                 # print("test3")
 
