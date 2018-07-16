@@ -111,7 +111,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
                 prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
                                                 prob_hom, prob_het, prob_hom_alt))
 
-            # print("test4")
+            print("test4")
 
             sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
                              str(len(testloader)) + "\n" + TextColor.END)
