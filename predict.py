@@ -92,7 +92,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     with torch.no_grad():
         for counter, (images, records) in enumerate(testloader):
-            images = Variable(images)
+            #images = Variable(images)
 
             if gpu_mode:
                 images = images.cuda()
