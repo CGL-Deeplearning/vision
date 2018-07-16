@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torch.autograd import Variable
 from modules.models.inception import Inception3
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
