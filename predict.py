@@ -72,7 +72,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.cpu()
     else:
         checkpoint = torch.load(model_path, map_location='cpu')
-        print("gpu mode")
+        #print("gpu mode")
         state_dict = checkpoint['state_dict']
         from collections import OrderedDict
         new_state_dict = OrderedDict()
@@ -95,7 +95,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
             if gpu_mode:
                 images = images.cuda()
-                print("test gpu mode images.cuda()")
+                #print("test gpu mode images.cuda()")
 
             preds = model(images)
             # One dimensional softmax is used to convert the logits to probability distribution

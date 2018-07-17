@@ -72,7 +72,7 @@ class Inception3(nn.Module):
 
     def forward(self, x):
         x *= 254
-        print("input start x: ", x.shape)
+        #print("input start x: ", x.shape)
         # 7 x 30 x 100
         x = self.Conv2d_1a_3x3(x)
         # print("conv1a : ", x.shape)
