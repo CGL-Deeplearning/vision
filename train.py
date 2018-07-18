@@ -13,6 +13,7 @@ from torchvision import transforms
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
 from modules.models.inception import Inception3
+from modules.models.resnet import resnet18_custom
 """
 Train a model and save the model that performs best.
 
@@ -111,7 +112,7 @@ def train(train_file, validation_file, batch_size, epoch_limit, file_name, gpu_m
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
-    model = Inception3()
+    model = resnet18_custom()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00021723010296152584, weight_decay=1.4433597247180705e-06)
 
     #print out total number of trainable parameters in model
