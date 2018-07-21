@@ -424,7 +424,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     """
 
     # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
-    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
+    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
     #chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
     chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
@@ -521,7 +521,6 @@ if __name__ == '__main__':
     Processes arguments and performs tasks.
     '''
     parser = argparse.ArgumentParser()
-    parser.register("type", "bool", lambda v: v.lower() == "true")
     parser.add_argument(
         "--bam",
         type=str,
@@ -541,6 +540,12 @@ if __name__ == '__main__':
         help="VCF file path."
     )
     parser.add_argument(
+        "--confident_bed",
+        type=str,
+        default='',
+        help="Path to confident BED file"
+    )
+    parser.add_argument(
         "--chromosome_name",
         type=str,
         help="Desired chromosome number E.g.: 3"
@@ -550,12 +555,6 @@ if __name__ == '__main__':
         type=int,
         default=5,
         help="Number of maximum threads for this region."
-    )
-    parser.add_argument(
-        "--confident_bed",
-        type=str,
-        default='',
-        help="Path to confident BED file"
     )
     parser.add_argument(
         "--test",

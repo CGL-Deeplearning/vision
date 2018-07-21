@@ -1,6 +1,5 @@
 from __future__ import print_function
 import numpy as np
-from random import random
 from math import log, ceil
 from time import time, ctime
 import sys
@@ -8,7 +7,6 @@ from modules.handlers.TextColor import TextColor
 import logging
 import os
 from datetime import datetime
-import torch
 from modules.models.ModelHandler import ModelHandler
 """
 The Hyperband class used for hyper-parameter optimization.
@@ -17,25 +15,21 @@ https://github.com/zygmuntz/hyperband
 """
 
 
-def save_best_model_hyperband(best_model, optimizer, file_name):
+def save_model(model, optimizer, file_name):
     """
     Save the best model
-    :param best_model: A trained model
+    :param model: A trained  model
     :param optimizer: Optimizer
     :param file_name: Output file name
     :return:
     """
-    sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
-    if os.path.isfile(file_name + '_model.pkl'):
-        os.remove(file_name + '_model.pkl')
-    if os.path.isfile(file_name + '_checkpoint.pkl'):
-        os.remove(file_name + '_checkpoint.pkl')
-    torch.save(best_model, file_name + '_model.pkl')
+    if os.path.isfile(file_name):
+        os.remove(file_name)
     ModelHandler.save_checkpoint({
-        'state_dict': best_model.state_dict(),
+        'state_dict': model.state_dict(),
         'optimizer': optimizer.state_dict(),
-    }, file_name + '_checkpoint.pkl')
-    sys.stderr.write(TextColor.RED + "MODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
+    }, file_name)
+    sys.stderr.write(TextColor.RED + "\nMODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
 
 
 class Hyperband:
@@ -70,17 +64,16 @@ class Hyperband:
         self.best_loss = np.inf
         self.best_acc = 0
         self.best_counter = -1
-        self.log_file = log_directory+'Hyperband_'+datetime.now().strftime("%Y%m%d-%H%M%S")+'.log'
-        self.model_directory = model_directory + 'Hyperband_trained_' + datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.log_file = log_directory+'Hyperband_'+datetime.now().strftime("%Y%m%d_%H%M%S")+'.log'
+        self.model_dir = model_directory + 'Hyperband_' + datetime.now().strftime("%Y%m%d_%H%M%S") + "_"
 
         logging.basicConfig(filename=self.log_file, level=logging.INFO)
 
     # can be called multiple times
-    def run(self, skip_last=0, dry_run=False):
+    def run(self, skip_last=0):
         """
         The hyper-parameter optimization algorithm.
         :param skip_last: Skip the last iteration
-        :param dry_run: Dry test run if True
         :return:
         """
         for s in reversed(range(self.s_max + 1)):
@@ -92,7 +85,7 @@ class Hyperband:
             r = self.max_iter * self.eta ** (-s)
 
             # n random configurations
-            T = [self.get_params() for i in range(n)]
+            model_configs = [(self.get_params(), False, self.model_dir + 'con_' + str(i) + '.pkl', 0) for i in range(n)]
 
             for i in range((s + 1) - int(skip_last)):  # changed from s + 1
 
@@ -104,30 +97,28 @@ class Hyperband:
 
                 sys.stderr.write(TextColor.BLUE + "\n*** {} configurations x {:.5f} iterations each"
                                  .format(n_configs, n_iterations) + "\n" + TextColor.END)
+                sys.stderr.write(TextColor.BLUE + "\n*** {} configurations left to evaluate"
+                                 .format((s + 1) - int(skip_last) - i) + "\n" + TextColor.END)
 
                 logging.info("\n*** {} configurations x {:.1f} iterations each".format(n_configs, n_iterations))
 
                 val_losses = []
                 early_stops = []
 
-                for t in T:
-
+                for config_index, config in enumerate(model_configs):
                     self.counter += 1
-                    sys.stderr.write(TextColor.BLUE + "{} | {} | lowest loss so far: {} | (run {})"
-                                     .format(self.counter, ctime(), self.best_loss, self.best_counter) + TextColor.END)
+                    sys.stderr.write(TextColor.BLUE + "{} | {} | lowest loss so far: {} | accuracy: {} | (run {})"
+                                     .format(self.counter, ctime(), self.best_loss, self.best_acc, self.best_counter)
+                                     + TextColor.END)
                     logging.info("{} | {} | lowest loss so far: {} | (run {})"
                                  .format(self.counter, ctime(), self.best_loss, self.best_counter))
 
                     start_time = time()
 
-                    if dry_run:
-                        result = {'loss': random(), 'log_loss': random(), 'auc': random()}
-                        model = ''
-                        optimizer = ''
-                    else:
-                        logging.info("Iterations:\t" + str(n_iterations))
-                        logging.info("Params:\t" + str(t))
-                        model, optimizer, result = self.try_params(n_iterations, t)  # <---
+                    logging.info("Iterations:\t" + str(n_iterations))
+                    logging.info("Params:\t" + str(config[0]))
+
+                    model, optimizer, result = self.try_params(n_iterations, config)
 
                     assert (type(result) == dict)
                     assert ('loss' in result)
@@ -144,13 +135,17 @@ class Hyperband:
                     # keeping track of the best result so far (for display only)
                     # could do it be checking results each time, but hey
                     if loss < self.best_loss:
-                        save_best_model_hyperband(model, optimizer, self.model_directory)
                         self.best_loss = loss
                         self.best_counter = self.counter
+                        self.best_acc = result['accuracy']
+                    params, retrain_model, model_path, prev_ite = config
+                    save_model(model, optimizer, model_path)
+                    model_configs[config_index] = (params, True, model_path, int(n_iterations))
 
                     result['counter'] = self.counter
                     result['seconds'] = seconds
-                    result['params'] = t
+                    result['params'] = params
+                    result['model_path'] = model_path
                     result['iterations'] = n_iterations
 
                     self.results.append(result)
@@ -158,7 +153,7 @@ class Hyperband:
                 # select a number of best configurations for the next loop
                 # filter out early stops, if any
                 indices = np.argsort(val_losses)
-                T = [T[i] for i in indices if not early_stops[i]]
-                T = T[0:int(n_configs / self.eta)]
+                model_configs = [model_configs[i] for i in indices if not early_stops[i]]
+                model_configs = model_configs[0:int(n_configs / self.eta)]
 
         return self.results

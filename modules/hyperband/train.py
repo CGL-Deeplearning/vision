@@ -1,16 +1,16 @@
 from __future__ import print_function
+import os
 import sys
+
+from tqdm import tqdm
 import torch
-from torchvision import transforms
-from torch.autograd import Variable
+import torch.nn.parallel
 import torch.nn as nn
-import time
-
-# Custom generator for our dataset
 from torch.utils.data import DataLoader
+from torchvision import transforms
 from modules.core.dataloader import PileupDataset, TextColor
-from modules.models.inception import Inception3
-
+from modules.models.ModelHandler import ModelHandler
+from modules.hyperband.test import test
 """
 Train a model and return the model and optimizer trained.
 
@@ -22,23 +22,11 @@ Return:
 """
 
 
-def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, num_classes=3, debug_print=False):
-    """
-    Train a model and save
-    :param train_file: A CSV file containing train image information
-    :param batch_size: Batch size for training
-    :param epoch_limit: Number of epochs to train on
-    :param gpu_mode: If true the model will be trained on GPU
-    :param num_workers: Number of workers for data loading
-    :param lr: Learning rate (Hyperparameter)
-    :param wd: Weight decay (Hyperparameter)
-    :param num_classes: Number of output classes (3- HOM, HET, HOM_ALT)
-    :param debug_print: If true debugging messages will print
-    :return: A trined model
-    """
+def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, num_workers, retrain_model,
+          retrain_model_path, learning_rate, weight_decay, num_classes=3):
     transformations = transforms.Compose([transforms.ToTensor()])
 
-    # sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
+    sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
     train_data_set = PileupDataset(train_file, transformations)
     train_loader = DataLoader(train_data_set,
                               batch_size=batch_size,
@@ -46,68 +34,81 @@ def train(train_file, batch_size, epoch_limit, gpu_mode, num_workers, lr, wd, nu
                               num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
-    # sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
+    # this needs to change
+    model = ModelHandler.get_new_model(gpu_mode)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
-    model = Inception3()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
-    if gpu_mode:
-        model = model.cuda()
+    if retrain_model is True:
+        if os.path.isfile(retrain_model_path) is False:
+            sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO RETRAIN PATH MODEL --retrain_model_path\n")
+            exit(1)
+        sys.stderr.write(TextColor.GREEN + "INFO: RETRAIN MODEL LOADING\n" + TextColor.END)
+        model = ModelHandler.load_model_for_training(model, retrain_model_path)
 
-    # Loss function
-    criterion = nn.CrossEntropyLoss()
-    start_epoch = 0
+        optimizer = ModelHandler.load_optimizer(optimizer, retrain_model_path, gpu_mode)
+        sys.stderr.write(TextColor.GREEN + "INFO: RETRAIN MODEL LOADED\n" + TextColor.END)
 
     if gpu_mode:
         model = torch.nn.DataParallel(model).cuda()
 
+    # Loss
+    criterion = nn.CrossEntropyLoss()
+
+    if gpu_mode is True:
+        criterion = criterion.cuda()
+
+    start_epoch = prev_ite
+
     # Train the Model
-    # sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
+    sys.stderr.write(TextColor.PURPLE + 'Training starting\n' + TextColor.END)
+    stats = dict()
+    stats['loss_epoch'] = []
+    stats['accuracy_epoch'] = []
+
     for epoch in range(start_epoch, epoch_limit, 1):
         total_loss = 0
         total_images = 0
-        epoch_start_time = time.time()
-        start_time = time.time()
-        batches_done = 0
-        for i, (images, labels, records) in enumerate(train_loader):
-            if gpu_mode is True and images.size(0) % 8 != 0:
-                continue
+        sys.stderr.write(TextColor.BLUE + 'Train epoch: ' + str(epoch + 1) + "\n")
+        # make sure the model is in train mode. BN is different in train and eval.
+        model.train()
 
-            images = Variable(images)
-            labels = Variable(labels)
-            if gpu_mode:
-                images = images.cuda()
-                labels = labels.cuda()
+        batch_no = 1
+        with tqdm(total=len(train_loader), desc='Loss', leave=True, dynamic_ncols=True) as progress_bar:
+            for (images, labels, rec) in train_loader:
+                if gpu_mode:
+                    images = images.cuda()
+                    labels = labels.cuda()
 
-            x = images
-            y = labels
+                x = images
+                y = labels
 
-            # Forward + Backward + Optimize
-            optimizer.zero_grad()
-            outputs = model(x)
-            loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
-            loss.backward()
-            optimizer.step()
+                # Forward + Backward + Optimize
+                optimizer.zero_grad()
+                outputs = model(x)
+                loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
+                loss.backward()
+                optimizer.step()
 
-            # loss count
-            total_loss += loss.data[0]
-            total_images += (x.size(0))
-            batches_done += 1
+                # loss count
+                total_loss += loss.item()
+                total_images += (x.size(0))
+                batch_no += 1
 
-            if debug_print is True:
+                # update progress bar
                 avg_loss = (total_loss / total_images) if total_images else 0
-                sys.stderr.write(TextColor.BLUE + "EPOCH: " + str(epoch+1) + " Batches done: " + str(batches_done)
-                                 + " / " + str(len(train_loader)) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.YELLOW + "Loss: " + str(avg_loss) + "\n" + TextColor.END)
-                sys.stderr.write(TextColor.DARKCYAN + "Time Elapsed: " + str(time.time() - start_time) +
-                                 "\n" + TextColor.END)
-                start_time = time.time()
+                progress_bar.set_description("Loss: " + str(avg_loss))
+                # train_loss_logger.write(str(epoch + 1) + "," + str(batch_no) + "," + str(avg_loss) + "\n")
+                progress_bar.refresh()
+                progress_bar.update(1)
+            progress_bar.close()
 
-        avg_loss = (total_loss / total_images) if total_images else 0
-        sys.stderr.write(TextColor.BLUE + "EPOCH " + str(epoch+1) + ": " + TextColor.END)
-        sys.stderr.write(TextColor.YELLOW + "LOSS: " + str(avg_loss) + TextColor.END)
-        sys.stderr.write(TextColor.DARKCYAN + " TIME: " + str(time.time() - epoch_start_time) +
-                         "\n" + TextColor.END)
+        stats_dictioanry = test(test_file, batch_size, gpu_mode, model, num_workers, num_classes=3)
+        stats['loss'] = stats_dictioanry['loss']
+        stats['accuracy'] = stats_dictioanry['accuracy']
+        stats['loss_epoch'].append((epoch, stats_dictioanry['loss']))
+        stats['accuracy_epoch'].append((epoch, stats_dictioanry['accuracy']))
 
-    # sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
-    # return trained model and optimizer
-    return model, optimizer
+    sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
+
+    return model, optimizer, stats
+
