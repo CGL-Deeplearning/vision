@@ -81,7 +81,7 @@ def test(test_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
 
     avg_loss = total_loss / total_images if total_images else 0
 
-    sys.stderr.write(TextColor.YELLOW + '\nTest Loss: ' + str(avg_loss) + "\n" + TextColor.END)
+    sys.stderr.write(TextColor.YELLOW + 'Test Loss: ' + str(avg_loss) + "\n" + TextColor.END)
     sys.stderr.write("Confusion Matrix: \n" + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
     return {'loss': avg_loss, 'accuracy': accuracy}
