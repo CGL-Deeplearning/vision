@@ -95,7 +95,7 @@ class Hyperband:
                 # and keep best (n_configs / eta) configurations
 
                 n_configs = n * self.eta ** (-i)
-                n_iterations = r * self.eta ** (i)
+                n_iterations = int(ceil(r * self.eta ** (i)))
 
                 sys.stderr.write(TextColor.BLUE + "\n*** {} configurations x {:.5f} iterations each"
                                  .format(n_configs, n_iterations) + "\n" + TextColor.END)
