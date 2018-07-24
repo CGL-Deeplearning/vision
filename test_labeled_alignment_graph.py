@@ -5,11 +5,14 @@ from modules.core.AlignmentGraphLabeler import AlignmentGraphLabeler
 from modules.handlers.FastaHandler import FastaHandler
 from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.handlers.BamHandler import BamHandler
+from modules.handlers.FileManager import FileManager
 from matplotlib import pyplot
+from os import path
 import numpy
 
 
 def test_with_realtime_BAM_data():
+
     # --- chr3 PG ---
     # start_position = 73600    # insert
     # end_position = 73625
@@ -43,14 +46,8 @@ def test_with_realtime_BAM_data():
     # start_position = 100915190        # 100915193	.	TTTTC	TTTTCTTTCTTTC,T	50	PASS
     # end_position = 100915200
 
-    # start_position = 54091130           # staggered overlapping long delete and het SNP
-    # end_position = 54091180
-
     # start_position = 100000000      # arbitrary test region ... takes about 2-3 min to build graph (July 6)
     # end_position = 101000000
-
-    start_position = 261528 - 1
-    end_position = 261528 + 3
 
     # --- chr1 GRCh37 ---
     # start_position = 100774306      #   100774311	T	C	50	PASS
@@ -72,6 +69,7 @@ def test_with_realtime_BAM_data():
     # end_position = 100332390
 
     chromosome_name = "19"
+    chromosome_name = "chr" + chromosome_name
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
@@ -86,11 +84,17 @@ def test_with_realtime_BAM_data():
     # ---- Nanopore (dev machine) ---------------------------------------------
     bam_file_path = "/home/ryan/data/Nanopore/whole_genome_nanopore.bam"
     reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
-    vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
-    chromosome_name = "chr" + chromosome_name
+    # vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
+    vcf_path = "/home/ryan/data/Nanopore/BAM_VCF_concordance/chr19_FN_only.vcf.gz"
     # -------------------------------------------------------------------------
 
+    output_directory = "output/labeled_graphs/"
+    FileManager.ensure_directory_exists(output_directory)
+
     vcf_handler = VCFFileProcessor(vcf_path)
+
+    start_position = 0
+    end_position = 58584910
 
     # collecting 1 extra vcf entry doesn't cause conflicts, because query keys are positional
     vcf_handler.populate_dictionary(contig=chromosome_name,
@@ -99,14 +103,24 @@ def test_with_realtime_BAM_data():
 
     positional_variants = vcf_handler.get_variant_dictionary()
 
+    print(start_position, end_position)
+    print(len(positional_variants))
+
     for position in positional_variants:
-        print(position)
+        # if position != 261528:
+        #     continue
 
         start_position = position - 3
         end_position = position + 10
 
-        figure = pyplot.figure()
-        axes = pyplot.axes()
+        figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True, sharey=True)
+
+        alignment_graph = generate_alignment_graph(reference_file_path=reference_file_path,
+                                                   bam_file_path=bam_file_path,
+                                                   vcf_path=vcf_path,
+                                                   chromosome_name=chromosome_name,
+                                                   start_position=start_position,
+                                                   end_position=end_position)
 
         vcf_graph = generate_vcf_graph(reference_file_path=reference_file_path,
                                        vcf_path=vcf_path,
@@ -114,34 +128,75 @@ def test_with_realtime_BAM_data():
                                        start_position=start_position,
                                        end_position=end_position)
 
-        axes, x_limits, y_limits = visualize_graph(alignment_graph=vcf_graph, axes=axes)
+        save_visual_graph(alignment_graph=alignment_graph,
+                          vcf_graph=vcf_graph,
+                          figure=figure,
+                          axes1=axes1,
+                          axes2=axes2,
+                          chromosome_name=chromosome_name,
+                          position=position,
+                          output_directory=output_directory)
 
-        axes.set_aspect("equal")
+        save_pileup(alignment_graph=alignment_graph,
+                    vcf_graph=vcf_graph,
+                    chromosome_name=chromosome_name,
+                    position=position,
+                    output_directory=output_directory)
 
-        y_lower = y_limits[0]
-        y_upper = y_limits[1]
+        pyplot.close()
 
-        x_lower = x_limits[0]
-        x_upper = x_limits[1]
+        print(position)
 
-        axes.set_xlim(x_lower, x_upper)
-        axes.set_ylim(y_lower, y_upper)
 
-        pyplot.show()
+def save_visual_graph(alignment_graph, vcf_graph, figure, axes1, axes2, chromosome_name, position, output_directory):
+    axes1, x_limits1, y_limits1 = visualize_graph(alignment_graph=alignment_graph, axes=axes1)
+    axes2, x_limits3, y_limits3 = visualize_graph(alignment_graph=vcf_graph, axes=axes2)
+
+    axes2.set_aspect("equal")
+    axes1.set_aspect("equal")
+
+    y_lower = min(y_limits1[0], y_limits3[0])
+    y_upper = max(y_limits1[1], y_limits3[1])
+
+    x_lower = min(x_limits1[0], x_limits3[0])
+    x_upper = max(x_limits1[1], x_limits3[1])
+
+    axes1.set_xlim(x_lower, x_upper)
+    axes2.set_xlim(x_lower, x_upper)
+
+    axes1.set_ylim(y_lower, y_upper)
+    axes2.set_ylim(y_lower, y_upper)
+
+    figure.set_size_inches(12,8)
+
+    figure_name = chromosome_name + "_" + str(position)
+
+    axes1.set_title(figure_name)
+
+    output_path = path.join(output_directory, figure_name + ".png")
+    pyplot.savefig(output_path)
+
+
+def save_pileup(alignment_graph, vcf_graph, chromosome_name, position, output_directory):
+    bam_pileup_string = alignment_graph.generate_pileup()
+    vcf_pileup_string = vcf_graph.generate_pileup()
+
+    output_string = '\n'.join(["BAM GRAPH:", bam_pileup_string, "\nVCF GRAPH:", vcf_pileup_string])
+
+    pileup_name = chromosome_name + "_" + str(position)
+    output_path = path.join(output_directory, pileup_name + ".txt")
+
+    with open(output_path, 'w') as file:
+        file.write(output_string)
 
 
 def visualize_graph(alignment_graph, axes):
     axes, x_limits, y_limits = alignment_graph.plot_alignment_graph(axes=axes, show=False, set_axis_limits=False)
 
-    pileup_string = alignment_graph.generate_pileup()
-    print("\nBAM GRAPH:")
-    print(pileup_string)
-
-    matrix = alignment_graph.generate_adjacency_matrix()
-    matrix_label = alignment_graph.generate_adjacency_matrix(label_variants=True)
-
-    numpy.savetxt("test_matrix.tsv", matrix, fmt="%d", delimiter='\t')
-    numpy.savetxt("test_matrix_label.tsv", matrix_label, fmt="%d", delimiter='\t')
+    # matrix = alignment_graph.generate_adjacency_matrix()
+    # matrix_label = alignment_graph.generate_adjacency_matrix(label_variants=True)
+    # numpy.savetxt("test_matrix.tsv", matrix, fmt="%d", delimiter='\t')
+    # numpy.savetxt("test_matrix_label.tsv", matrix_label, fmt="%d", delimiter='\t')
 
     return axes, x_limits, y_limits
 
@@ -176,23 +231,13 @@ def generate_vcf_graph(reference_file_path, vcf_path, chromosome_name, start_pos
 
     vcf_graph_builder.parse_region()
 
-    # vcf_alignment_graph.print_alignment_graph()
-    #
-    # pileup_string = vcf_alignment_graph.generate_pileup()
-    #
-    # print(pileup_string)
-
-    pileup_string = alignment_graph.generate_pileup()
-    print("\nVCF GRAPH:")
-    print(pileup_string)
-
     # alignment_graph.generate_adjacency_matrix()
     # alignment_graph.generate_adjacency_matrix(label_variants=True)
 
     return alignment_graph
 
 
-def generate_alignment_graph(reference_file_path, vcf_path, bam_file_path, chromosome_name, start_position, end_position, axes):
+def generate_alignment_graph(reference_file_path, vcf_path, bam_file_path, chromosome_name, start_position, end_position):
     fasta_handler = FastaHandler(reference_file_path)
     bam_handler = BamHandler(bam_file_path)
     fasta_handler = FastaHandler(reference_file_path)

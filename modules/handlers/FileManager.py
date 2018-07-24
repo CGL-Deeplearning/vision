@@ -86,7 +86,9 @@ class FileManager:
 
             except FileNotFoundError:
                 FileManager.ensure_directory_exists(dirname(directory_path))
-                mkdir(directory_path)
+
+                if not exists(directory_path):
+                    mkdir(directory_path)
 
     @staticmethod
     def delete_files(file_paths):

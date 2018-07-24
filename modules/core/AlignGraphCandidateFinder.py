@@ -13,7 +13,7 @@ Dictionaries it updates:
 - edit_count:           records number of mismatches in a position          {int -> int}
 """
 
-DEFAULT_MIN_MAP_QUALITY = 5
+DEFAULT_MIN_MAP_QUALITY = 0
 MIN_MISMATCH_THRESHOLD = 2
 MIN_MISMATCH_PERCENT_THRESHOLD = 2
 MIN_COVERAGE_THRESHOLD = 5
@@ -526,7 +526,4 @@ class CandidateFinder:
                     read_id_list.append(read.query_name)
                     total_reads += 1
 
-        if total_reads == 0:
-            return None
-
-        return
+        return total_reads

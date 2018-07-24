@@ -7,9 +7,12 @@ from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.handlers.BamHandler import BamHandler
 from matplotlib import pyplot
 import numpy
-
+import sys
 
 def test_with_realtime_BAM_data():
+    chromosome_name = "1"
+    chromosome_name = "chr" + chromosome_name
+
     # --- chr3 PG ---
     # start_position = 73600    # insert
     # end_position = 73625
@@ -43,14 +46,8 @@ def test_with_realtime_BAM_data():
     # start_position = 100915190        # 100915193	.	TTTTC	TTTTCTTTCTTTC,T	50	PASS
     # end_position = 100915200
 
-    # start_position = 54091130           # staggered overlapping long delete and het SNP
-    # end_position = 54091180
-
     # start_position = 100000000      # arbitrary test region ... takes about 2-3 min to build graph (July 6)
     # end_position = 101000000
-
-    start_position = 261528 - 1
-    end_position = 261528 + 3
 
     # --- chr1 GRCh37 ---
     # start_position = 100774306      #   100774311	T	C	50	PASS
@@ -71,8 +68,6 @@ def test_with_realtime_BAM_data():
     # start_position = 100332353        # 100332356	rs145029209	T	TTTTCTTTATTTA	50	PASS
     # end_position = 100332390
 
-    chromosome_name = "19"
-
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
     # reference_file_path = "/Users/saureous/data/Platinum/chr3.fa"
@@ -87,112 +82,79 @@ def test_with_realtime_BAM_data():
     bam_file_path = "/home/ryan/data/Nanopore/whole_genome_nanopore.bam"
     reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
     vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
-    chromosome_name = "chr" + chromosome_name
     # -------------------------------------------------------------------------
 
     vcf_handler = VCFFileProcessor(vcf_path)
 
-    # collecting 1 extra vcf entry doesn't cause conflicts, because query keys are positional
+    start_position = 160604860
+    end_position = 160604880
+
     vcf_handler.populate_dictionary(contig=chromosome_name,
                                     start_pos=start_position,
                                     end_pos=end_position)
 
     positional_variants = vcf_handler.get_variant_dictionary()
 
-    for position in positional_variants:
-        print(position)
+    all_true_frequencies = list()
+    all_true_cigar_codes = list()
+    all_false_frequencies = list()
+    all_false_cigar_codes = list()
 
-        start_position = position - 3
+    for position in positional_variants:
+        # if position != 160604871:
+        #     continue
+
+        sys.stdout.write('\r'+ str(position))
+
+        start_position = position - 1
         end_position = position + 10
 
-        figure = pyplot.figure()
-        axes = pyplot.axes()
+        alignment_graph = generate_alignment_graph(reference_file_path=reference_file_path,
+                                                   bam_file_path=bam_file_path,
+                                                   vcf_path=vcf_path,
+                                                   chromosome_name=chromosome_name,
+                                                   start_position=start_position,
+                                                   end_position=end_position)
 
-        vcf_graph = generate_vcf_graph(reference_file_path=reference_file_path,
-                                       vcf_path=vcf_path,
-                                       chromosome_name=chromosome_name,
-                                       start_position=start_position,
-                                       end_position=end_position)
+        # get stats on nodes
+        true_frequencies, true_cigar_codes, false_frequencies, false_cigar_codes = \
+            alignment_graph.get_node_stats()
 
-        axes, x_limits, y_limits = visualize_graph(alignment_graph=vcf_graph, axes=axes)
+        all_true_frequencies.extend(true_frequencies)
+        all_true_cigar_codes.extend(true_cigar_codes)
+        all_false_frequencies.extend(false_frequencies)
+        all_false_cigar_codes.extend(false_cigar_codes)
 
-        axes.set_aspect("equal")
+    # plot frequencies for labeled true and false nodes
+    figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True)
 
-        y_lower = y_limits[0]
-        y_upper = y_limits[1]
+    step = 0.02
+    bins = numpy.arange(0, 1 + step, step=step)
+    frequencies_true, bins1 = numpy.histogram(all_true_frequencies, bins=bins)
+    frequencies_false, bins2 = numpy.histogram(all_false_frequencies, bins=bins)
 
-        x_lower = x_limits[0]
-        x_upper = x_limits[1]
+    center = (bins[:-1] + bins[1:]) / 2
 
-        axes.set_xlim(x_lower, x_upper)
-        axes.set_ylim(y_lower, y_upper)
+    axes1.bar(center, frequencies_true, width=step, align="center")
+    axes2.bar(center, frequencies_false, width=step, align="center")
 
-        pyplot.show()
+    # plot distribution of cigar operations for true and false nodes
+    figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True)
 
+    step = 1
+    bins = numpy.arange(0, 4+step, step=step)
+    cigar_frequencies_true, bins1 = numpy.histogram(all_true_cigar_codes, bins=bins)
+    cigar_frequencies_false, bins2 = numpy.histogram(all_false_cigar_codes, bins=bins)
 
-def visualize_graph(alignment_graph, axes):
-    axes, x_limits, y_limits = alignment_graph.plot_alignment_graph(axes=axes, show=False, set_axis_limits=False)
+    center = (bins[:-1] + bins[1:]) / 2
 
-    pileup_string = alignment_graph.generate_pileup()
-    print("\nBAM GRAPH:")
-    print(pileup_string)
+    axes1.bar(center, cigar_frequencies_true, width=step, align="center")
+    axes2.bar(center, cigar_frequencies_false, width=step, align="center")
 
-    matrix = alignment_graph.generate_adjacency_matrix()
-    matrix_label = alignment_graph.generate_adjacency_matrix(label_variants=True)
-
-    numpy.savetxt("test_matrix.tsv", matrix, fmt="%d", delimiter='\t')
-    numpy.savetxt("test_matrix_label.tsv", matrix_label, fmt="%d", delimiter='\t')
-
-    return axes, x_limits, y_limits
-
-
-def generate_vcf_graph(reference_file_path, vcf_path, chromosome_name, start_position, end_position):
-    fasta_handler = FastaHandler(reference_file_path)
-    vcf_handler = VCFFileProcessor(vcf_path)
-
-    # candidate finder includes end position, so should the reference sequence
-    reference_sequence = fasta_handler.get_sequence(chromosome_name=chromosome_name,
-                                                    start=start_position,
-                                                    stop=end_position+1)
-
-    # collecting 1 extra vcf entry doesn't cause conflicts, because query keys are positional
-    vcf_handler.populate_dictionary(contig=chromosome_name,
-                                    start_pos=start_position,
-                                    end_pos=end_position+1)
-
-    positional_variants = vcf_handler.get_variant_dictionary()
-
-    alignment_graph = AlignmentGraph(chromosome_name=chromosome_name,
-                                     start_position=start_position,
-                                     end_position=end_position)
-
-    # create graphbuilder object which iterates and parses the reference+VCF
-    vcf_graph_builder = VCFGraphGenerator(reference_sequence=reference_sequence,
-                                          positional_variants=positional_variants,
-                                          chromosome_name=chromosome_name,
-                                          start_position=start_position,
-                                          end_position=end_position,
-                                          graph=alignment_graph)
-
-    vcf_graph_builder.parse_region()
-
-    # vcf_alignment_graph.print_alignment_graph()
-    #
-    # pileup_string = vcf_alignment_graph.generate_pileup()
-    #
-    # print(pileup_string)
-
-    pileup_string = alignment_graph.generate_pileup()
-    print("\nVCF GRAPH:")
-    print(pileup_string)
-
-    # alignment_graph.generate_adjacency_matrix()
-    # alignment_graph.generate_adjacency_matrix(label_variants=True)
-
-    return alignment_graph
+    pyplot.show()
 
 
-def generate_alignment_graph(reference_file_path, vcf_path, bam_file_path, chromosome_name, start_position, end_position, axes):
+def generate_alignment_graph(reference_file_path, vcf_path, bam_file_path, chromosome_name, start_position, end_position):
     fasta_handler = FastaHandler(reference_file_path)
     bam_handler = BamHandler(bam_file_path)
     fasta_handler = FastaHandler(reference_file_path)

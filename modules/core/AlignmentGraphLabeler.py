@@ -31,6 +31,7 @@ class AlignmentGraphLabeler:
         self.positional_variants = positional_variants
         self.positional_genotypes = defaultdict(list)
         self.positional_alleles = defaultdict(lambda: [list(),list(),list(),list()])
+        self.positional_haplotypes = defaultdict(lambda: {0,1})
         self.graph = graph
 
     def test_position_for_VCF_conflicts(self, position):
@@ -100,6 +101,9 @@ class AlignmentGraphLabeler:
             self.positional_genotypes[adjusted_position].append(genotype)
             self.positional_alleles[adjusted_position][DEL].append(allele)
 
+            # make sure future variants can only select from other haplotypes when initialized
+            self.positional_haplotypes[position+i].remove(haplotype_index)
+
     def print_positional_alleles(self):
         for position in self.positional_alleles:
             print(position,
@@ -110,8 +114,6 @@ class AlignmentGraphLabeler:
 
     def preprocess_positional_variants(self):
         for position in self.positional_variants:
-            alt_haplotype_index = 1
-
             variant_record = self.positional_variants[position]
             variant_types = list()
             n_hets = 0
@@ -126,9 +128,9 @@ class AlignmentGraphLabeler:
 
                     variant_types.append(variant_code)
 
-                    alt_haplotype_index -= n_hets
-                    if zygosity == "Het":
-                        n_hets += 1
+                    # print(position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
+
+                    alt_haplotype_index = self.positional_haplotypes[position].pop()
 
                     if variant_code == VCF_SNP:
                         self.preprocess_mismatch(position=position,
@@ -165,10 +167,12 @@ class AlignmentGraphLabeler:
         return other_haplotype_index
 
     def flag_node_as_variant(self, position, cigar_code, sequence):
-        if sequence in self.graph.graph[position][cigar_code]:
-            self.graph.graph[position][cigar_code][sequence].true_variant = True
-        else:
-            print("WARNING: VCF node not found in BAM:", position, cigar_code, sequence)
+        if position in self.graph.graph:
+            if sequence in self.graph.graph[position][cigar_code]:
+                self.graph.graph[position][cigar_code][sequence].true_variant = True
+            else:
+                pass
+                # print("WARNING: VCF node not found in BAM:", position, cigar_code, sequence)
 
     def parse_region(self):
         self.preprocess_positional_variants()
@@ -178,7 +182,6 @@ class AlignmentGraphLabeler:
 
             if position in self.positional_alleles:
                 # get cigar data, sequences (up to 2 ploidy for human), and update the graph for each true allele
-
                 haplotype_set = {0,1}
                 insert_found = len(self.positional_alleles[position][INS]) > 0
 
@@ -192,12 +195,18 @@ class AlignmentGraphLabeler:
                             if n > 0:
                                 haplotype_index = self.get_other_haplotype(haplotype_index)
 
-                            # print(n, haplotype_index)
                         self.flag_node_as_variant(position=position, cigar_code=REF, sequence=reference_sequence)
+
+                    haplotype_set = {0, 1}
 
                 for cigar_code in [SNP, INS, DEL]:
                     for allele in self.positional_alleles[position][cigar_code]:
                         allele_sequence, n_alleles, haplotype_index = allele
+
+                        if n_alleles == 2 and cigar_code == INS:
+                            # temporarily cache haplotype set if we are in a homozygous insert <- JK don't do this lol
+                            # temp_haplotype_set = set(haplotype_set)
+                            haplotype_set = {0, 1}
 
                         for n in range(n_alleles):
                             if n > 0:
@@ -205,7 +214,17 @@ class AlignmentGraphLabeler:
 
                             self.flag_node_as_variant(position=position, cigar_code=cigar_code, sequence=allele_sequence)
 
-                            haplotype_set.remove(haplotype_index)
+                            try:
+                                haplotype_set.remove(haplotype_index)
+
+                            except KeyError:
+                                self.print_positional_alleles()
+                                self.graph.plot_alignment_graph()
+                                print(haplotype_set)
+                                print("ERROR: Too many 'True' alleles at position:", position)
+
+                        # if n_alleles == 2 and cigar_code == INS:
+                        #     haplotype_set = temp_haplotype_set
 
                 # if all haplotypes have not been used for this position, there must be a reference allele
                 for haplotype_index in haplotype_set:
