@@ -557,7 +557,8 @@ class CandidateFinder:
                 all_mismatch_count += all_allele_dictionary[allele]
 
             # pick the top 2 most frequent allele
-            allele_frequency_list = list(sorted(all_allele_dictionary.items(), key=operator.itemgetter(1), reverse=True))[:PLOIDY]
+            allele_frequency_list = list(sorted(all_allele_dictionary.items(), key=operator.itemgetter(1, 0),
+                                                reverse=True))[:PLOIDY]
             allele_list = self._filter_alleles(pos, allele_frequency_list)
             alt1 = allele_list[0] if len(allele_list) >= 1 else None
             alt2 = allele_list[1] if len(allele_list) >= 2 else '.'
