@@ -53,21 +53,22 @@ def build_chromosomal_interval_trees(confident_bed_path):
     """
     # create an object for tsv file handling
     tsv_handler_reference = TsvHandler(tsv_file_path=confident_bed_path)
+
     # create intervals based on chromosome
-    intervals_chromosomal_reference = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1,
+    intervals_chromosomal = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1,
                                                                                             universal_offset=-1)
     # create a dictionary to get all chromosomal trees
     trees_chromosomal = dict()
 
     # for each chromosome extract the tree and add it to the dictionary
-    for chromosome_name in intervals_chromosomal_reference:
-        intervals = intervals_chromosomal_reference[chromosome_name]
+    for chromosome_name in intervals_chromosomal:
+        intervals = intervals_chromosomal[chromosome_name]
         tree = IntervalTree(intervals)
 
         trees_chromosomal[chromosome_name] = tree
 
     # return the dictionary containing all the trees
-    return trees_chromosomal
+    return trees_chromosomal, intervals_chromosomal
 
 
 class View:
@@ -359,7 +360,7 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads,
+def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, bed_intervals, output_path, max_threads,
                                      confident_bed_tree, singleton_run=False):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
@@ -378,24 +379,33 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
 
     # entire length of chromosome
-    fasta_handler = FastaHandler(ref_file)
-    whole_length = fasta_handler.get_chr_sequence_length(chr_name)
-
+    # fasta_handler = FastaHandler(ref_file)
+    # whole_length = fasta_handler.get_chr_sequence_length(chr_name)
+    #
     # .5MB segments at once
-    each_segment_length = 50000
-
+    # each_segment_length = 50000
+    #
     # chunk the chromosome into pieces
-    chunks = int(math.ceil(whole_length / each_segment_length))
-    if DEBUG_TEST_PARALLEL:
-        chunks = 4
-    for i in tqdm(range(chunks)):
-        start_position = i * each_segment_length
-        end_position = min((i + 1) * each_segment_length, whole_length)
+    # chunks = int(math.ceil(whole_length / each_segment_length))
+    # if DEBUG_TEST_PARALLEL:
+    #     chunks = 4
+
+    start_position = 0
+    i = 0
+    for interval in tqdm(bed_intervals[chr_name]):
+        if interval[0] < start_position:
+            print("WARNING: overlapping intervals at:", interval[0])
+
+        start_position = interval[0]
+        end_position = interval[1]
+
         # gather all parameters
         args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
         p = multiprocessing.Process(target=parallel_run, args=args)
         p.start()
+
+        i += 1
 
         # wait until we have room for new processes to start
         while True:
@@ -575,9 +585,12 @@ if __name__ == '__main__':
 
     # if the confident bed is not empty then create the tree
     if FLAGS.confident_bed != '':
-        confident_tree_build = build_chromosomal_interval_trees(FLAGS.confident_bed)
+        confident_tree_build, chromosomal_intervals = build_chromosomal_interval_trees(FLAGS.confident_bed)
+
     else:
-        confident_tree_build = None
+        exit("ERROR: Confident bed required for nanopore image generation :(")
+        # confident_tree_build = None
+        # chromosomal_intervals = None
 
     if confident_tree_build is not None:
         sys.stderr.write(TextColor.PURPLE + "CONFIDENT TREE LOADED\n" + TextColor.END)
@@ -594,8 +607,8 @@ if __name__ == '__main__':
                     confident_tree=confident_tree_build)
         test(view)
     elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
-                                         FLAGS.max_threads, confident_tree_build, singleton_run=True)
+        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, chromosomal_intervals, FLAGS.output_dir,
+                                         FLAGS.max_threads, confident_tree_build)
     else:
         genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
                                      FLAGS.max_threads, confident_tree_build)
