@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import sys
 import h5py
-import tqdm as tqdm
+from tqdm import tqdm
 
 csv_path = sys.argv[1]
 
