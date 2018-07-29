@@ -68,6 +68,11 @@ class ImageGenerator:
                 right_index = self.positional_info_position_to_index[right_pos]
                 right_length = right_index - pos_index
 
+        # huge insert both on left and right
+        if left_pos == right_pos:
+            left_pos -= 1
+            right_pos += 1
+
         left_padding = 0
         if left_length < half_of_width:
             left_padding = int(half_of_width) - left_length
@@ -79,6 +84,9 @@ class ImageGenerator:
         start_index = self.positional_info_position_to_index[start_pos] - self.positional_info_position_to_index[ref_start]
         end_index = self.positional_info_position_to_index[end_pos] - self.positional_info_position_to_index[ref_start]
         ref_row = np.array(ref_row[start_index:end_index])
+        print(start_pos, end_pos, left_pad, image_width)
+        print(start_index, end_index, ref_row.shape)
+        exit()
         if left_pad > 0:
 
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
@@ -170,8 +178,7 @@ class ImageGenerator:
         left_pos, right_pos = self.get_left_right_genomic_position(query_pos, image_width)
         # O(n)
         start_pos, end_pos, left_pad = self.get_start_end_based_on_image_width(query_pos, image_width, left_pos, right_pos)
-        print(start_pos, end_pos)
-        exit()
+
         ref_row = self.get_reference_row(start_pos, end_pos, left_pad, image_width)
 
         for i in range(ref_band):
