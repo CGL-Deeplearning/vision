@@ -168,11 +168,10 @@ class ImageGenerator:
         # get all reads that align to that position
         # O(n)
         left_pos, right_pos = self.get_left_right_genomic_position(query_pos, image_width)
-        print(query_pos, left_pos, right_pos)
-        exit()
         # O(n)
         start_pos, end_pos, left_pad = self.get_start_end_based_on_image_width(query_pos, image_width, left_pos, right_pos)
-
+        print(start_pos, end_pos)
+        exit()
         ref_row = self.get_reference_row(start_pos, end_pos, left_pad, image_width)
 
         for i in range(ref_band):
