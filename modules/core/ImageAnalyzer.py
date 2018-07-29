@@ -119,7 +119,7 @@ def np_array_to_img(img, img_width, img_height):
     return whole_img
 
 
-def analyze_np_array(img, img_width, img_height):
+def analyze_np_array(img, img_height, img_width):
     print(img.shape)
     print(img_width, img_height)
     if isinstance(img, np.ndarray) is False:
