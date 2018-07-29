@@ -44,6 +44,12 @@ class PileupDataset(Dataset):
         indx = self.X_train_index[index]
         rec = self.rec[index]
         hdf5_file = h5py.File(hdf5_file_path, 'r')
+
+        if 'images' not in hdf5_file.keys():
+            print("NO IMAGES IN HDF5", hdf5_file_path, rec)
+        if 'labels' not in hdf5_file.keys():
+            print("NO LABELS IN HDF5", hdf5_file_path, rec)
+
         image_dataset = hdf5_file['images']
         label_dataset = hdf5_file['labels']
 
