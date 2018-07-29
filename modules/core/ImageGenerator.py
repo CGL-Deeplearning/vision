@@ -70,7 +70,6 @@ class ImageGenerator:
 
         # huge insert both on left and right
         if left_pos == right_pos:
-            left_pos -= 1
             right_pos += 1
 
         left_padding = 0
