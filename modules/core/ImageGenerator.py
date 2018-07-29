@@ -80,8 +80,12 @@ class ImageGenerator:
         end_index = self.positional_info_position_to_index[end_pos] - self.positional_info_position_to_index[ref_start]
         ref_row = np.array(ref_row[start_index:end_index])
         if left_pad > 0:
+
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
             if len(ref_row.shape) !=2 or len(np.array(empty_channels_list).shape) != 2:
+                print(start_pos, end_pos, left_pad, image_width)
+                print(ref_start, ref_end)
+                print(start_index, end_index)
                 print("Ref row shape", ref_row.shape)
                 print("Empty channels shape", np.array(empty_channels_list).shape)
             ref_row = np.concatenate((np.array(empty_channels_list), ref_row), axis=0)
