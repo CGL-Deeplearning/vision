@@ -8,7 +8,7 @@ csv_path = sys.argv[1]
 
 tmp_df = pd.read_csv(csv_path, header=None)
 
-for i in tqdm(range(len(tmp_df[0]))):
+for i in tqdm(range(len(tmp_df[0].index))):
     img_file = tmp_df[0][i]
     if os.path.isfile(img_file) is False:
         print("INVALID FILE PATH: ", img_file)
