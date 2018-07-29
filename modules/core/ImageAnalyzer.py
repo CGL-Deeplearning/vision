@@ -125,7 +125,7 @@ def analyze_np_array(img, img_width, img_height):
     if isinstance(img, np.ndarray) is False:
         img = img.numpy() * 255
     else:
-        img = np.transpose(img, (2, 0, 1))        img = np.transpose(img, (2, 0, 1))
+        img = np.transpose(img, (2, 0, 1))
         img = np.array(img).astype(np.uint8)
     print(img.shape)
     print(img_width, img_height)
