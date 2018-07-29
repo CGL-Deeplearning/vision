@@ -31,8 +31,12 @@ class PileupDataset(Dataset):
 
     def __init__(self, csv_path, transform=None):
         tmp_df = pd.read_csv(csv_path, header=None)
-        assert tmp_df[0].apply(lambda x: os.path.isfile(x)).all(), \
-            "Some images referenced in the CSV file were not found"
+        for img_file in tmp_df[0]:
+            if os.path.isfile(img_file) is False:
+                print("Some images referenced in the CSV file were not found: ", img_file)
+                exit()
+        # assert tmp_df[0].apply(lambda x: os.path.isfile(x)).all(), \
+        #     "Some images referenced in the CSV file were not found: "
         self.transform = transform
 
         self.X_train = tmp_df[0]
