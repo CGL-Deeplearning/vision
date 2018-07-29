@@ -81,7 +81,7 @@ class ImageGenerator:
         ref_row = np.array(ref_row[start_index:end_index])
         if left_pad > 0:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
-            if np.array(empty_channels_list).shape[1] != ref_row.shape[1]:
+            if len(ref_row.shape) !=2 or len(np.array(empty_channels_list).shape) != 2:
                 print("Ref row shape", ref_row.shape)
                 print("Empty channels shape", np.array(empty_channels_list).shape)
             ref_row = np.concatenate((np.array(empty_channels_list), ref_row), axis=0)
