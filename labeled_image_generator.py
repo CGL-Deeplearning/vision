@@ -202,7 +202,7 @@ class View:
         """
 
         # declare the size of the image
-        image_height, image_width = 20, 50
+        image_height, image_width = 50, 20
         if len(candidate_list) == 0:
             return
 

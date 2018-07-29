@@ -82,12 +82,13 @@ class ImageGenerator:
         if left_pad > 0:
 
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
-            if len(ref_row.shape) !=2 or len(np.array(empty_channels_list).shape) != 2:
+            if len(ref_row.shape) != 2 or len(np.array(empty_channels_list).shape) != 2:
                 print(start_pos, end_pos, left_pad, image_width)
                 print(ref_start, ref_end)
                 print(start_index, end_index)
                 print("Ref row shape", ref_row.shape)
                 print("Empty channels shape", np.array(empty_channels_list).shape)
+                exit()
             ref_row = np.concatenate((np.array(empty_channels_list), ref_row), axis=0)
         if len(ref_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(ref_row))
@@ -167,6 +168,8 @@ class ImageGenerator:
         # get all reads that align to that position
         # O(n)
         left_pos, right_pos = self.get_left_right_genomic_position(query_pos, image_width)
+        print(query_pos, left_pos, right_pos)
+        exit()
         # O(n)
         start_pos, end_pos, left_pad = self.get_start_end_based_on_image_width(query_pos, image_width, left_pos, right_pos)
 
