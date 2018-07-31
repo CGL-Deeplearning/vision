@@ -63,6 +63,7 @@ class PileupDataset(Dataset):
         img = img.astype(dtype=np.uint8)
         if self.transform is not None:
             img = self.transform(img)
+            img = img.transpose(1, 2)
 
         return img, label, rec
 
