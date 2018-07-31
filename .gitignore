@@ -114,6 +114,7 @@ vcf_output/
 
 # trained models
 trained_model/
+savedmodels/
 
 # the DS_Store
 .DS_Store
