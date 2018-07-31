@@ -69,7 +69,6 @@ def test_with_realtime_BAM_data():
     # end_position = 100332390
 
     chromosome_name = "19"
-    chromosome_name = "chr" + chromosome_name
 
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
@@ -81,11 +80,19 @@ def test_with_realtime_BAM_data():
     # reference_file_path = "/home/ryan/data/GIAB/GRCh37_WG.fa"
     # vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh37.vcf.gz"
 
-    # ---- Nanopore (dev machine) ---------------------------------------------
+    # ---- Nanopore ALBACORE (dev machine) ---------------------------------------------
     bam_file_path = "/home/ryan/data/Nanopore/whole_genome_nanopore.bam"
     reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
-    # vcf_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
     vcf_path = "/home/ryan/data/Nanopore/BAM_VCF_concordance/chr19_FN_only.vcf.gz"
+
+    chromosome_name = "chr" + chromosome_name
+
+    # ---- Nanopore GUPPIE (dev machine) ---------------------------------------------
+    bam_file_path = "/home/ryan/data/Nanopore/BAM/Guppie/rel5-guppy-0.3.0-chunk10k.sorted.bam"
+    reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
+    vcf_path = "/home/ryan/data/Nanopore/BAM_VCF_concordance/chr19_FN_only.vcf.gz"
+
+    chromosome_name = chromosome_name
     # -------------------------------------------------------------------------
 
     output_directory = "output/labeled_graphs/"
@@ -191,7 +198,7 @@ def save_pileup(alignment_graph, vcf_graph, chromosome_name, position, output_di
 
 
 def visualize_graph(alignment_graph, axes):
-    axes, x_limits, y_limits = alignment_graph.plot_alignment_graph(axes=axes, show=False, set_axis_limits=False)
+    axes, x_limits, y_limits = alignment_graph.plot_graph(axes=axes, show=False, set_axis_limits=False)
 
     # matrix = alignment_graph.generate_adjacency_matrix()
     # matrix_label = alignment_graph.generate_adjacency_matrix(label_variants=True)

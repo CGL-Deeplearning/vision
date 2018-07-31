@@ -219,7 +219,7 @@ class AlignmentGraphLabeler:
 
                             except KeyError:
                                 self.print_positional_alleles()
-                                self.graph.plot_alignment_graph()
+                                self.graph.plot_graph()
                                 print(haplotype_set)
                                 print("ERROR: Too many 'True' alleles at position:", position)
 

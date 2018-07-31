@@ -1,15 +1,14 @@
-from modules.core.VCFGraphGenerator import VCFGraphGenerator
 from modules.core.AlignGraphCandidateFinder import CandidateFinder
 from modules.core.AlignmentGraph import AlignmentGraph
 from modules.core.AlignmentGraphLabeler import AlignmentGraphLabeler
 from modules.core.IntervalTree import IntervalTree
+from modules.core.IterativeHistogram import IterativeHistogram
 from modules.handlers.FastaHandler import FastaHandler
 from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.handlers.BamHandler import BamHandler
 from modules.handlers.TsvHandler import TsvHandler
 from matplotlib import pyplot
 from multiprocessing import Pool
-from multiprocessing import Value
 import multiprocessing
 import numpy
 import sys
@@ -17,6 +16,7 @@ import os
 
 REF, SNP, INS, DEL = 0, 1, 2, 3
 cigar_code_names = ["REF","SNP","INS","DEL"]
+
 
 def build_chromosomal_interval_trees(confident_bed_path):
     """
@@ -54,8 +54,14 @@ def parallel_run(reference_file_path, bed_file_path, vcf_file_path, bam_file_pat
 
     positional_variants = vcf_handler.get_variant_dictionary()
 
+    histogram = IterativeHistogram(start=0, stop=60, n_bins=12, unbounded_upper_bin=True, unbounded_lower_bin=True)
+    shape = histogram.get_histogram().shape
+
+    # print(shape)
+
     all_cigar_codes = [[],[]]
     all_frequencies = [[[],[]] for code in [REF, SNP, INS, DEL]]
+    all_qualities = [[numpy.zeros(shape), numpy.zeros(shape)] for code in [REF, SNP, INS, DEL]]
 
     for p,position in enumerate(positional_variants):
         interval = [position,position]
@@ -78,7 +84,7 @@ def parallel_run(reference_file_path, bed_file_path, vcf_file_path, bam_file_pat
             return
 
         # get stats on nodes
-        cigar_codes, frequencies = alignment_graph.get_node_stats()
+        cigar_codes, frequencies, quality_histograms = alignment_graph.get_node_stats()
 
         for label in [0, 1]:
             all_cigar_codes[label].extend(cigar_codes[label])
@@ -86,16 +92,23 @@ def parallel_run(reference_file_path, bed_file_path, vcf_file_path, bam_file_pat
             for cigar_code in [REF, SNP, INS, DEL]:
                 all_frequencies[cigar_code][label].extend(frequencies[cigar_code][label])
 
+                # print(all_qualities[cigar_code][label])
+                # print(quality_histograms[cigar_code][label])
+                all_qualities[cigar_code][label] += quality_histograms[cigar_code][label]
+
+                # print(cigar_code, frequencies[cigar_code])
+
     counter.value += 1
 
     sys.stdout.write('\r' + "%.2f%% Completed"%(100*counter.value/n_chunks))
 
-    return_dict[start_position] = [all_cigar_codes, all_frequencies]
+    return_dict[start_position] = [all_cigar_codes, all_frequencies, all_qualities]
 
     return
 
+
 def test_with_realtime_BAM_data():
-    chromosome_name = "1"
+    chromosome_name = "18"
 
     # --- chr1 GRCh37 ---
     # start_position = 93839128 - 2     # no >0 MQ reads??
@@ -123,25 +136,24 @@ def test_with_realtime_BAM_data():
     # start_position = 100000000      # arbitrary test region ... takes about 2-3 min to build graph (July 6)
     # end_position = 101000000
 
-
     # ---- ILLUMINA (from personal laptop) ------------------------------------
     # bam_file_path = "/Users/saureous/data/Platinum/chr3_200k.bam"
     # reference_file_path = "/Users/saureous/data/Platinum/chr3.fa"
     # vcf_file_path = "/Users/saureous/data/Platinum/NA12878_S1.genome.vcf.gz"
 
     # ---- GIAB (dev machine) -------------------------------------------------
-    bam_file_path = "/home/ryan/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam"
-    reference_file_path = "/home/ryan/data/GIAB/GRCh37_WG.fa"
-    vcf_file_path = "/home/ryan/data/GIAB/NA12878_GRCh37.vcf.gz"
-    bed_file_path = "/home/ryan/data/GIAB/NA12878_GRCh37_confident_chr1.bed"
+    # bam_file_path = "/home/ryan/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam"
+    # reference_file_path = "/home/ryan/data/GIAB/GRCh37_WG.fa"
+    # vcf_file_path = "/home/ryan/data/GIAB/NA12878_GRCh37.vcf.gz"
+    # bed_file_path = "/home/ryan/data/GIAB/NA12878_GRCh37_confident_chr18.bed"
 
-    # ---- Nanopore (dev machine) ---------------------------------------------
-    # bam_file_path = "/home/ryan/data/Nanopore/whole_genome_nanopore.bam"
-    # reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
-    # vcf_file_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
-    # bed_file_path = "/home/ryan/data/GIAB/NA12878_GRCh38_confident_chr1.bed"
-    #
-    # chromosome_name = "chr" + chromosome_name
+    # ---- Nanopore GUPPY (dev machine) ---------------------------------------
+    bam_file_path = "/home/ryan/data/Nanopore/BAM/Guppie/rel5-guppy-0.3.0-chunk10k.sorted.bam"
+    reference_file_path = "/home/ryan/data/GIAB/GRCh38_WG.fa"
+    vcf_file_path = "/home/ryan/data/GIAB/NA12878_GRCh38_PG.vcf.gz"
+    bed_file_path = "/home/ryan/data/GIAB/NA12878_GRCh38_confident_chr18.bed"
+
+    chromosome_name = "chr" + chromosome_name
     # -------------------------------------------------------------------------
 
     if sys.platform == 'win32':
@@ -152,12 +164,14 @@ def test_with_realtime_BAM_data():
     max_threads = available_threads - 4
     # max_threads = 1
 
-    start_position = 0
-    end_position = 245000000
-    chunk_size = 250000
+    start_position = 6000000
+    end_position = 8400000
+    chunk_size = 2500000
 
     steps = range(start_position, end_position + chunk_size, chunk_size)
     n_chunks = len(steps)
+
+    # print(list(steps))
 
     manager = multiprocessing.Manager()
     counter = manager.Value('i', 0)
@@ -189,24 +203,33 @@ def test_with_realtime_BAM_data():
 
     print()
 
+    histogram = IterativeHistogram(start=0, stop=60, n_bins=12, unbounded_upper_bin=True, unbounded_lower_bin=True)
+    edges = histogram.edges
+    shape = histogram.get_histogram().shape
+
+    # recombine dictionary of thread-specific data to a universal dictionary
     all_cigar_codes = [[],[]]
     all_frequencies = [[[],[]] for code in [REF, SNP, INS, DEL]]
+    all_qualities = [[numpy.zeros(shape), numpy.zeros(shape)] for code in [REF, SNP, INS, DEL]]
 
     for key in return_dict.keys():
-        cigar_codes, frequencies = return_dict[key]
+        cigar_codes, frequencies, qualities = return_dict[key]
 
         for label in [0, 1]:
             all_cigar_codes[label].extend(cigar_codes[label])
 
             for cigar_code in [REF, SNP, INS, DEL]:
                 all_frequencies[cigar_code][label].extend(frequencies[cigar_code][label])
+                all_qualities[cigar_code][label] += qualities[cigar_code][label]
 
     # plot frequencies for labeled true and false nodes
-
     for cigar_code in [REF, SNP, INS, DEL]:
         figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True)
 
         all_false_frequencies, all_true_frequencies = all_frequencies[cigar_code]
+
+        if cigar_code == INS:
+            print(all_false_frequencies)
 
         step = 0.02
         bins = numpy.arange(0, 1 + step, step=step)
@@ -218,10 +241,28 @@ def test_with_realtime_BAM_data():
         axes1.bar(center, frequencies_true, width=step, align="center")
         axes2.bar(center, frequencies_false, width=step, align="center")
 
-        axes1.set_ylabel("Count")
-        axes2.set_ylabel("Count")
+        axes1.set_ylabel("Count (True)")
+        axes2.set_ylabel("Count (False)")
         axes2.set_xlabel("Node Frequency")
         pyplot.savefig("frequencies_" + cigar_code_names[cigar_code] + ".png")
+
+    # plot qualities for labeled true and false nodes
+    for cigar_code in [REF, SNP, INS, DEL]:
+        figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True)
+
+        all_false_qualities, all_true_qualities = all_qualities[cigar_code]
+
+        step = edges[1] - edges[0]
+        bins = numpy.array(edges)
+        center = (bins[:-1] + bins[1:]) / 2
+
+        axes1.bar(center, all_true_qualities, width=step, align="center")
+        axes2.bar(center, all_false_qualities, width=step, align="center")
+
+        axes1.set_ylabel("Count (True)")
+        axes2.set_ylabel("Count (False)")
+        axes2.set_xlabel("Base Quality")
+        pyplot.savefig("qualities_" + cigar_code_names[cigar_code] + ".png")
 
     # plot distribution of cigar operations for true and false nodes
     figure, (axes1, axes2) = pyplot.subplots(nrows=2, sharex=True)
@@ -233,9 +274,6 @@ def test_with_realtime_BAM_data():
     cigar_frequencies_true, bins1 = numpy.histogram(all_true_cigar_codes, bins=bins)
     cigar_frequencies_false, bins2 = numpy.histogram(all_false_cigar_codes, bins=bins)
 
-    # cigar_frequencies_true = numpy.log10(cigar_frequencies_true)
-    # cigar_frequencies_false = numpy.log10(cigar_frequencies_false)
-
     center = (bins[:-1] + bins[1:]) / 2
 
     axes1.bar(center, cigar_frequencies_true, width=step, align="center")
@@ -244,7 +282,8 @@ def test_with_realtime_BAM_data():
     axes2.set_xticks([0.5, 1.5, 2.5, 3.5])
     axes2.set_xticklabels(["REF","SNP","INS","DEL"])
     axes2.set_xlabel("Cigar Type")
-    axes2.set_ylabel("Count")
+    axes1.set_ylabel("Count (True)")
+    axes2.set_ylabel("Count (False)")
 
     pyplot.savefig("cigars.png")
 

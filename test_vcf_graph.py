@@ -131,7 +131,7 @@ def test_with_realtime_BAM_data():
 
 
 def visualize_graph(alignment_graph, axes):
-    axes, x_limits, y_limits = alignment_graph.plot_alignment_graph(axes=axes, show=False, set_axis_limits=False)
+    axes, x_limits, y_limits = alignment_graph.plot_graph(axes=axes, show=False, set_axis_limits=False)
 
     pileup_string = alignment_graph.generate_pileup()
     print("\nBAM GRAPH:")

@@ -162,7 +162,8 @@ class CandidateFinder:
                 self.graph.update_position(read_id=read_id,
                                            position=i,
                                            sequence=allele,
-                                           cigar_code=SNP)
+                                           cigar_code=SNP,
+                                           qualities=[qualities[i-alignment_position]])
 
                 # self.mismatch_count[i] += 1
                 # self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE)
@@ -171,7 +172,8 @@ class CandidateFinder:
                 self.graph.update_position(read_id=read_id,
                                            position=i,
                                            sequence=allele,
-                                           cigar_code=REF)
+                                           cigar_code=REF,
+                                           qualities=[qualities[i-alignment_position]])
                 # this slows things down a lot. Don't add reference allele to the dictionary if we don't use them
                 # self._update_read_allele_dictionary(i, allele, MATCH_ALLELE)
 
@@ -201,7 +203,8 @@ class CandidateFinder:
             self.graph.update_position(read_id=read_id,
                                        position=i,
                                        sequence="*",
-                                       cigar_code=DEL)
+                                       cigar_code=DEL,
+                                       qualities=[])
 
             # the allele is the anchor + what's being deleted
         # allele = self.reference_dictionary[alignment_position] + ref_sequence
@@ -226,7 +229,8 @@ class CandidateFinder:
         self.graph.update_position(read_id=read_id,
                                    position=alignment_position,
                                    sequence=allele,
-                                   cigar_code=INS)
+                                   cigar_code=INS,
+                                   qualities=qualities)
 
         # # record the insert where it first starts
         # self.mismatch_count[alignment_position] += 1

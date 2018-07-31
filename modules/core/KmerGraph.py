@@ -33,6 +33,8 @@ class Node:
         self.max_coverage_position = None
         self.max_positional_coverage = None
 
+        self.true_variant = False
+
         self.update_coverage(position)
 
     def update_coverage(self, position):
@@ -147,8 +149,11 @@ class KmerGraph:
 
             print('\n'.join(node_strings))
 
-    def plot_graph(self, axes=None, show=True):
+    def plot_graph(self, axes=None, show=True, set_axis_limits=False):
         positional_nodes = defaultdict(list)
+
+        default_color = [0, 0, 0]
+        variant_color = [0/255, 153/255, 96/255]
 
         weights = ['light', 'normal', 'medium', 'semibold', 'bold', 'heavy']
 
@@ -187,6 +192,10 @@ class KmerGraph:
                 prev_nodes = node.prev_nodes
                 x, y = node.coordinate
 
+                color = default_color
+                if node.true_variant:
+                    color = variant_color
+
                 if y < min_y:
                     min_y = y
                 if y > max_y:
@@ -199,12 +208,14 @@ class KmerGraph:
                 # plot sequence
                 weight_index = min(int(round(node.coverage/total_coverage))*5,5)
                 weight = weights[weight_index]
-                axes.text(x, y, "O", ha="center", va="center", zorder=2, weight=weight)
+                axes.text(x, y, kmer, ha="center", va="center", zorder=2, weight=weight, fontsize=6)
 
                 # plot node shape
-                width = (node.coverage/total_coverage)*5
-                # p = patches.Circle([x,y], radius=0.33, zorder=1, facecolor="w", edgecolor="k", alpha=1, linewidth=width)
-                # axes.add_patch(p)
+                width = (node.coverage/total_coverage)*4
+                rectangle_width = self.k/2
+                rectangle_height = self.k/4
+                p = patches.Rectangle([x-rectangle_width/2, y-rectangle_height/2], width=rectangle_width, height=rectangle_height, zorder=1, facecolor="w", edgecolor=color, alpha=1, linewidth=width)
+                axes.add_patch(p)
 
                 # plot edge connecting nodes
                 if len(prev_nodes) > 0 and position > self.start_position:
@@ -214,26 +225,33 @@ class KmerGraph:
                         transition_weight = min([prev_node.coverage, node.coverage])
                         width = min(6*transition_weight/total_coverage, 6)
 
-                        print(x,y,x_prev,y_prev)
+                        # print(x,y,x_prev,y_prev)
 
-                        if y_prev != y:
-                            # p = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
-                            # axes.add_patch(p)
-                            axes.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
+                        p = patches.FancyArrowPatch(posA=[x_prev, y_prev], posB=[x, y], color=default_color, zorder=0,
+                                                    lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
+                        axes.add_patch(p)
 
-                        else:
-                            axes.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
+                        # if y_prev != y:
+                        #     # p = patches.FancyArrowPatch(posA=[x_prev,y_prev], posB=[x,y], zorder=0, lw=width, connectionstyle=patches.ConnectionStyle.Arc3(rad=-0.2))
+                        #     # axes.add_patch(p)
+                        #     axes.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
+                        #
+                        # else:
+                        #     axes.plot([x_prev,x], [y_prev,y], lw=width, color=[0,0,0], zorder=0, alpha=1)
 
+        x_limits = [min_x, max_x]
+        y_limits = [min_y, max_y]
 
-        print(min_x, max_x)
-        axes.set_xlim(min_x-self.k, max_x + self.k)
-        axes.set_ylim(min_y-self.k, max_y+self.k)
-        axes.set_aspect("equal")
+        if set_axis_limits:
+            print(min_x, max_x)
+            axes.set_xlim(min_x-self.k, max_x + self.k)
+            axes.set_ylim(min_y-self.k, max_y+self.k)
+            axes.set_aspect("equal")
 
         if show:
             pyplot.show()
 
-        return axes
+        return axes, x_limits, y_limits
 
 
 # TO DO:

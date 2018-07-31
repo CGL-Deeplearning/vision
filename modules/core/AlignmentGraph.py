@@ -1,10 +1,11 @@
+from modules.core.IterativeHistogram import IterativeHistogram
+from collections import defaultdict
+from matplotlib import pyplot
+from matplotlib import patches
 import random
 import math
 import numpy
 import sys
-from collections import defaultdict
-from matplotlib import pyplot
-from matplotlib import patches
 
 CUTOFF = 0.1
 
@@ -18,7 +19,7 @@ SNP = 1
 INS = 2
 DEL = 3
 
-# Indexes of reference_key list, the combination of keys serve as pointers to node objects in graph
+# Indexes of reference_key list, this combination of keys serve as pointers to node objects in graph
 POSITION = 0
 CIGAR = 1
 SEQUENCE = 2
@@ -31,7 +32,7 @@ def tanh(x):
 
 
 class Node:
-    def __init__(self, position, cigar_code, prev_node=None, next_node=None, sequence=None):
+    def __init__(self, position, cigar_code, sequence=None):
         # transition keys will be based on position:cigar_code:sequence which is always unique
         self.prev_nodes = set()
         self.next_nodes = set()
@@ -40,6 +41,7 @@ class Node:
         self.cigar_code = cigar_code
         self.sequence = sequence
         self.coverage = 0
+        self.quality_histogram = IterativeHistogram(start=0, stop=60, n_bins=12, unbounded_upper_bin=True, unbounded_lower_bin=True)
 
         self.n = None
         self.true_variant = False
@@ -70,9 +72,13 @@ class AlignmentGraph:
         self.positional_alleles = defaultdict(int)
         self.positional_coverage = defaultdict(lambda: 0)
         self.positional_node_count = defaultdict(lambda: 0)
+        self.positional_insert_length = dict()
 
+        # Read-level data
         self.paths = defaultdict(list)  # path of keys that point to each node
         self.path_index_offsets = defaultdict(list)
+
+        # The graph itself
         self.graph = dict()
 
         # Plotting
@@ -83,6 +89,7 @@ class AlignmentGraph:
         # Adjacency matrix
         self.n_nodes = 0
 
+        # Printing/misc
         self.cigar_code_names = ["REF", "SNP", "INS", "DEL"]
 
     def get_read_path_element_index(self, read_id, index):
@@ -133,24 +140,16 @@ class AlignmentGraph:
 
             adjusted_path_index = self.get_read_path_element_index(read_id=read_id, index=path_index)
 
-            # print(read_id)
-            # self.print_path(read_id)
-
             self.paths[read_id][adjusted_path_index] = [node2_position, node2_cigar_code, node2_sequence]
-
-            # self.print_path(read_id)
 
             node2.mapped_reads[read_id] = path_index
 
             node2.coverage += 1
             node1.coverage -= 1
 
-            # print(node1.coverage, node2.coverage)
-
         prev_nodes = node1.prev_nodes
         next_nodes = node1.next_nodes
 
-        # if len(prev_nodes) > 0:
         for prev_node in prev_nodes:
             try:
                 prev_node.next_nodes.remove(node1)
@@ -158,7 +157,6 @@ class AlignmentGraph:
             except(KeyError):
                 pass
 
-        # if len(next_nodes) > 0:
         for next_node in next_nodes:
             try:
                 next_node.prev_nodes.remove(node1)
@@ -197,11 +195,7 @@ class AlignmentGraph:
                         next_node.prev_nodes.add(self.graph[position][cigar_code][sequence])
 
             for read_id, index in node.mapped_reads.items():
-                # print("DELETING:",node)
                 self.remove_path_element(read_id=read_id, index=index)
-        # else:
-        #     for read_id, index in node.mapped_reads.items():
-        #         self.paths[read_id] = None
 
         position = node.position
         cigar_code = node.cigar_code
@@ -225,10 +219,7 @@ class AlignmentGraph:
 
         adjusted_index = self.get_read_path_element_index(read_id=read_id, index=index)
 
-        # print(path[adjusted_index])
-        # print("before",len(path))
         self.paths[read_id] = path[:adjusted_index] + path[adjusted_index+1:]
-        # print("after",len(path[:adjusted_index] + path[adjusted_index+1:]))
 
         self.path_index_offsets[read_id].append([index,-1])
 
@@ -236,7 +227,7 @@ class AlignmentGraph:
         template = [{}, {}, {}, {}]
         self.graph[position] = template
 
-    def update_position(self, read_id, position, sequence, cigar_code, increment_coverage=True):
+    def update_position(self, read_id, position, sequence, cigar_code, qualities=list(), increment_coverage=True):
         if position not in self.graph:
             self.initialize_position(position=position)
 
@@ -262,6 +253,14 @@ class AlignmentGraph:
         # update node coverage
         if increment_coverage:
             node.coverage += 1
+
+        # update quality
+        for q in qualities:
+            node.quality_histogram.update(q)
+
+        # if node.coverage % 10 == 0:
+        #     pyplot.plot(node.quality_histogram.get_histogram(), marker='o')
+        #     pyplot.show()
 
         # make pointers between nodes
         if prev_node is not None:
@@ -303,7 +302,7 @@ class AlignmentGraph:
     def get_normalized_node_frequencies(self, position, include_inserts=False):
         """
         Calculate the relative proportion of each node at a position. If include_inserts, take into account the fact
-        that inserts and refs both map to the same position, and ignore ref nodes that precede inserts? I guess?
+        that inserts and refs both map to the same position
         :param position:
         :param include_inserts: boolean flag
         :return:
@@ -351,39 +350,33 @@ class AlignmentGraph:
                 choice = int(choice.nonzero()[0])
                 reassignment_node = nodes_above[choice]
 
-                # print(node, "->", reassignment_node)
-                # don't allow reassignment to a delete...
-                # print(frequency)
-                # print("REASSIGNING")
-                # print(node, "->", reassignment_node)
-
                 if reassignment_node.cigar_code != DEL:
                     self.reassign_node(node1=node, node2=reassignment_node, delete=True)
-
-                pass
 
     def clean_graph(self, plot=False):
         if plot:
             figure, (axes1, axes2) = pyplot.subplots(nrows=2)
 
-            self.plot_alignment_graph(axes=axes1, show=False)
+            self.plot_graph(axes=axes1, show=False)
 
         for position in range(self.start_position, self.end_position+1):
             self.reassign_by_coverage(position=position)
 
         if plot:
-            self.plot_alignment_graph(axes=axes2, show=False)
+            self.plot_graph(axes=axes2, show=False)
             pyplot.show()
 
     def get_node_stats(self):
         # cigar_codes = [REF, SNP, INS, DEL]
 
+        template_histogram = IterativeHistogram(start=0, stop=60, n_bins=12, unbounded_upper_bin=True, unbounded_lower_bin=True)
+        shape = template_histogram.get_histogram().shape
+
         cigar_codes = [[],[]]
         frequencies = [[[],[]] for code in [REF, SNP, INS, DEL]]
+        quality_histograms = [[numpy.zeros(shape), numpy.zeros(shape)] for code in [REF, SNP, INS, DEL]]
 
         for position in range(self.start_position, self.end_position+1):
-            position_frequencies = list()
-
             if position not in self.graph:
                 continue
 
@@ -397,12 +390,15 @@ class AlignmentGraph:
                         coverage -= (self.positional_node_count[position] - self.positional_coverage[position])
 
                     frequency = coverage / self.positional_coverage[position]
-                    position_frequencies.append(frequency)
+                    quality_histogram = node.quality_histogram.get_histogram()
 
-                    cigar_codes[int(node.true_variant)].append(cigar_code)
-                    frequencies[cigar_code][int(node.true_variant)].append(frequency)
+                    index = int(node.true_variant)
 
-        return cigar_codes, frequencies
+                    cigar_codes[index].append(cigar_code)
+                    frequencies[cigar_code][index].append(frequency)
+                    quality_histograms[cigar_code][index] += quality_histogram
+
+        return cigar_codes, frequencies, quality_histograms
 
     def initialize_graph_with_reference(self):
         for position in range(self.start_position, self.end_position+1):
@@ -445,13 +441,6 @@ class AlignmentGraph:
 
         return y_position
 
-    # def get_insert_length(self, position):
-    #     length = 0
-    #     if position in self.positional_insert_lengths:
-    #         length += self.positional_insert_lengths[position]
-    #
-    #     return length
-
     def get_insert_status_of_next_node(self, path, index):
         """
         Inserts are assigned to the positional graph based on their anchor position, so when printing the pileup,
@@ -475,10 +464,19 @@ class AlignmentGraph:
         return status
 
     def get_insert_length(self, position):
-        max_length = 0
-        for sequence in self.graph[position][INS]:
-            if len(sequence) > max_length:
-                max_length = len(sequence)
+        if position not in self.positional_insert_length:
+            max_length = 0
+
+            # iterate through inserts found at this position and keep the longest length
+            for sequence in self.graph[position][INS]:
+                if len(sequence) > max_length:
+                    max_length = len(sequence)
+
+            # store for re-query
+            self.positional_insert_length[position] = max_length
+
+        else:
+            max_length = self.positional_insert_length[position]
 
         return max_length
 
@@ -489,19 +487,40 @@ class AlignmentGraph:
 
         return cumulative_length
 
-    def generate_pileup(self):
-        total_length = self.length + 50
+    def get_read_sequences(self):
+        read_sequences = defaultdict(list)
+        read_strings = dict()
 
-        insert_lengths = list()
-        for position in range(self.start_position, self.end_position+1):
-            insert_lengths.append(str(self.get_insert_length(position)))
+        for p,path in enumerate(self.paths.items()):
+            read_id, path = path
+
+            for node_index, node_keys in enumerate(path):
+                position, cigar_code, sequence = node_keys
+                node = self.graph[position][cigar_code][sequence]
+
+                if cigar_code != DEL:
+                    read_sequences[read_id].append(sequence)
+
+        for read_id in read_sequences:
+            read_strings[read_id] = ''.join(read_sequences[read_id])
+
+        return read_strings
+
+    def generate_pileup(self):
+        # reset insert lengths in case graph has been edited since last call
+        self.positional_insert_length = dict()
+
+        total_length = self.length + 80
+
+        # insert_lengths = list()
+        # for position in range(self.start_position, self.end_position+1):
+        #     insert_lengths.append(str(self.get_insert_length(position)))
 
         pileup = [['_' for i in range(total_length+1)] for j in range(len(self.paths))]
 
         for p,path in enumerate(self.paths.items()):
             read_id, path = path
 
-            # print(self.graph[path[0][0]][path[0][1]][path[0][2]])
             start_index = path[0][POSITION] - self.start_position + self.get_cumulative_insert_length(path[0][POSITION])
             index = int(start_index)
             offset = 0
@@ -516,7 +535,8 @@ class AlignmentGraph:
                 if node.position < self.start_position or node.position > self.end_position:
                     continue
 
-                insert_length = self.get_insert_length(position)
+                # find the longest insert length for this position
+                position_insert_length = self.get_insert_length(position)
 
                 next_is_insert = self.get_insert_status_of_next_node(path, node_index)
 
@@ -528,23 +548,42 @@ class AlignmentGraph:
                 # Insert at this position
                 if cigar_code == INS:
                     for c,character in enumerate(sequence):
+                        # add the characters of the insert to the pileup
                         pileup[p][index+offset+c] = character
 
-                    insert_difference = insert_length - len(sequence)
+                    # check if this insert is shorter than the longest insert at this position
+                    insert_difference = position_insert_length - len(sequence)
+
+                    # append trailing filler characters to ensure insert is properly padded if not the longest insert
                     for i in range(0, insert_difference):
                         pileup[p][index+offset+c+i+1] = '*'
 
-                    offset += insert_length - 1
+                    # keep track of how many cumulative insert positions have been appended to this read (left to right)
+                    offset += position_insert_length - 1
 
                 # Not an insert character, but could be in an anchor node that is followed by an insert node in
                 # the same position
                 else:
+                    # add the character to the pileup
                     pileup[p][index+offset] = sequence
 
-                    if insert_length > 0 and not next_is_insert:
-                        for i in range(insert_length):
+                    # pad with filler chars if this position is an insert column, and the next character isn't an insert
+                    if position_insert_length > 0 and not next_is_insert:
+                        for i in range(position_insert_length):
+                            # try:
+
                             pileup[p][index+offset+i+1] = '*'
-                        offset += insert_length
+
+                            # except(IndexError):
+                            #     self.plot_graph()
+                            #     read_strings = ([''.join(row) for row in pileup])
+                            #     pileup_string = '\n'.join(read_strings)
+                            #     print(pileup_string)
+                            #
+                            #     print("p", p, "pileup length", len(pileup))
+                            #     print("index", index+offset+c+i+1, "pileup width", len(pileup[0]))
+
+                        offset += position_insert_length
 
                 index += 1
 
@@ -589,7 +628,7 @@ class AlignmentGraph:
 
                     self.node_coordinates[node] = [x,y]
 
-    def plot_alignment_graph(self, axes=None, show=True, set_axis_limits=True):
+    def plot_graph(self, axes=None, show=True, set_axis_limits=True):
         self.calculate_coordinates_for_plot()
 
         default_color = [0, 0, 0]

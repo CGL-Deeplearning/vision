@@ -88,6 +88,6 @@ class imageChannels:
         cigar_color = global_cigar_color_dictionary[cigar_code] \
             if cigar_code in global_cigar_color_dictionary else 0.0
 
-        support_color = 240.0#always supported
+        support_color = 240.0   # always supported
 
         return [base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color, support_color]
