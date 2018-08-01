@@ -122,8 +122,9 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
+    # {'weight_decay': 0.00029336512964591496, 'learning_rate': 1.4573188939410545e-05}
     model = resnet18_custom()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0009006001723758431, weight_decay=0.00011989463398120514)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00029336512964591496, weight_decay= 1.4573188939410545e-05)
 
     # print out total number of trainable parameters in model
     # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
