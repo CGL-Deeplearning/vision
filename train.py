@@ -23,6 +23,7 @@ Input:
 Output:
 - A trained model
 """
+torch.backend.cudnn.benchmark = True
 
 
 def test(test_file, batch_size, gpu_mode, trained_model, num_classes, num_workers):
