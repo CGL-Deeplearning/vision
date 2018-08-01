@@ -9,6 +9,7 @@ import os
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import Variable
+from modules.models.ModelHandler import ModelHandler
 from modules.models.inception import Inception3
 
 from modules.core.dataloader import PileupDataset, TextColor
