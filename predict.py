@@ -7,7 +7,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from modules.models.inception import Inception3
-from modules.models.resnet import resnet18_custom
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
 from modules.handlers.VcfWriter import VCFWriter
@@ -68,7 +67,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             name = k[7:]  # remove `module.`
             new_state_dict[name] = v
 
-        model = resnet18_custom()
+        model = Inception3()
         model.load_state_dict(new_state_dict)
         model.cpu()
     else:
@@ -82,7 +81,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
             name = k[7:]  # remove `module.`
             new_state_dict[name] = v
 
-        model = resnet18_custom()
+        model = Inception3()
         model.load_state_dict(new_state_dict)
         model = model.cuda()
         model = torch.nn.DataParallel(model).cuda()
