@@ -112,7 +112,7 @@ class Inception3(nn.Module):
         x = self.Mixed_7b(x)
         x = self.Mixed_7c(x)
         # 2048 x 2 x 10
-        x = F.avg_pool2d(x, kernel_size=(9, 2))
+        x = F.avg_pool2d(x, kernel_size=(2, 9))
         # 2048 x 1 x 1
         x = F.dropout(x, training=self.training)
         x = x.view(x.size(0), -1)

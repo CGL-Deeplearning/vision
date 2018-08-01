@@ -62,6 +62,7 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
     test_model = model.eval()
     if gpu_mode:
         test_model = test_model.cuda()
+        test_model = torch.nn.DataParallel(model).cuda()
 
     # Loss
     criterion = nn.CrossEntropyLoss()
