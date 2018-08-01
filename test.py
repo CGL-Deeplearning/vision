@@ -5,9 +5,11 @@ import torch
 import torchnet.meter as meter
 import torch.nn.parallel
 import torch.nn as nn
+import os
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import Variable
+from modules.models.inception import Inception3
 
 from modules.core.dataloader import PileupDataset, TextColor
 np.set_printoptions(threshold=np.nan)
@@ -46,7 +48,17 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                                    )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
-    model = torch.load(model_path)
+    model = Inception3()
+
+    if os.path.isfile(model_path) is False:
+        sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO THE MODEL\n")
+        exit(1)
+    sys.stderr.write(TextColor.GREEN + "INFO: MODEL LOADING\n" + TextColor.END)
+    model = ModelHandler.load_model_for_training(model, model_path)
+    sys.stderr.write(TextColor.GREEN + "INFO:  MODEL LOADED SUCCESSFULLY\n" + TextColor.END)
+
+    if gpu_mode:
+        model = model.cuda()
 
     model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
 
