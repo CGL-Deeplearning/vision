@@ -23,7 +23,6 @@ Input:
 Output:
 - A trained model
 """
-torch.backend.cudnn.benchmark = True
 
 
 def test(test_file, batch_size, gpu_mode, trained_model, num_classes, num_workers):
@@ -108,6 +107,8 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
     :param num_classes: Number of output classes (3- HOM, HET, HOM_ALT)
     :return:
     """
+    torch.backends.cudnn.benchmark = True
+
     train_loss_logger = open(stats_output_dir + "train_loss.log", 'w')
     test_loss_logger = open(stats_output_dir + "test_loss.log", 'w')
     confusion_matrix_logger = open(stats_output_dir + "confusion_matrix.log", 'w')
