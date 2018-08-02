@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 from modules.models.ModelHandler import ModelHandler
-from modules.models.inception import Inception3
+from modules.models.resnet import resnet18_custom
 
 from modules.core.dataloader import PileupDataset, TextColor
 np.set_printoptions(threshold=np.nan)
@@ -49,7 +49,7 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                                    )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
-    model = Inception3()
+    model = resnet18_custom()
 
     if os.path.isfile(model_path) is False:
         sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO THE MODEL\n")
@@ -61,7 +61,6 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
     # set the evaluation mode of the model
     test_model = model.eval()
     if gpu_mode:
-        test_model = test_model.cuda()
         test_model = torch.nn.DataParallel(model).cuda()
 
     # Loss
