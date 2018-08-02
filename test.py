@@ -5,9 +5,12 @@ import torch
 import torchnet.meter as meter
 import torch.nn.parallel
 import torch.nn as nn
+import os
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torch.autograd import Variable
+from tqdm import tqdm
+from modules.models.ModelHandler import ModelHandler
+from modules.models.inception import Inception3
 
 from modules.core.dataloader import PileupDataset, TextColor
 np.set_printoptions(threshold=np.nan)
@@ -46,64 +49,56 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                                    )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
-    model = torch.load(model_path)
+    model = Inception3()
 
-    model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
+    if os.path.isfile(model_path) is False:
+        sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO THE MODEL\n")
+        exit(1)
+    sys.stderr.write(TextColor.GREEN + "INFO: MODEL LOADING\n" + TextColor.END)
+    model = ModelHandler.load_model_for_training(model, model_path)
+    sys.stderr.write(TextColor.GREEN + "INFO:  MODEL LOADED SUCCESSFULLY\n" + TextColor.END)
 
+    # set the evaluation mode of the model
+    test_model = model.eval()
     if gpu_mode:
-        model = model.cuda()
-
-    # create a CSV file
-    smry = open("test_miss_calls_" + data_file.split('/')[-1], 'w')
+        test_model = test_model.cuda()
+        test_model = torch.nn.DataParallel(model).cuda()
 
     # Loss
     criterion = nn.CrossEntropyLoss()
 
     # Test the Model
-    sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
     total_loss = 0
     total_images = 0
-    batches_done = 0
+    accuracy = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
-    for i, (images, labels, records) in enumerate(validation_loader):
-        if gpu_mode is True and images.size(0) % 8 != 0:
-            continue
+    with torch.no_grad():
+        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, dynamic_ncols=True) as pbar:
+            for i, (images, labels, records) in enumerate(validation_loader):
+                if gpu_mode:
+                    images = images.cuda()
+                    labels = labels.cuda()
 
-        images = Variable(images, volatile=True)
-        labels = Variable(labels, volatile=True)
-        if gpu_mode:
-            images = images.cuda()
-            labels = labels.cuda()
+                # Predict + confusion_matrix + loss
+                outputs = test_model(images)
+                confusion_matrix.add(outputs.data, labels.data)
 
-        # add to confusion matrix
-        outputs = model(images)
-        confusion_matrix.add(outputs.data.squeeze(), labels.data.type(torch.LongTensor))
-        loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
-        # Loss count
-        total_images += images.size(0)
-        total_loss += loss.data[0]
-        # converts predictions to numpy array
-        preds_numpy = outputs.cpu().data.topk(1)[1].numpy().ravel().tolist()
-        true_label_numpy = labels.cpu().data.numpy().ravel().tolist()
+                # Progress bar update
+                pbar.update(1)
+                cm_value = confusion_matrix.value()
+                denom = (cm_value.sum() - cm_value[0][0]) if (cm_value.sum() - cm_value[0][0]) > 0 else 1.0
+                accuracy = 100.0 * (cm_value[1][1] + cm_value[2][2]) / denom
+                pbar.set_description("Accuracy: " + str(accuracy))
 
-        eq = np.equal(preds_numpy, true_label_numpy)
-        # find all mismatch indices
-        mismatch_indices = np.where(eq == False)[0]
+                loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
 
-        # print all mismatch indices to the CSV file
-        for index in mismatch_indices:
-            smry.write(str(true_label_numpy[index]) + "," + str(preds_numpy[index]) + ","
-                       + records[index] + "\n")
+                # loss count
+                total_loss += loss.item()
+                total_images += (images.size(0))
 
-        batches_done += 1
-        if batches_done % 50 == 0:
-            sys.stderr.write(str(confusion_matrix.conf)+"\n")
-            sys.stderr.write(TextColor.BLUE+'Batches done: ' + str(batches_done) + " / " + str(len(validation_loader)) +
-                             "\n" + TextColor.END)
-
-    # print summaries
-    sys.stderr.write(TextColor.YELLOW+'Test Loss: ' + str(total_loss/total_images) + "\n"+TextColor.END)
-    sys.stderr.write("Confusion Matrix \n: " + str(confusion_matrix.conf) + "\n" + TextColor.END)
+    avg_loss = total_loss / total_images if total_images else 0
+    sys.stderr.write(TextColor.BLUE + 'Test Loss: ' + str(avg_loss) + "\n" + TextColor.END)
+    sys.stderr.write(TextColor.GREEN + "Confusion Matrix: \n" + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
 
 if __name__ == '__main__':
