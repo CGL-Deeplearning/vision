@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from modules.models.inception import Inception3
 from modules.models.resnet import resnet18_custom
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
@@ -182,7 +181,7 @@ def call_variants_on_multiple_chromosome(csv_dir, bam_file_path, sample_name, ou
 
     for chromosome_name in chr_list:
         test_file = csv_dir + chromosome_name + ".csv"
-        sys.stderr.write(TextColor.GREEN + "INFO: PREDICTING " + TextColor.END + str(chr) + "\n")
+        sys.stderr.write(TextColor.GREEN + "INFO: PREDICTING " + TextColor.END + str(chromosome_name) + "\n")
         record_dict = predict(test_file, batch_size, model_path, gpu_mode, num_workers)
         sys.stderr.write(TextColor.GREEN + "INFO: " + TextColor.END + "PREDICTION COMPLETED SUCCESSFULLY.\n")
         produce_vcf(record_dict, vcf_writer)
