@@ -10,8 +10,7 @@ from modules.models.resnet import resnet18_custom
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
 from modules.handlers.VcfWriter import VCFWriter
-
-
+from tqdm import tqdm
 
 
 """
@@ -57,7 +56,6 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     if gpu_mode is False:
         checkpoint = torch.load(model_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
-        # print("test1")
 
         # In state dict keys there is an extra word inserted by model parallel: "module.". We remove it here
         from collections import OrderedDict
@@ -72,7 +70,6 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.cpu()
     else:
         checkpoint = torch.load(model_path, map_location='cpu')
-        #print("gpu mode")
         state_dict = checkpoint['state_dict']
         from collections import OrderedDict
         new_state_dict = OrderedDict()
@@ -90,14 +87,12 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     model.eval()
 
     with torch.no_grad():
-        for counter, (images, records) in enumerate(testloader):
-            #images = Variable(images)
-
+        for images, records in tqdm(testloader, file=sys.stdout, dynamic_ncols=True):
             if gpu_mode:
                 images = images.cuda()
-                #print("test gpu mode images.cuda()")
 
             preds = model(images)
+
             # One dimensional softmax is used to convert the logits to probability distribution
             m = nn.Softmax(dim=1)
             soft_probs = m(preds)
@@ -111,12 +106,6 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
                 prob_hom, prob_het, prob_hom_alt = probs
                 prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
                                                 prob_hom, prob_het, prob_hom_alt))
-
-            # print("test4")
-
-            sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
-                             str(len(testloader)) + "\n" + TextColor.END)
-            sys.stderr.flush()
 
     return prediction_dict
 
