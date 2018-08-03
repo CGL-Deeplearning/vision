@@ -2,16 +2,15 @@ import argparse
 import sys
 import operator
 import os
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torchvision import transforms
 from modules.models.inception import Inception3
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
 from modules.handlers.VcfWriter import VCFWriter
-
-
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from torch.autograd import Variable
 
 
 """
@@ -72,7 +71,7 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
         model.cpu()
     else:
         checkpoint = torch.load(model_path, map_location='cpu')
-        #print("gpu mode")
+        # print("test2")
         state_dict = checkpoint['state_dict']
         from collections import OrderedDict
         new_state_dict = OrderedDict()
@@ -91,11 +90,11 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     with torch.no_grad():
         for counter, (images, records) in enumerate(testloader):
-            #images = Variable(images)
+            images = Variable(images)
 
             if gpu_mode:
                 images = images.cuda()
-                #print("test gpu mode images.cuda()")
+                # print("test3")
 
             preds = model(images)
             # One dimensional softmax is used to convert the logits to probability distribution
