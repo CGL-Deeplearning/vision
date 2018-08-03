@@ -55,8 +55,7 @@ def build_chromosomal_interval_trees(confident_bed_path):
     tsv_handler_reference = TsvHandler(tsv_file_path=confident_bed_path)
 
     # create intervals based on chromosome
-    intervals_chromosomal = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1,
-                                                                                            universal_offset=-1)
+    intervals_chromosomal = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1, universal_offset=-1)
     # create a dictionary to get all chromosomal trees
     trees_chromosomal = dict()
 
@@ -69,6 +68,78 @@ def build_chromosomal_interval_trees(confident_bed_path):
 
     # return the dictionary containing all the trees
     return trees_chromosomal, intervals_chromosomal
+
+
+def get_chunked_intervals(chromosomal_intervals, chunk_size, test=False):
+    chromosomal_chunked_intervals = dict()
+
+    for chromosome_name in chromosomal_intervals:
+        chunked_intervals = list()
+
+        for interval in chromosomal_intervals[chromosome_name]:
+            length = interval[1] - interval[0]
+
+            if length > chunk_size:
+                chunks = chunk_interval(interval=interval, length=length, chunk_size=chunk_size)
+                chunked_intervals.extend(chunks)
+
+                if test:
+                    test_chunks_vs_interval(interval=interval, chunks=chunks, chunk_size=chunk_size)
+
+            else:
+                chunked_intervals.append(interval)
+
+        chromosomal_chunked_intervals[chromosome_name] = chunked_intervals
+
+    return chromosomal_chunked_intervals
+
+
+def chunk_interval(interval, length, chunk_size):
+    chunks = list()
+
+    n_chunks = math.ceil(length/chunk_size)
+
+    start = interval[0]
+    for i in range(n_chunks):
+        end = start + chunk_size
+
+        if end > interval[1]:
+            end = interval[1]
+
+        chunk = [start, end]
+
+        chunks.append(chunk)
+
+        start = end
+
+    return chunks
+
+
+def test_chunks_vs_interval(interval, chunks, chunk_size):
+    chunk_steps = list()
+    interval_steps = list()
+
+    for chunk in chunks:
+        last_i = None
+        for i in range(chunk[0], chunk[1]):
+
+            length = chunk[1] - chunk[0]
+            if length > chunk_size:
+                print("WARNING: INCORRECT CHUNK LENGTH:", length, chunk, interval)
+
+            chunk_steps.append(i)
+
+            if i == last_i:
+                print(chunk, i)
+
+            last_i = i
+
+    for i in range(interval[0], interval[1]):
+        interval_steps.append(i)
+
+    if chunk_steps != interval_steps:
+        print("WARNING UNEQUAL STEPS", interval)
+        print(len(chunk_steps), len(interval_steps))
 
 
 class View:
@@ -586,6 +657,7 @@ if __name__ == '__main__':
     # if the confident bed is not empty then create the tree
     if FLAGS.confident_bed != '':
         confident_tree_build, chromosomal_intervals = build_chromosomal_interval_trees(FLAGS.confident_bed)
+        chromosomal_intervals = get_chunked_intervals(chromosomal_intervals=chromosomal_intervals, chunk_size=50000)
 
     else:
         exit("ERROR: Confident bed required for nanopore image generation :(")
