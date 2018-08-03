@@ -139,7 +139,7 @@ class Inception3(nn.Module):
         # 1280 x 2 x 10
         print("HERE", x.size())
         # 2048 x 2 x 10
-        x = F.avg_pool2d(x, kernel_size=(10, 2))
+        x = F.avg_pool2d(x, kernel_size=(2, 10))
         print("Avg pool", x.size())
         # 2048 x 1 x 1
         x = F.dropout(x, training=self.training)
