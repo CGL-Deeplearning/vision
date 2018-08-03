@@ -59,7 +59,9 @@ class Node:
 
 
 class AlignmentGraph:
-    def __init__(self, chromosome_name, start_position, end_position, ploidy=2):
+    def __init__(self, chromosome_name, start_position, end_position, ploidy=2, save_quality=False):
+        self.save_quality = save_quality
+
         # Predefined constants
         self.chromosome_name = chromosome_name
         self.start_position = start_position
@@ -255,8 +257,9 @@ class AlignmentGraph:
             node.coverage += 1
 
         # update quality
-        for q in qualities:
-            node.quality_histogram.update(q)
+        if self.save_quality:
+            for q in qualities:
+                node.quality_histogram.update(q)
 
         # if node.coverage % 10 == 0:
         #     pyplot.plot(node.quality_histogram.get_histogram(), marker='o')

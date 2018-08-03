@@ -23,7 +23,7 @@ READ_IDS = ["HAPLOTYPE1", "HAPLOTYPE2"]
 
 
 class AlignmentGraphLabeler:
-    def __init__(self, chromosome_name, start_position, end_position, reference_sequence, positional_variants, graph):
+    def __init__(self, chromosome_name, start_position, end_position, reference_sequence, positional_variants, graph, save_stats=True):
         self.start_position = start_position
         self.end_position = end_position
         self.chromosome_name = chromosome_name
@@ -33,6 +33,17 @@ class AlignmentGraphLabeler:
         self.positional_alleles = defaultdict(lambda: [list(),list(),list(),list()])
         self.positional_haplotypes = defaultdict(lambda: {0,1})
         self.graph = graph
+
+        # quality stats for BAM allele representation
+        self.save_stats = save_stats
+        self.node_counts = [[0,0] for cigar in [REF, SNP, INS, DEL]]    # for each vcf node, was the node observed?
+        self.false_negative_positions = list()
+
+    def get_node_counts(self):
+        return self.node_counts
+
+    def get_false_negative_positions(self):
+        return self.false_negative_positions
 
     def test_position_for_VCF_conflicts(self, position):
         gt_set = set()
@@ -170,8 +181,15 @@ class AlignmentGraphLabeler:
         if position in self.graph.graph:
             if sequence in self.graph.graph[position][cigar_code]:
                 self.graph.graph[position][cigar_code][sequence].true_variant = True
+
+                if self.save_stats:
+                    self.node_counts[cigar_code][1] += 1
+
             else:
-                pass
+                if self.save_stats:
+                    self.node_counts[cigar_code][0] += 1
+                    self.false_negative_positions.append([position, cigar_code, sequence])
+
                 # print("WARNING: VCF node not found in BAM:", position, cigar_code, sequence)
 
     def parse_region(self):
