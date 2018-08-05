@@ -141,7 +141,10 @@ class AlignmentGraphLabeler:
 
                     # print(position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
 
-                    alt_haplotype_index = self.positional_haplotypes[position].pop()
+                    try:
+                        alt_haplotype_index = self.positional_haplotypes[position].pop()
+                    except:
+                        print("WARNING: Too many haplotypes:", position, "| zyg:", zygosity, "| alt_seq:", alt_sequence, "| ref_seq:", ref_sequence, "| gt:", genotype)
 
                     if variant_code == VCF_SNP:
                         self.preprocess_mismatch(position=position,
