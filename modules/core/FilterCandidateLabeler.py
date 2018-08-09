@@ -72,6 +72,7 @@ class CandidateLabeler:
 
         self.vcf_offset = -1                    # pysam vcf coords are 1-based ... >:[ ... this is what Kishwar wanted
         self.delete_char = '*'
+        self.header = None
 
     def _handle_insert(self, rec):
         """
@@ -274,12 +275,27 @@ class CandidateLabeler:
 
         return split_frequencies
 
+    def generate_header(self, genotypes, site_frequency_list, map_quality_ref, base_quality_ref, map_quality_non_ref, base_quality_non_ref):
+        header = list()
+
+        header.append("chromosome_number")
+        header.append("position")
+        header.extend(["genotype_" + str(i + 1) for i in range(len(genotypes))])
+        header.extend(["frequency_" + str(i + 1) for i in range(len(site_frequency_list))])
+        header.append("coverage")
+        header.extend(["map_quality_ref_" + str(i + 1) for i in range(len(map_quality_ref))])
+        header.extend(["base_quality_ref_" + str(i + 1) for i in range(len(base_quality_ref))])
+        header.extend(["map_quality_non_ref_" + str(i + 1) for i in range(len(map_quality_non_ref))])
+        header.extend(["base_quality_non_ref_" + str(i + 1) for i in range(len(base_quality_non_ref))])
+        header.append("label")
+
+        self.header = header
+
     def _generate_data_vector(self, chromosome_name, start, genotypes, frequencies, coverage, map_quality_non_ref, base_quality_non_ref, map_quality_ref, base_quality_ref, support):
         # split the list of allele frequency tuples by their type
         frequencies = self.split_frequencies_by_type(frequencies)
 
         data_list = list()
-        header = list()
 
         # convert list of frequencies into vector with length 3*PLOIDY
         site_frequency_list = self._generate_fixed_size_freq_list(frequencies)
@@ -287,48 +303,27 @@ class CandidateLabeler:
         chromosome_number = self._get_chromosome_number(chromosome_name)
         label = int(support)
 
-        # cap and scale down coverage (max = 1000)
-        # coverage = min(coverage, 1000)
-        # coverage = float(coverage)/1000
-
-        # scale down qualities
-        # map_quality_ref = [mq/1000 for mq in map_quality_ref]
-        # base_quality_ref = [bq/1000 for bq in base_quality_ref]
-        # map_quality_non_ref = [mq/1000 for mq in map_quality_non_ref]
-        # base_quality_non_ref = [bq/1000 for bq in base_quality_non_ref]
-
         data_list.append(chromosome_number)     # 0
-        header.append("chromosome_number")
-
         data_list.append(int(start))            # 1
-        header.append("position")
-
         data_list.extend(genotypes)             # 2-3
-        header.extend(["genotype_"+str(i+1) for i in range(len(genotypes))])
-
         data_list.extend(site_frequency_list)   # 4-15
-        header.extend(["frequency_"+str(i+1) for i in range(len(site_frequency_list))])
-
         data_list.append(coverage)              # 16
-        header.append("coverage")
-
         data_list.extend(map_quality_ref)       # 17-22
-        header.extend(["map_quality_ref_"+str(i+1) for i in range(len(map_quality_ref))])
-
         data_list.extend(base_quality_ref)      # 23-28
-        header.extend(["base_quality_ref_"+str(i+1) for i in range(len(base_quality_ref))])
-
         data_list.extend(map_quality_non_ref)   # 29-34
-        header.extend(["map_quality_non_ref_"+str(i+1) for i in range(len(map_quality_non_ref))])
-
         data_list.extend(base_quality_non_ref)  # 35-42
-        header.extend(["base_quality_non_ref_"+str(i+1) for i in range(len(base_quality_non_ref))])
-
         data_list.append(label)                 # 43
-        header.append("label")
+
+        if self.header is None:
+            self.generate_header(genotypes=genotypes,
+                                 site_frequency_list=site_frequency_list,
+                                 map_quality_non_ref=map_quality_non_ref,
+                                 base_quality_non_ref=base_quality_non_ref,
+                                 map_quality_ref=map_quality_ref,
+                                 base_quality_ref=base_quality_ref)
 
         # convert data list to numpy Float vector
-        data_row = pandas.DataFrame([data_list], columns=header)
+        data_row = pandas.DataFrame([data_list], columns=self.header)
 
         return data_row
 
@@ -417,10 +412,6 @@ class CandidateLabeler:
                                                 base_quality_ref=base_quality_ref)
 
             all_labeled_vectors.append(vector)
-
-        # # if there is no data for this region, append an empty vector
-        # if len(all_labeled_vectors) == 0:
-        #     data_table = pandas.DataFrame([])
 
         if not len(all_labeled_vectors) == 0:
             # concatenate

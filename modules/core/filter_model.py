@@ -218,7 +218,6 @@ class CandidateAlleleH5Dataset(Dataset):
         self.y_dtype = torch.FloatTensor     # for MSE Loss or BCE loss
         # self.y_dtype = torch.LongTensor      # for CE Loss
 
-
     def __getitem__(self, index):
         index = self.indices[index]
 
@@ -449,7 +448,7 @@ def train_batch(model, x, y, optimizer, loss_fn):
     return loss.data[0]
 
 
-def train(model, loader, optimizer, loss_fn, epochs=5, cutoff=None, print_progress=False):
+def train(model, loader, optimizer, loss_fn, checkpoint_save_directory, epochs=5, cutoff=None, print_progress=False):
     losses = list()
 
     batch_index = 0
@@ -469,6 +468,9 @@ def train(model, loader, optimizer, loss_fn, epochs=5, cutoff=None, print_progre
                 # print(x.data[0])
 
             i += 1
+
+            if i % 100000 == 0:
+                torch.save(model.state_dict(), path.join(checkpoint_save_directory, "model_checkpoint_"+str(i)))
 
             if cutoff is not None and i > cutoff:
                 break
@@ -518,14 +520,8 @@ def test(model, loader):
 
 
 def assess_prediction(y, y_predict):
-    # print(y[:1, :9])
-    # print(y_predict[:1, :9])
-
     y_argmax = numpy.argmax(y, axis=1)
     y_predict_argmax = numpy.argmax(y_predict, axis=1)
-
-    # print(y_argmax[:1])
-    # print(y_predict_argmax[:1])
 
     confusion = (y_argmax != y_predict_argmax).squeeze()
     n_confusion = sum(confusion)
@@ -581,8 +577,6 @@ def calculate_testing_stats(y_matrix, y_predict_matrix, x_matrix, metadata_matri
 
     length = len(confusion_labels)
     confusion_labels = confusion_labels.reshape((length, 1))
-
-    # print(confusion_vectors.shape, confusion_labels.shape)
 
     labeled_confusion_vectors = numpy.concatenate((confusion_vectors, confusion_labels), axis=1)
 
@@ -668,13 +662,10 @@ def run_prediction(test_dataset, model_state_path=None):
     # Test and get the resulting predicted y values
     y_predict_matrix, x_matrix, coordinates = predict(model=model, loader=data_loader_test)
 
-    # print(x_matrix)
-    # print(y_predict_matrix)
-
     return y_predict_matrix, x_matrix, coordinates
 
 
-def run(train_paths, test_paths, train_length, test_length, load_model=False, model_state_path=None, use_gpu=False):
+def run(train_paths, test_paths, train_length, test_length, checkpoint_save_directory, load_model=False, model_state_path=None, use_gpu=False):
     """
     This method sets the majority of model and training parameters for convenience of editing
     :param train_paths:
@@ -719,7 +710,7 @@ def run(train_paths, test_paths, train_length, test_length, load_model=False, mo
 
         # Train and get the resulting loss per iteration
         loss_per_iteration = train(model=model, loader=data_loader_train, optimizer=optimizer, loss_fn=loss_fn,
-                                   epochs=n_epochs, cutoff=cutoff, print_progress=True)
+                                   epochs=n_epochs, cutoff=cutoff, print_progress=True, checkpoint_save_directory=checkpoint_save_directory)
     else:
         # load previous model and test only
         model.load_state_dict(torch.load(model_state_path))
@@ -734,14 +725,10 @@ def run(train_paths, test_paths, train_length, test_length, load_model=False, mo
 def predict_sites(model_state_path, dataset):
     test_dataset = CandidateAllelePandasTestDataset(pandas_dataset=dataset)
 
-    # print("Test set size: ", test_dataset.length)
-
     y_predict_matrix, \
     x_matrix, \
     coordinates_matrix = run_prediction(test_dataset=test_dataset,
                                         model_state_path=model_state_path)
-
-    # print(coordinates_matrix.shape)
 
     predicted_coordinates = subset_coordinates_by_positive_prediction(coordinates_matrix=coordinates_matrix,
                                                                       y_predict_matrix=y_predict_matrix)
@@ -756,23 +743,21 @@ def main():
     load_model = True
     gpu = False
 
-    model_state_path = "models/filter_model_state"
+    model_state_path = "/home/ryan/code/vision/output/model_checkpoint_4800000"
     output_directory = "output/"
 
-    dataset_log_path = "/home/ryan/data/GIAB/filter_model_training_data/vision/WG/0_threshold/WG_chr_1-19_0_thresholds_1_coverage_histogram_features/dataset_log.tsv"
+    dataset_log_path = "/home/ryan/data/Nanopore/filter_model_training_data/nanopore_chr1-8_2-2-5_perc_abs_cov_filtered/dataset_log.tsv"
 
     # ensure output directory exists
     if not path.exists(output_directory):
         os.mkdir(output_directory)
 
-    # training_set_relative_size = 0.7
-    # train_paths, test_paths, train_length, test_length = SplitDataloader.partition_dataset_paths(dataset_log_path=dataset_log_path, train_size_proportion=training_set_relative_size)
-    train_paths, test_paths, train_length, test_length = SplitDataloader.partition_dataset_paths_by_chromosome(dataset_log_path=dataset_log_path, test_chromosome_name_list=['19'])
+    train_chromosomes = ["chr"+str(n) for n in range(1,19)]
+    print("Training on chromosomes: ", train_chromosomes)
 
-    # for path in sorted(test_paths):
-    #     print(path)
-    # print(len(test_paths))
-    # exit()
+    training_set_relative_size = 0.7
+    # train_paths, test_paths, train_length, test_length = SplitDataloader.partition_dataset_paths(dataset_log_path=dataset_log_path, train_size_proportion=training_set_relative_size)
+    train_paths, test_paths, train_length, test_length = SplitDataloader.partition_dataset_paths_by_chromosome(dataset_log_path=dataset_log_path, test_chromosome_name_list=['chr19'])
 
     print("Train set size: ", train_length)
     print("Test set size: ", test_length)
@@ -795,6 +780,7 @@ def main():
                 test_length=test_length,
                 load_model=load_model,
                 model_state_path=model_state_path,
+                checkpoint_save_directory=output_directory,
                 use_gpu=gpu)
 
     results_handler = ResultsHandler(y_matrix=y_matrix,

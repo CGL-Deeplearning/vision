@@ -55,3 +55,29 @@ class BamHandler:
 
     def get_header_sq(self):
         return self.bamFile.header['SQ']
+
+
+if __name__ == "__main__":
+    import time
+
+    start_time = time.time()
+
+    handler = BamHandler("/home/ryan/data/GIAB/NA12878_GIAB_30x_GRCh37.sorted.bam")
+
+    reads = handler.get_reads("1", 800000, 1800000)
+    base_quality = list()
+    map_qualities = list()
+    sequences = list()
+
+    for read in reads:
+        read_sequence = read.query_sequence
+        read_base_qualities = read.query_qualities
+        read_mapping_quality = read.mapping_quality
+
+        sequences.append(read_sequence)
+        base_quality.append(read_base_qualities)
+        map_qualities.append(read_mapping_quality)
+
+    end_time = time.time()
+
+    print(end_time-start_time)

@@ -346,7 +346,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     whole_length = fasta_handler.get_chr_sequence_length(chr_name)
 
     # .5MB segments at once
-    each_segment_length = 40000
+    each_segment_length = 75000
 
     # chunk the chromosome into pieces
     chunks = int(math.ceil(whole_length / each_segment_length))
@@ -382,7 +382,11 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
     # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
-    chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
+
+    chr_list = ["chr9", "chr10", "chr11", "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19",
+                "chr20", "chr21", "chr22"]
+
+    # chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
 
     program_start_time = time.time()
 
@@ -429,17 +433,40 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
 
 
-def test(view_object):
+def test(chr_name, bam_file, ref_file, vcf_file, output_path, max_threads, confident_bed_tree):
     """
     Run a test
     :return:
     """
+    # create dump directory inside output directory
+    output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+
     start_time = time.time()
-    view_object.parse_region(start_position=800000, end_position=850000, thread_no=1)
+    start_position = 65000000 ##46350004
+    end_position = 68000000
+    whole_length = end_position - start_position
 
-    log_candidate_datasets(view_object.output_dir)
+    # .5MB segments at once
+    each_segment_length = 70000
 
-    print("TOTAL TIME ELAPSED: ", time.time()-start_time)
+    # chunk the chromosome into pieces
+    chunks = int(math.ceil(whole_length / each_segment_length))
+
+    for i in tqdm(range(chunks)):
+        start_position = i * each_segment_length
+        end_position = min((i + 1) * each_segment_length, whole_length)
+        # gather all parameters
+        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
+
+        p = multiprocessing.Process(target=parallel_run, args=args)
+        p.start()
+
+        # wait until we have room for new processes to start
+        while True:
+            if len(multiprocessing.active_children()) < max_threads:
+                break
+
+    print("TOTAL TIME ELAPSED: ", time.time() - start_time)
 
 
 def handle_output_directory(output_dir):
@@ -537,14 +564,17 @@ if __name__ == '__main__':
 
     if FLAGS.test is True:
         # print(FLAGS.output_dir)
-        chromosome_output = create_output_dir_for_chromosome(FLAGS.output_dir, FLAGS.chromosome_name)
-        view = View(chromosome_name=FLAGS.chromosome_name,
-                    bam_file_path=FLAGS.bam,
-                    reference_file_path=FLAGS.ref,
-                    vcf_path=FLAGS.vcf,
-                    output_file_path=chromosome_output,
-                    confident_tree=confident_tree_build)
-        test(view)
+        # chromosome_output = create_output_dir_for_chromosome(FLAGS.output_dir, FLAGS.chromosome_name)
+        # view = View(chromosome_name=FLAGS.chromosome_name,
+        #             bam_file_path=FLAGS.bam,
+        #             reference_file_path=FLAGS.ref,
+        #             vcf_path=FLAGS.vcf,
+        #             output_file_path=chromosome_output,
+        #             confident_tree=confident_tree_build)
+        # test(view)
+
+        test(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,FLAGS.max_threads, confident_tree_build)
+
     elif FLAGS.chromosome_name is not None:
         chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
                                          FLAGS.max_threads, confident_tree_build)

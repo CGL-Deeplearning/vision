@@ -17,9 +17,9 @@ Dictionaries it updates:
 """
 
 DEFAULT_MIN_MAP_QUALITY = 0
-MIN_MISMATCH_THRESHOLD = 0
-MIN_MISMATCH_PERCENT_THRESHOLD = 0
-MIN_COVERAGE_THRESHOLD = 1
+MIN_MISMATCH_THRESHOLD = 2
+MIN_MISMATCH_PERCENT_THRESHOLD = 2
+MIN_COVERAGE_THRESHOLD = 5
 
 PLOIDY = 4
 MATCH_ALLELE = 0
@@ -192,7 +192,6 @@ class CandidateFinder:
         start = alignment_position + 1
         stop = start + length
         self.mismatch_count[alignment_position] += 1
-
 
         for i in range(start, stop):
             self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)

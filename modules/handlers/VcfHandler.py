@@ -294,6 +294,7 @@ class VCFFileProcessor:
         :return: Filtered record list
         """
         filtered_records = []
+
         # For each record
         for record in self.vcf_records:
             # Create VCFRecord object for that record
@@ -355,6 +356,7 @@ class VCFFileProcessor:
         :param site: Site (:100000-200000)
         :return:
         """
+        # print(contig, start_pos, end_pos)
         if start_pos is not None:
             try:
                 self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig, start_pos, end_pos)
