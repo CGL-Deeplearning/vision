@@ -19,6 +19,8 @@ from modules.core.ImageGenerator import ImageGenerator
 from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.FileManager import FileManager
+from modules.handlers.SummaryHandler import SummaryHandler
+
 """
 This script creates training images from BAM, Reference FASTA and truth VCF file. The process is:
 - Find candidates that can be variants
@@ -44,7 +46,6 @@ DEBUG_TEST_PARALLEL = False
 # only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
 STRATIFICATION_RATE = 1.0
 
-
 def build_chromosomal_interval_trees(confident_bed_path):
     """
     Produce a dictionary of intervals trees, with one tree per chromosome
@@ -56,6 +57,7 @@ def build_chromosomal_interval_trees(confident_bed_path):
 
     # create intervals based on chromosome
     intervals_chromosomal = tsv_handler_reference.get_bed_intervals_by_chromosome(start_offset=1, universal_offset=-1)
+
     # create a dictionary to get all chromosomal trees
     trees_chromosomal = dict()
 
@@ -281,11 +283,14 @@ class View:
         # create summary file where the location of each image is recorded
         contig = str(self.chromosome_name)
         smry = open(self.output_dir + "summary/" + "summary" + '_' + contig + "_" + str(thread_no) + ".csv", 'w')
+
         # create a h5py file where the images are stored
         hdf5_filename = self.output_dir + contig + '_' + str(thread_no) + ".h5"
         hdf5_file = h5py.File(hdf5_filename, mode='w')
+
         # list of image records to be generated
         image_record_set = []
+
         # expand the records for sites where two alleles are found
         for record in candidate_list:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
@@ -339,7 +344,7 @@ class View:
         img_dset[...] = img_set
         label_dset[...] = label_set
 
-    def parse_region(self, start_position, end_position, thread_no):
+    def parse_region_candidates(self, start_position, end_position, thread_no):
         """
         Generate labeled images of a given region of the genome
         :param start_position: Start position of the region
@@ -347,6 +352,7 @@ class View:
         :param thread_no: Thread no for this region
         :return:
         """
+
         # get the reads that fall in that region
         reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
                                            start=start_position,
@@ -358,8 +364,10 @@ class View:
                                            chromosome_name=self.chromosome_name,
                                            region_start_position=start_position,
                                            region_end_position=end_position)
+
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
+
         dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
         # if confident tree is defined then subset the candidates to only those intervals
@@ -369,8 +377,10 @@ class View:
                 pos_st = candidate[1] + 1
                 pos_end = candidate[1] + 1
                 in_conf = self.in_confident_check(pos_st, pos_end)
+
                 if in_conf is True:
                     confident_labeled.append(candidate)
+
             selected_candidates = confident_labeled
 
         # get all labeled candidate sites
@@ -385,8 +395,83 @@ class View:
         # generate and save candidate images
         self.generate_candidate_images(labeled_sites, image_generator, thread_no)
 
+    # def parse_region(self, start_position, end_position, thread_no):
+    #     """
+    #     Generate labeled images of a given region of the genome
+    #     :param start_position: Start position of the region
+    #     :param end_position: End position of the region
+    #     :param thread_no: Thread no for this region
+    #     :return:
+    #     """
+    #     # get the reads that fall in that region
+    #     reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
+    #                                        start=start_position,
+    #                                        stop=end_position)
+    #
+    #     # create candidate finder object
+    #     candidate_finder = CandidateFinder(reads=reads,
+    #                                        fasta_handler=self.fasta_handler,
+    #                                        chromosome_name=self.chromosome_name,
+    #                                        region_start_position=start_position,
+    #                                        region_end_position=end_position)
+    #
+    #     # go through each read and find candidate positions and alleles
+    #     selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
+    #     dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
+    #
+    #     # if confident tree is defined then subset the candidates to only those intervals
+    #     if self.confident_tree is not None:
+    #         confident_labeled = []
+    #         for candidate in selected_candidates:
+    #             pos_st = candidate[1] + 1
+    #             pos_end = candidate[1] + 1
+    #             in_conf = self.in_confident_check(pos_st, pos_end)
+    #
+    #             if in_conf is True:
+    #                 confident_labeled.append(candidate)
+    #
+    #         selected_candidates = confident_labeled
+    #
+    #     # get all labeled candidate sites
+    #     labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
+    #     # create image generator object with all necessary dictionary
+    #     image_generator = ImageGenerator(dictionaries_for_images)
+    #
+    #     if DEBUG_PRINT_CANDIDATES:
+    #         for candidate in labeled_sites:
+    #             print(candidate)
+    #
+    #     # generate and save candidate images
+    #     self.generate_candidate_images(labeled_sites, image_generator, thread_no)
 
-def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
+
+# def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
+#     """
+#     Creates a view object for a region and generates images for that region.
+#     :param chr_name: Name of the chromosome
+#     :param bam_file: path to BAM file
+#     :param ref_file: path to reference FASTA file
+#     :param vcf_file: path to VCF file
+#     :param output_dir: path to output directory
+#     :param start_pos: start position of the genomic region
+#     :param end_pos: end position of the genomic region
+#     :param conf_bed_tree: tree containing confident bed intervals
+#     :param thread_no: thread number
+#     :return:
+#     """
+#     # create a view object
+#     view_ob = View(chromosome_name=chr_name,
+#                    bam_file_path=bam_file,
+#                    reference_file_path=ref_file,
+#                    output_file_path=output_dir,
+#                    vcf_path=vcf_file,
+#                    confident_tree=conf_bed_tree)
+#
+#     # return the results
+#     view_ob.parse_region(start_pos, end_pos, thread_no)
+
+
+def parallel_run_per_chunk(chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, chunk, thread_no):
     """
     Creates a view object for a region and generates images for that region.
     :param chr_name: Name of the chromosome
@@ -400,6 +485,11 @@ def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, 
     :param thread_no: thread number
     :return:
     """
+    # print(len(chunk))
+    # print(chunk[0])
+    # exit()
+
+    interval_tree = IntervalTree(intervals=chunk)
 
     # create a view object
     view_ob = View(chromosome_name=chr_name,
@@ -407,10 +497,40 @@ def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, 
                    reference_file_path=ref_file,
                    output_file_path=output_dir,
                    vcf_path=vcf_file,
-                   confident_tree=conf_bed_tree)
+                   confident_tree=None)
 
-    # return the results
-    view_ob.parse_region(start_pos, end_pos, thread_no)
+    view_ob.parse_region_candidates(start_position, end_position, interval_tree, thread_no)
+
+
+def parallel_run_per_interval(chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, chunk, thread_no):
+    """
+    Creates a view object for a region and generates images for that region.
+    :param chr_name: Name of the chromosome
+    :param bam_file: path to BAM file
+    :param ref_file: path to reference FASTA file
+    :param vcf_file: path to VCF file
+    :param output_dir: path to output directory
+    :param start_pos: start position of the genomic region
+    :param end_pos: end position of the genomic region
+    :param conf_bed_tree: tree containing confident bed intervals
+    :param thread_no: thread number
+    :return:
+    """
+    # print(len(chunk))
+    # print(chunk[0])
+    # exit()
+
+    # interval_tree = IntervalTree(intervals=chunk)
+
+    # create a view object
+    view_ob = View(chromosome_name=chr_name,
+                   bam_file_path=bam_file,
+                   reference_file_path=ref_file,
+                   output_file_path=output_dir,
+                   vcf_path=vcf_file,
+                   confident_tree=None)
+
+    view_ob.parse_region_candidates(start_position, end_position, thread_no)
 
 
 def create_output_dir_for_chromosome(output_dir, chr_name):
@@ -431,8 +551,70 @@ def create_output_dir_for_chromosome(output_dir, chr_name):
     return path_to_dir
 
 
-def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, bed_intervals, output_path, max_threads,
-                                     confident_bed_tree, singleton_run=False):
+# def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, bed_intervals, output_path, max_threads,
+#                                      confident_bed_tree, singleton_run=False):
+#     """
+#     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
+#     :param chr_name: Name of the chromosome
+#     :param bam_file: path to BAM file
+#     :param ref_file: path to reference FASTA file
+#     :param vcf_file: path to VCF file
+#     :param output_path: path to output directory
+#     :param max_threads: Maximum number of threads to run at one instance
+#     :param confident_bed_tree: tree containing confident bed intervals
+#     :param singleton_run: if running a chromosome independently
+#     :return:
+#     """
+#     sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
+#
+#     # create dump directory inside output directory
+#     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+#
+#     # entire length of chromosome
+#     # fasta_handler = FastaHandler(ref_file)
+#     # whole_length = fasta_handler.get_chr_sequence_length(chr_name)
+#     #
+#     # .5MB segments at once
+#     # each_segment_length = 50000
+#     #
+#     # chunk the chromosome into pieces
+#     # chunks = int(math.ceil(whole_length / each_segment_length))
+#     #
+#     # if DEBUG_TEST_PARALLEL:
+#     #     chunks = 4
+#
+#     start_position = 0
+#     i = 0
+#     for interval in tqdm(bed_intervals[chr_name]):
+#         if interval[0] < start_position:
+#             print("WARNING: overlapping intervals at:", interval[0])
+#
+#         start_position = interval[0]
+#         end_position = interval[1]
+#
+#         # gather all parameters
+#         args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
+#
+#         p = multiprocessing.Process(target=parallel_run, args=args)
+#         p.start()
+#
+#         i += 1
+#
+#         # wait until we have room for new processes to start
+#         while True:
+#             if len(multiprocessing.active_children()) < max_threads:
+#                 break
+#
+#     if singleton_run:
+#         # wait for the last process to end before file processing
+#         while True:
+#             if len(multiprocessing.active_children()) == 0:
+#                 break
+#         # remove summary files and make one file
+#         summary_file_to_csv(output_path, [chr_name])
+
+
+def summary_chromosome_parallelization(chromosome_name, bam_file, ref_file, vcf_file, chunks, output_path, max_threads):
     """
     This method takes one chromosome name as parameter and chunks that chromosome in max_threads.
     :param chr_name: Name of the chromosome
@@ -445,54 +627,34 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, bed
     :param singleton_run: if running a chromosome independently
     :return:
     """
-    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chr_name) + " PROCESSES" + "\n" + TextColor.END)
+    sys.stderr.write(TextColor.BLUE + "STARTING " + str(chromosome_name) + " PROCESSES" + "\n" + TextColor.END)
+
     # create dump directory inside output directory
-    output_dir = create_output_dir_for_chromosome(output_path, chr_name)
+    output_dir = create_output_dir_for_chromosome(output_path, chromosome_name)
 
-    # entire length of chromosome
-    # fasta_handler = FastaHandler(ref_file)
-    # whole_length = fasta_handler.get_chr_sequence_length(chr_name)
-    #
-    # .5MB segments at once
-    # each_segment_length = 50000
-    #
-    # chunk the chromosome into pieces
-    # chunks = int(math.ceil(whole_length / each_segment_length))
-    # if DEBUG_TEST_PARALLEL:
-    #     chunks = 4
-
-    start_position = 0
     i = 0
-    for interval in tqdm(bed_intervals[chr_name]):
-        if interval[0] < start_position:
-            print("WARNING: overlapping intervals at:", interval[0])
+    for chunk in tqdm(chunks):
+        for interval in chunk:
+            # start_position = chunk[0][0]
+            # end_position = chunk[-1][-1]
+            start_position = interval[0]
+            end_position = interval[-1]
 
-        start_position = interval[0]
-        end_position = interval[1]
+            # gather all parameters
+            args = (chromosome_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, chunk, i)
 
-        # gather all parameters
-        args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
+            p = multiprocessing.Process(target=parallel_run_per_interval, args=args)
+            p.start()
 
-        p = multiprocessing.Process(target=parallel_run, args=args)
-        p.start()
+            i += 1
 
-        i += 1
-
-        # wait until we have room for new processes to start
-        while True:
-            if len(multiprocessing.active_children()) < max_threads:
-                break
-
-    if singleton_run:
-        # wait for the last process to end before file processing
-        while True:
-            if len(multiprocessing.active_children()) == 0:
-                break
-        # remove summary files and make one file
-        summary_file_to_csv(output_path, [chr_name])
+            # wait until we have room for new processes to start
+            while True:
+                if len(multiprocessing.active_children()) < max_threads:
+                    break
 
 
-def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
+def summary_parallelization(bam_file, ref_file, vcf_file, summary_file, output_dir_path, max_threads):
     """
     This method calls chromosome_level_parallelization for each chromosome.
     :param bam_file: path to BAM file
@@ -503,29 +665,26 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     :param confident_bed_tree: tree containing confident bed intervals
     :return:
     """
+    # nt length of regions between
+    chunk_size = 50000
 
-    # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
-    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
-    #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
-    #chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
-    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
-                "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
+    reader = SummaryHandler(summary_file)
+    candidate_sites = reader.get_chunked_candidate_sites(chunk_size=chunk_size)
 
     program_start_time = time.time()
 
-    # chr_list = ["19"]
-
     # each chromosome in list
-    for chr_name in chr_list:
+    for chromosome_name in candidate_sites:
 
         start_time = time.time()
 
+        chunks = candidate_sites[chromosome_name]
+
         # do a chromosome level parallelization
-        chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
-                                         max_threads, confident_bed_tree)
+        summary_chromosome_parallelization(chromosome_name, bam_file, ref_file, vcf_file, chunks, output_dir_path, max_threads)
 
         end_time = time.time()
-        sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr_name) + " PROCESSES" + "\n")
+        sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chromosome_name) + " PROCESSES" + "\n")
         sys.stderr.write(TextColor.CYAN + "TIME ELAPSED: " + str(end_time - start_time) + "\n")
 
     # wait for the last process to end before file processing
@@ -533,11 +692,61 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
         if len(multiprocessing.active_children()) == 0:
             break
 
+    chr_list = list(candidate_sites.keys())
     summary_file_to_csv(output_dir_path, chr_list)
 
     program_end_time = time.time()
-    sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
+    sys.stderr.write(TextColor.RED + "PROCESS FINISHED SUCCESSFULLY" + "\n")
     sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
+
+
+# def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, max_threads, confident_bed_tree):
+#     """
+#     This method calls chromosome_level_parallelization for each chromosome.
+#     :param bam_file: path to BAM file
+#     :param ref_file: path to reference FASTA file
+#     :param vcf_file: path to VCF file
+#     :param output_dir_path: path to output directory
+#     :param max_threads: Maximum number of threads to run at one instance
+#     :param confident_bed_tree: tree containing confident bed intervals
+#     :return:
+#     """
+#
+#     # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
+#     # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11",
+#     #             "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
+#     #chr_list = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
+#
+#     chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
+#                 "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
+#
+#     program_start_time = time.time()
+#
+#     # chr_list = ["19"]
+#
+#     # each chromosome in list
+#     for chr_name in chr_list:
+#
+#         start_time = time.time()
+#
+#         # do a chromosome level parallelization
+#         chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
+#                                          max_threads, confident_bed_tree)
+#
+#         end_time = time.time()
+#         sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr_name) + " PROCESSES" + "\n")
+#         sys.stderr.write(TextColor.CYAN + "TIME ELAPSED: " + str(end_time - start_time) + "\n")
+#
+#     # wait for the last process to end before file processing
+#     while True:
+#         if len(multiprocessing.active_children()) == 0:
+#             break
+#
+#     summary_file_to_csv(output_dir_path, chr_list)
+#
+#     program_end_time = time.time()
+#     sys.stderr.write(TextColor.RED + "PROCESSED FINISHED SUCCESSFULLY" + "\n")
+#     sys.stderr.write(TextColor.CYAN + "TOTAL TIME FOR GENERATING ALL RESULTS: " + str(program_end_time-program_start_time) + "\n")
 
 
 def summary_file_to_csv(output_dir_path, chr_list):
@@ -639,6 +848,12 @@ if __name__ == '__main__':
         help="Path to confident BED file"
     )
     parser.add_argument(
+        "--summary_file",
+        type=str,
+        default='',
+        help="Path to summary file containing candidate sites"
+    )
+    parser.add_argument(
         "--test",
         type=bool,
         default=False,
@@ -660,9 +875,12 @@ if __name__ == '__main__':
         chromosomal_intervals = get_chunked_intervals(chromosomal_intervals=chromosomal_intervals, chunk_size=50000)
 
     else:
-        exit("ERROR: Confident bed required for nanopore image generation :(")
-        # confident_tree_build = None
+        # exit("ERROR: Confident bed required for nanopore image generation :(")
+        confident_tree_build = None
         # chromosomal_intervals = None
+
+    if FLAGS.summary_file == '':
+        exit("ERROR: Summary file containing candidate sites is required for nanopore image generation")
 
     if confident_tree_build is not None:
         sys.stderr.write(TextColor.PURPLE + "CONFIDENT TREE LOADED\n" + TextColor.END)
@@ -678,9 +896,19 @@ if __name__ == '__main__':
                     output_file_path=chromosome_output,
                     confident_tree=confident_tree_build)
         test(view)
-    elif FLAGS.chromosome_name is not None:
-        chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, chromosomal_intervals, FLAGS.output_dir,
-                                         FLAGS.max_threads, confident_tree_build)
-    else:
-        genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
-                                     FLAGS.max_threads, confident_tree_build)
+
+    if FLAGS.summary_file is not None:
+        summary_parallelization(bam_file=FLAGS.bam,
+                                ref_file=FLAGS.ref,
+                                vcf_file=FLAGS.vcf,
+                                summary_file=FLAGS.summary_file,
+                                output_dir_path=FLAGS.output_dir,
+                                max_threads=FLAGS.max_threads)
+
+    # elif FLAGS.chromosome_name is not None:
+    #     chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, chromosomal_intervals, FLAGS.output_dir,
+    #                                      FLAGS.max_threads, confident_tree_build)
+    #
+    # else:
+    #     genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
+    #                                  FLAGS.max_threads, confident_tree_build)

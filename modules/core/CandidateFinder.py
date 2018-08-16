@@ -56,6 +56,9 @@ class CandidateFinder:
         :param region_start_position: Start position of the region
         :param region_end_position: End position of the region
         """
+        # Added for nanopore parsing
+        # self.interval_tree = interval_tree
+
         self.region_start_position = region_start_position
         self.region_end_position = region_end_position
         self.chromosome_name = chromosome_name
@@ -164,7 +167,6 @@ class CandidateFinder:
         start = alignment_position
         stop = start + length
         for i in range(start, stop):
-
             self.coverage[i] += 1
             allele = read_sequence[i-alignment_position]
             ref = ref_sequence[i-alignment_position]
@@ -223,7 +225,6 @@ class CandidateFinder:
         self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE)
         self._update_insert_dictionary(read_id, alignment_position, read_sequence, qualities)
 
-
     def find_read_candidates(self, read):
         """
         This method finds candidates given a read. We walk through the cigar string to find these candidates.
@@ -235,9 +236,11 @@ class CandidateFinder:
         self.read_allele_dictionary = {}
         ref_alignment_start = read.reference_start
         ref_alignment_stop = self.get_read_stop_position(read)
+
         # if the region has very high coverage, we are not going to parse through all the reads
         if self.coverage[ref_alignment_start] > 300:
             return False
+
         cigar_tuples = read.cigartuples
         read_sequence = read.query_sequence
         read_id = read.query_name
@@ -266,7 +269,9 @@ class CandidateFinder:
             read_sequence_segment = read_sequence[read_index:read_index+length]
 
             if cigar_code != 0 and found_valid_cigar is False:
-                read_index += length
+                # only increment the read index if the non-match cigar code is INS or SOFTCLIP
+                if cigar_code == 1 or cigar_code == 4:
+                    read_index += length
                 continue
             found_valid_cigar = True
 
@@ -288,6 +293,9 @@ class CandidateFinder:
         for position in self.read_allele_dictionary.keys():
             if position < self.region_start_position or position > self.region_end_position:
                 continue
+            # if [position, position] not in self.interval_tree:
+            #     continue
+
             self.rms_mq[position] += read.mapping_quality * read.mapping_quality
             for record in self.read_allele_dictionary[position]:
                 # there can be only one record per position in a read
@@ -446,8 +454,6 @@ class CandidateFinder:
                     cigar_color = global_cigar_color_dictionary[cigar_code] \
                         if cigar_code in global_cigar_color_dictionary else 0.0
                     read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
-
-
 
                 if pos in self.insert_length_info:
                     length_of_insert = self.insert_length_info[pos]
