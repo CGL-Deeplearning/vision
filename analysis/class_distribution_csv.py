@@ -20,7 +20,7 @@ with open(file_name, "r") as ins:
         if not line:
             continue
         line = line.split(',')
-        gt = line[2]
+        gt = line[2].split('\t')[-1]
         dictionary[gt] += 1
 
 
