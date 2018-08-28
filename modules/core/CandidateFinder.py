@@ -30,8 +30,8 @@ global_cigar_color_dictionary = {0: MAX_COLOR_VALUE, 1: MAX_COLOR_VALUE*0.6, 2: 
 ##testing speed improvements of doing channels without support in method
 
 DEFAULT_MIN_MAP_QUALITY = 5
-MIN_MISMATCH_THRESHOLD = 2
-MIN_MISMATCH_PERCENT_THRESHOLD = 2
+MIN_MISMATCH_THRESHOLD = 1
+MIN_MISMATCH_PERCENT_THRESHOLD = 10
 MIN_COVERAGE_THRESHOLD = 5
 
 PLOIDY = 2
@@ -398,9 +398,9 @@ class CandidateFinder:
             frequency = round(count / self.coverage[position], 3) if self.coverage[position] else 0
             #if allele_type == INSERT_ALLELE or allele_type == DELETE_ALLELE:
             #    filtered_list.append((allele, count, frequency))
-            #elif count > MIN_MISMATCH_THRESHOLD and frequency * 100 > MIN_MISMATCH_PERCENT_THRESHOLD\
-            #        and coverage > MIN_COVERAGE_THRESHOLD:
-            filtered_list.append((allele, count, frequency))
+            if count > MIN_MISMATCH_THRESHOLD and frequency * 100 > MIN_MISMATCH_PERCENT_THRESHOLD:
+            #and coverage > MIN_COVERAGE_THRESHOLD:
+                filtered_list.append((allele, count, frequency))
         return filtered_list
 
     def _get_record(self, pos, alt1, alt2, ref, ref_count):
