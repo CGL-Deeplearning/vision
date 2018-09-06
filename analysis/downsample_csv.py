@@ -9,7 +9,7 @@ import random
 sns.set(color_codes=True)
 
 file_name = sys.argv[1]
-downsample_rate = sys.argv[2]
+downsample_rate = float(sys.argv[2])
 dictionary = dict()
 dictionary['0'] = 0
 dictionary['1'] = 0
