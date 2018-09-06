@@ -201,7 +201,7 @@ class View:
         """
 
         # declare the size of the image
-        image_height, image_width = 50, 20
+        image_height, image_width = 300, 300
         if len(candidate_list) == 0:
             return
 
@@ -253,15 +253,15 @@ class View:
             # the record of the image we want to save in the summary file
             img_rec = str('\t'.join(str(item) for item in img_record))
             label_set.append(label)
-            img_set.append(np.array(image_array, dtype=np.int8))
+            img_set.append(np.array(image_array, dtype=np.int32))
             smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
             indx += 1
 
         # the image dataset we save. The index name in h5py is "images".
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int8,
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int32,
                                             compression='gzip')
         # the labels for images that we saved
-        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int8)
+        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int32)
         # save the images and labels to the h5py file
         img_dset[...] = img_set
         label_dset[...] = label_set
