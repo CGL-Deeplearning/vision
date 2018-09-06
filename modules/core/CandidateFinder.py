@@ -29,7 +29,7 @@ global_cigar_color_dictionary = {0: MAX_COLOR_VALUE, 1: MAX_COLOR_VALUE*0.6, 2: 
 
 ## testing speed improvements of doing channels without support in method
 
-DEFAULT_MIN_MAP_QUALITY = 1
+DEFAULT_MIN_MAP_QUALITY = 0
 MIN_MISMATCH_THRESHOLD = 1
 MIN_MISMATCH_PERCENT_THRESHOLD = 10
 MIN_COVERAGE_THRESHOLD = 5
