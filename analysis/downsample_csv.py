@@ -31,6 +31,6 @@ with open(file_name, "r") as ins:
         dictionary[gt] += 1
 
 total = dictionary['0'] + dictionary['1'] + dictionary['2']
-print("Hom:\t", dictionary['0'], "\t", str((dictionary['0'] * 100) / total), "%")
-print("Het:\t", dictionary['1'], "\t", str((dictionary['1'] * 100) / total), "%")
-print("Hom-alt:\t", dictionary['2'], "\t", str((dictionary['2'] * 100) / total), "%")
+sys.stderr.write("Hom:\t", dictionary['0'], "\t", str((dictionary['0'] * 100) / total), "%")
+sys.stderr.write("Het:\t", dictionary['1'], "\t", str((dictionary['1'] * 100) / total), "%")
+sys.stderr.write("Hom-alt:\t", dictionary['2'], "\t", str((dictionary['2'] * 100) / total), "%")
