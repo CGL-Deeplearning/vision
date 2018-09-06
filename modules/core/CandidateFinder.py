@@ -27,9 +27,9 @@ IMAGE_DEPTH_THRESHOLD = 300
 global_base_color_dictionary = {'A': 254.0, 'C': 100.0, 'G': 180.0, 'T': 30.0, '*': 5.0, '.': 5.0, 'N': 5.0}
 global_cigar_color_dictionary = {0: MAX_COLOR_VALUE, 1: MAX_COLOR_VALUE*0.6, 2: MAX_COLOR_VALUE*0.3}
 
-##testing speed improvements of doing channels without support in method
+## testing speed improvements of doing channels without support in method
 
-DEFAULT_MIN_MAP_QUALITY = 5
+DEFAULT_MIN_MAP_QUALITY = 1
 MIN_MISMATCH_THRESHOLD = 1
 MIN_MISMATCH_PERCENT_THRESHOLD = 10
 MIN_COVERAGE_THRESHOLD = 5
@@ -39,7 +39,6 @@ MATCH_ALLELE = 0
 MISMATCH_ALLELE = 1
 INSERT_ALLELE = 2
 DELETE_ALLELE = 3
-MIN_DELETE_QUALITY = 20
 
 
 class CandidateFinder:
@@ -169,7 +168,7 @@ class CandidateFinder:
             allele = read_sequence[i-alignment_position]
             ref = ref_sequence[i-alignment_position]
             self.base_dictionary[read_id][i] = (allele, qualities[i-alignment_position])
-            #self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
+            # self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
             if allele != ref:
                 self.mismatch_count[i] += 1
                 self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE)
@@ -195,7 +194,7 @@ class CandidateFinder:
 
         for i in range(start, stop):
             self.base_dictionary[read_id][i] = ('*', MIN_DELETE_QUALITY)
-            #self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
+            # self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
             # increase the coverage
             self.mismatch_count[i] += 1
             self.coverage[i] += 1
@@ -222,7 +221,6 @@ class CandidateFinder:
         self.mismatch_count[alignment_position] += 1
         self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE)
         self._update_insert_dictionary(read_id, alignment_position, read_sequence, qualities)
-
 
     def find_read_candidates(self, read):
         """
@@ -396,10 +394,10 @@ class CandidateFinder:
             allele_sequence, allele_type = allele
             coverage = self.coverage[position] if self.coverage[position] else 0
             frequency = round(count / self.coverage[position], 3) if self.coverage[position] else 0
-            #if allele_type == INSERT_ALLELE or allele_type == DELETE_ALLELE:
-            #    filtered_list.append((allele, count, frequency))
-            if count > MIN_MISMATCH_THRESHOLD and frequency * 100 > MIN_MISMATCH_PERCENT_THRESHOLD:
-            #and coverage > MIN_COVERAGE_THRESHOLD:
+
+            if allele_type == INSERT_ALLELE or allele_type == DELETE_ALLELE:
+                filtered_list.append((allele, count, frequency))
+            elif frequency * 100 >= MIN_MISMATCH_PERCENT_THRESHOLD:
                 filtered_list.append((allele, count, frequency))
         return filtered_list
 
@@ -436,7 +434,6 @@ class CandidateFinder:
                     base, base_q = self.base_dictionary[read_id][pos]
                     cigar_code = 0 if base != '*' else 1
                     ref_base = self.reference_dictionary[pos]
-
 
                     is_match = True if ref_base == base else False
 
