@@ -23,6 +23,10 @@ with open(file_name, "r") as ins:
         gt = line[2].split('\t')[-1]
         dictionary[gt] += 1
 
+total = dictionary['0'] + dictionary['1'] + dictionary['2']
+sys.stderr.write(str("Hom:\t" + str(dictionary['0']) + "\t" + str((dictionary['0'] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Hom:\t" + str(dictionary['1']) + "\t" + str((dictionary['1'] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Hom-alt:\t" + str(dictionary['2']) + "\t" + str((dictionary['2'] * 100) / total) + "%" + "\n"))
 
 fig, ax = plt.subplots()
 
