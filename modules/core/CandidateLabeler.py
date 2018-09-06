@@ -130,15 +130,20 @@ class CandidateLabeler:
             if alt_type == DEL_CANDIDATE:
                 ref_ret, alt_seq = alt_seq, ref_ret
             refined_alts.append([ref_ret, alt_seq, alt_type])
+
         vcf_recs = []
         for record in records:
             # get the alt allele of the record
+            ref = record.ref
             rec_alt = record.alt
+            if record.genotype_class == "SNP":
+                ref = ref[0]
+                rec_alt = rec_alt[0]
 
             if record.type == '':
                 record.type = 'Hom'
             # if the alt allele of the record is same as candidate allele
-            vcf_recs.append((record.ref, rec_alt, record.type, record.filter, record.mq, record.gq, record.gt))
+            vcf_recs.append((ref, rec_alt, record.type, record.filter, record.mq, record.gq, record.gt))
         gts = list()
         for alt in refined_alts:
             ref_seq, alt_seq, alt_type = alt
