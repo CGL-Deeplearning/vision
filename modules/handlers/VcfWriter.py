@@ -86,12 +86,14 @@ class VCFWriter:
             ref = record[3]
             alt1 = record[4]
             alt2 = record[5]
+            alt1_type = record[6]
+            alt2_type = record[7]
             if alt1 != '.' and alt2 != '.':
-                rec_alt1 = alt1
-                rec_alt2 = alt2
+                rec_alt1 = (alt1, alt1_type)
+                rec_alt2 = (alt2, alt2_type)
                 alt_probs['both'] = (record[8:])
             else:
-                alt_probs[alt1] = (record[8:])
+                alt_probs[(alt1, alt1_type)] = (record[8:])
                 alt_with_types.append((alt1, record[6]))
 
         p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
