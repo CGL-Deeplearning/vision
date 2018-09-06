@@ -395,9 +395,7 @@ class CandidateFinder:
             coverage = self.coverage[position] if self.coverage[position] else 0
             frequency = round(count / self.coverage[position], 3) if self.coverage[position] else 0
 
-            if allele_type == INSERT_ALLELE or allele_type == DELETE_ALLELE:
-                filtered_list.append((allele, count, frequency))
-            elif frequency * 100 >= MIN_MISMATCH_PERCENT_THRESHOLD:
+            if frequency * 100 >= MIN_MISMATCH_PERCENT_THRESHOLD:
                 filtered_list.append((allele, count, frequency))
         return filtered_list
 
