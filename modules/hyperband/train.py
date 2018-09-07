@@ -83,7 +83,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
                 # Forward + Backward + Optimize
                 optimizer.zero_grad()
                 outputs = model(images)
-                loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
+                loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
                 loss.backward()
                 optimizer.step()
 
