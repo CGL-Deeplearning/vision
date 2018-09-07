@@ -9,7 +9,8 @@ from collections import OrderedDict
 sns.set(color_codes=True)
 
 file_name = sys.argv[1]
-dictionary = {}
+save_fig = bool(int(sys.argv[2]) == 1)
+dictionary = dict()
 dictionary['0'] = 0
 dictionary['1'] = 0
 dictionary['2'] = 0
@@ -28,14 +29,16 @@ sys.stderr.write(str("Hom:\t" + str(dictionary['0']) + "\t" + str((dictionary['0
 sys.stderr.write(str("Hom:\t" + str(dictionary['1']) + "\t" + str((dictionary['1'] * 100) / total) + "%" + "\n"))
 sys.stderr.write(str("Hom-alt:\t" + str(dictionary['2']) + "\t" + str((dictionary['2'] * 100) / total) + "%" + "\n"))
 
-fig, ax = plt.subplots()
+if save_fig:
+    fig, ax = plt.subplots()
 
-dictionary2 = OrderedDict(sorted(dictionary.items(), key=lambda t: t[0]))
+    dictionary2 = OrderedDict(sorted(dictionary.items(), key=lambda t: t[0]))
 
-ax.bar(range(len(dictionary2)), dictionary2.values(), align='center')
-plt.xticks(range(len(dictionary2)), ['Hom', 'Het', 'Hom-alt'])
+    ax.bar(range(len(dictionary2)), dictionary2.values(), align='center')
+    plt.xticks(range(len(dictionary2)), ['Hom', 'Het', 'Hom-alt'])
 
-for i, v in enumerate(dictionary2.values()):
-    ax.text(i, v + 500, str(v) + ": " + str(round(v*100/sum(dictionary2.values()), 2)) + "%",
-            fontweight='bold', ha='center', fontsize=8)
-plt.savefig(file_name.split('/')[-1].split('.')[0]+"_Visualized.png", dpi=400)
+    for i, v in enumerate(dictionary2.values()):
+        ax.text(i, v + 500, str(v) + ": " + str(round(v*100/sum(dictionary2.values()), 2)) + "%",
+                fontweight='bold', ha='center', fontsize=8)
+    plt.savefig(file_name.split('/')[-1].split('.')[0]+"_Visualized.png", dpi=400)
+

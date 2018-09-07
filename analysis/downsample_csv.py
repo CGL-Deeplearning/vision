@@ -1,20 +1,20 @@
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import sys
-import seaborn as sns
-from collections import OrderedDict
 import random
-
-sns.set(color_codes=True)
+from collections import defaultdict
+HOM = 0
+HET = 1
+HOM_ALT = 2
 
 file_name = sys.argv[1]
 downsample_rate = float(sys.argv[2])
+
 dictionary = dict()
-dictionary['0'] = 0
-dictionary['1'] = 0
-dictionary['2'] = 0
-# dictionary['3'] = 0
+dictionary[HOM] = 0
+dictionary[HET] = 0
+dictionary[HOM_ALT] = 0
+
+records = defaultdict(list)
+
 with open(file_name, "r") as ins:
     for line in ins:
         line = line.rstrip()
@@ -22,15 +22,44 @@ with open(file_name, "r") as ins:
         if not line:
             continue
         line = line.split(',')
-        gt = line[2].split('\t')[-1]
-        if downsample_rate < 1.0 and gt == '0':
+        gt = int(line[2].split('\t')[-1])
+        if downsample_rate < 1.0 and gt == HOM:
             random_draw = random.uniform(0, 1)
             if random_draw > downsample_rate:
                 continue
-        print(pre_line)
-        dictionary[gt] += 1
 
-total = dictionary['0'] + dictionary['1'] + dictionary['2']
-sys.stderr.write(str("Hom:\t" + str(dictionary['0']) + "\t" + str((dictionary['0'] * 100) / total) + "%" + "\n"))
-sys.stderr.write(str("Hom:\t" + str(dictionary['1']) + "\t" + str((dictionary['1'] * 100) / total) + "%" + "\n"))
-sys.stderr.write(str("Hom-alt:\t" + str(dictionary['2']) + "\t" + str((dictionary['2'] * 100) / total) + "%" + "\n"))
+        dictionary[gt] += 1
+        records[gt].append(pre_line)
+
+sys.stderr.write("After down-sampling:")
+total = dictionary[HOM] + dictionary[HET] + dictionary[HOM_ALT]
+sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[HOM] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Het:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Hom-alt:\t" + str(dictionary[HOM_ALT]) + "\t" + str((dictionary[HOM_ALT] * 100) / total) + "%" + "\n"))
+
+het_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HET])) if dictionary[HET] else 0
+hom_alt_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HOM_ALT])) if dictionary[HOM_ALT] else 0
+
+if het_over_sampling_ratio > 1:
+    records[HET] = list(records[HET]) * int(het_over_sampling_ratio - 1)
+if hom_alt_over_sampling_ratio > 1:
+    records[HOM_ALT] = list(records[HOM_ALT]) * int(hom_alt_over_sampling_ratio - 1)
+
+dictionary = dict()
+dictionary[HOM] = 0
+dictionary[HET] = 0
+dictionary[HOM_ALT] = 0
+all_records = records[HOM] + records[HET] + records[HOM_ALT]
+random.shuffle(all_records)
+
+for line in all_records:
+    line = line.split(',')
+    gt = int(line[2].split('\t')[-1])
+    dictionary[gt] += 1
+    print(line)
+
+sys.stderr.write("After over-sampling:")
+total = dictionary[HOM] + dictionary[HET] + dictionary[HOM_ALT]
+sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[HOM] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Hom:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Hom-alt:\t" + str(dictionary[HOM_ALT]) + "\t" + str((dictionary[HOM_ALT] * 100) / total) + "%" + "\n"))
