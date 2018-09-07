@@ -7,7 +7,6 @@ import multiprocessing
 import h5py
 from tqdm import tqdm
 import numpy as np
-import random
 
 from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
@@ -40,9 +39,6 @@ Output:
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
-
-# only select STRATIFICATION_RATE% of the total homozygous cases if they are dominant
-STRATIFICATION_RATE = 1.0
 
 
 def build_chromosomal_interval_trees(confident_bed_path):
@@ -232,13 +228,6 @@ class View:
         for img_record in image_record_set:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, label = img_record
 
-            # STRATIFICATION RATE is used to reduce the number of homozygous images are generated.
-            # this parameter can be controlled via the global value of STRATIFICATION_RATE
-            if STRATIFICATION_RATE < 1.0 and label == 0:
-                random_draw = random.uniform(0, 1)
-                if random_draw > STRATIFICATION_RATE:
-                    continue
-
             # list of alts in this record
             alts = [alt1]
             # list of type of record (IN, DEL, SNP)
@@ -247,21 +236,21 @@ class View:
                 alts.append(alt2)
                 rec_types.append(rec_type_alt2)
             # the image array
-            image_array = image_generator.create_image(pos_start, ref, alts, rec_types,
+            image_array = image_generator.create_image(pos_start, pos_end, ref, alts, rec_types,
                                                        image_height=image_height, image_width=image_width)
 
             # the record of the image we want to save in the summary file
             img_rec = str('\t'.join(str(item) for item in img_record))
             label_set.append(label)
-            img_set.append(np.array(image_array, dtype=np.int32))
+            img_set.append(np.array(image_array, dtype=np.uint8))
             smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
             indx += 1
 
         # the image dataset we save. The index name in h5py is "images".
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.int32,
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.uint8,
                                             compression='gzip')
         # the labels for images that we saved
-        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.int32)
+        label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.uint8)
         # save the images and labels to the h5py file
         img_dset[...] = img_set
         label_dset[...] = label_set

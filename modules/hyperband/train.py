@@ -23,7 +23,7 @@ Return:
 
 
 def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, num_workers, retrain_model,
-          retrain_model_path, learning_rate, weight_decay, num_classes=3):
+          retrain_model_path, learning_rate, momentum, num_classes=3):
     transformations = transforms.Compose([transforms.ToTensor()])
 
     sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
@@ -36,7 +36,8 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
                               )
     # this needs to change
     model = ModelHandler.get_new_model(gpu_mode)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, momentum=momentum)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     if retrain_model is True:
         if os.path.isfile(retrain_model_path) is False:
@@ -73,25 +74,22 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
         model.train()
 
         batch_no = 1
-        with tqdm(total=len(train_loader), desc='Loss', leave=True, dynamic_ncols=True) as progress_bar:
+        with tqdm(total=len(train_loader), desc='Loss', leave=True, ncols=100) as progress_bar:
             for (images, labels, rec) in train_loader:
                 if gpu_mode:
                     images = images.cuda()
                     labels = labels.cuda()
 
-                x = images
-                y = labels
-
                 # Forward + Backward + Optimize
                 optimizer.zero_grad()
-                outputs = model(x)
+                outputs = model(images)
                 loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
                 loss.backward()
                 optimizer.step()
 
                 # loss count
                 total_loss += loss.item()
-                total_images += (x.size(0))
+                total_images += (images.size(0))
                 batch_no += 1
 
                 # update progress bar
@@ -107,6 +105,12 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
         stats['accuracy'] = stats_dictioanry['accuracy']
         stats['loss_epoch'].append((epoch, stats_dictioanry['loss']))
         stats['accuracy_epoch'].append((epoch, stats_dictioanry['accuracy']))
+
+        lr_scheduler.step()
+
+        if epoch > 2 and stats_dictioanry['accuracy'] < 90:
+            sys.stderr.write(TextColor.PURPLE + 'EARLY STOPPING\n' + TextColor.END)
+            break
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 

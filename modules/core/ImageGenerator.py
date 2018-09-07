@@ -1,6 +1,8 @@
 import sys
+import numpy as np
 from scipy import misc
 from modules.handlers.ImageChannels import imageChannels
+from modules.core.CandidateFinder import MATCH_ALLELE, INSERT_ALLELE, DELETE_ALLELE
 from modules.core.ImageAnalyzer import *
 
 """
@@ -17,7 +19,6 @@ MIN_DELETE_QUALITY = 20.0
 MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
 DELETE_CIGAR_CODE = 2
-IMAGE_DEPTH_THRESHOLD = 300
 
 
 class ImageGenerator:
@@ -111,7 +112,7 @@ class ImageGenerator:
                 if alt in read_alleles:
                     supporting = True
                     break
-        support_val = 254.0 if supporting is True else 152.4
+        support_val = 254.0 if supporting is True else 152.0
 
         read_row = np.array(self.image_row_for_reads[read_id][0])
         read_row = np.insert(read_row, 6, support_val, axis=1)
@@ -153,12 +154,12 @@ class ImageGenerator:
     @staticmethod
     def add_empty_rows(image, empty_rows_to_add, image_width):
         for i in range(empty_rows_to_add):
-            #empty_channels = [imageChannels.get_empty_channels() for i in range(image_width)]
             empty_channels = [imageChannels.get_empty_channels()] * image_width
             image.append(empty_channels)
         return image
 
-    def create_image(self, query_pos, ref, alts, alt_types, image_height=300, image_width=300, ref_band=5):
+    def create_image(self, query_start_pos, query_end_pos, ref, alts, alt_types,
+                     image_height=300, image_width=300, ref_band=5):
         alts_norm = []
         for i, alt in enumerate(alts):
             alts_norm.append((alt, alt_types[i]))
@@ -166,32 +167,35 @@ class ImageGenerator:
         whole_image = []
         # get all reads that align to that position
         # O(n)
-        left_pos, right_pos = self.get_left_right_genomic_position(query_pos, image_width)
+        left_pos, right_pos = self.get_left_right_genomic_position(query_start_pos, image_width)
         # O(n)
-        start_pos, end_pos, left_pad = self.get_start_end_based_on_image_width(query_pos, image_width, left_pos, right_pos)
+        start_pos, end_pos, left_pad = self.get_start_end_based_on_image_width(query_start_pos, image_width, left_pos, right_pos)
 
         ref_row = self.get_reference_row(start_pos, end_pos, left_pad, image_width)
 
         for i in range(ref_band):
             whole_image.append(ref_row)
 
+        intersected_reads = self.positional_read_info[query_start_pos]
+        is_intersectable = True
+        for alt in alts:
+            if alt[1] != DELETE_ALLELE:
+                is_intersectable = False
+
+        if is_intersectable is True:
+            for pos in range(query_start_pos+1, query_end_pos+1):
+                intersected_reads = set(intersected_reads).intersection(self.positional_read_info[pos])
+
         # O(n)
-        for read in self.positional_read_info[query_pos]:
-            read_row = self.get_read_row(query_pos, alts, read, start_pos, end_pos, left_pad, image_width)
+        for read in intersected_reads:
+            read_row = self.get_read_row(query_start_pos, alts, read, start_pos, end_pos, left_pad, image_width)
             if len(whole_image) < image_height:
                 whole_image.append(read_row)
             else:
                 break
 
-        #whole_image = self.add_empty_rows(whole_image, image_height - len(whole_image), image_width)
-
-        #def add_empty_rows(image, empty_rows_to_add, image_width):
         for i in range(image_height - len(whole_image)):
-                # empty_channels = [imageChannels.get_empty_channels() for i in range(image_width)]
             empty_channels = [[0, 0, 0, 0, 0, 0, 0]] * image_width
             whole_image.append(empty_channels)
-            #return image
-        #whole_image = np.array(whole_image)
 
-        # analyze_np_array(whole_image, image_width, image_height)
-        return np.array(whole_image)
+        return np.array(whole_image, dtype=np.uint8)

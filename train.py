@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
-from modules.models.resnet import resnet18_custom
+from modules.models.inception import inception_v3
 """
 Train a model and save the model that performs best.
 
@@ -123,8 +123,9 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
     # {'weight_decay': 0.00029336512964591496, 'learning_rate': 1.4573188939410545e-05}
-    model = resnet18_custom()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00029336512964591496, weight_decay= 1.4573188939410545e-05)
+    model = inception_v3()
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=0.0001)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     # print out total number of trainable parameters in model
     # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -156,6 +157,9 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
         total_loss = 0
         total_images = 0
         batch_no = 0
+
+        model = model.train()
+
         sys.stderr.write(TextColor.PURPLE + 'Epoch: ' + str(epoch + 1) + "\n" + TextColor.END)
         with tqdm(total=len(train_loader), desc='Loss', leave=True, dynamic_ncols=True) as progress_bar:
             for i, (images, labels, records) in enumerate(train_loader):
@@ -163,19 +167,16 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
                     images = images.cuda()
                     labels = labels.cuda()
 
-                x = images
-                y = labels
-
                 # Forward + Backward + Optimize
                 optimizer.zero_grad()
-                outputs = model(x)
-                loss = criterion(outputs.contiguous().view(-1, num_classes), y.contiguous().view(-1))
+                outputs = model(images)
+                loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
                 loss.backward()
                 optimizer.step()
 
                 # loss count
                 total_loss += loss.item()
-                total_images += (x.size(0))
+                total_images += (images.size(0))
 
                 # update progress bar
                 avg_loss = (total_loss / total_images) if total_images else 0
@@ -198,6 +199,8 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
         train_loss_logger.flush()
         test_loss_logger.flush()
         confusion_matrix_logger.flush()
+
+        lr_scheduler.step()
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 
