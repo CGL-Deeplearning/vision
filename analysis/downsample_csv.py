@@ -31,7 +31,7 @@ with open(file_name, "r") as ins:
         dictionary[gt] += 1
         records[gt].append(pre_line)
 
-sys.stderr.write("After down-sampling:")
+sys.stderr.write("After down-sampling:\n")
 total = dictionary[HOM] + dictionary[HET] + dictionary[HOM_ALT]
 sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[HOM] * 100) / total) + "%" + "\n"))
 sys.stderr.write(str("Het:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
@@ -53,12 +53,13 @@ all_records = records[HOM] + records[HET] + records[HOM_ALT]
 random.shuffle(all_records)
 
 for line in all_records:
+    pre_line = line
     line = line.split(',')
     gt = int(line[2].split('\t')[-1])
     dictionary[gt] += 1
-    print(line)
+    print(pre_line)
 
-sys.stderr.write("After over-sampling:")
+sys.stderr.write("After over-sampling:\n")
 total = dictionary[HOM] + dictionary[HET] + dictionary[HOM_ALT]
 sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[HOM] * 100) / total) + "%" + "\n"))
 sys.stderr.write(str("Hom:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
