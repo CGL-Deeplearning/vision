@@ -107,14 +107,14 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
         stats['accuracy_epoch'].append((epoch, stats_dictioanry['accuracy']))
 
         lr_scheduler.step()
-        if epoch > 3:
-            for param_group in optimizer.param_groups:
-                momentum_value = param_group['momentum']
-                param_group['momentum'] = max(0.9, momentum_value + 0.1)
+        # if epoch > 3:
+        #     for param_group in optimizer.param_groups:
+        #         momentum_value = param_group['momentum']
+        #         param_group['momentum'] = max(0.9, momentum_value + 0.1)
 
-        if epoch > 2 and stats_dictioanry['accuracy'] < 90:
-            sys.stderr.write(TextColor.PURPLE + 'EARLY STOPPING\n' + TextColor.END)
-            break
+        # if epoch > 2 and stats_dictioanry['accuracy'] < 90:
+        #     sys.stderr.write(TextColor.PURPLE + 'EARLY STOPPING\n' + TextColor.END)
+        #     break
 
     sys.stderr.write(TextColor.PURPLE + 'Finished training\n' + TextColor.END)
 

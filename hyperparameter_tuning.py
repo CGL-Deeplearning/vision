@@ -26,8 +26,6 @@ class WrapHyperband:
     """
     Wrap hyperband around a model to tune hyper-parameters.
     """
-    # Paramters of the model
-    # depth=28 widen_factor=4 drop_rate=0.0
     def __init__(self, train_file, test_file, gpu_mode, model_out_dir, log_dir, max_epochs, batch_size, num_workers):
         """
         Initialize the object
@@ -43,7 +41,8 @@ class WrapHyperband:
             # return value is uniformly distributed.
             'learning_rate': hp.loguniform('lr', -12, -4),
             'weight_decay': hp.loguniform('weight_decay', -12, -4),
-            'momentum': hp.choice('momentum', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
+            # 'momentum': hp.choice('momentum', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
+            'momentum': hp.choice('momentum', [0]),
         }
         self.train_file = train_file
         self.test_file = test_file
