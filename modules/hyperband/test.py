@@ -56,7 +56,7 @@ def test(test_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
     accuracy = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
     with torch.no_grad():
-        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, dynamic_ncols=True) as pbar:
+        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, ncols=50) as pbar:
             for i, (images, labels, records) in enumerate(validation_loader):
                 if gpu_mode:
                     images = images.cuda()

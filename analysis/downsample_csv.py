@@ -37,8 +37,8 @@ sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[
 sys.stderr.write(str("Het:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
 sys.stderr.write(str("Hom-alt:\t" + str(dictionary[HOM_ALT]) + "\t" + str((dictionary[HOM_ALT] * 100) / total) + "%" + "\n"))
 
-het_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HET])) if dictionary[HET] else 0
-hom_alt_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HOM_ALT])) if dictionary[HOM_ALT] else 0
+het_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HET] * 3.0)) if dictionary[HET] else 0
+hom_alt_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HOM_ALT] * 3.0)) if dictionary[HOM_ALT] else 0
 
 if het_over_sampling_ratio > 1:
     records[HET] = list(records[HET]) * int(het_over_sampling_ratio - 1)

@@ -23,7 +23,7 @@ Return:
 
 
 def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, num_workers, retrain_model,
-          retrain_model_path, learning_rate, momentum, num_classes=3):
+          retrain_model_path, learning_rate, weight_decay, momentum, num_classes=3):
     transformations = transforms.Compose([transforms.ToTensor()])
 
     sys.stderr.write(TextColor.PURPLE + 'Loading data\n' + TextColor.END)
@@ -36,7 +36,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
                               )
     # this needs to change
     model = ModelHandler.get_new_model(gpu_mode)
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, momentum=momentum)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     if retrain_model is True:
@@ -74,7 +74,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
         model.train()
 
         batch_no = 1
-        with tqdm(total=len(train_loader), desc='Loss', leave=True, ncols=100) as progress_bar:
+        with tqdm(total=len(train_loader), desc='Loss', leave=True, ncols=50) as progress_bar:
             for (images, labels, rec) in train_loader:
                 if gpu_mode:
                     images = images.cuda()
@@ -107,6 +107,10 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
         stats['accuracy_epoch'].append((epoch, stats_dictioanry['accuracy']))
 
         lr_scheduler.step()
+        if epoch > 3:
+            for param_group in optimizer.param_groups:
+                momentum_value = param_group['momentum']
+                param_group['momentum'] = max(0.9, momentum_value + 0.1)
 
         if epoch > 2 and stats_dictioanry['accuracy'] < 90:
             sys.stderr.write(TextColor.PURPLE + 'EARLY STOPPING\n' + TextColor.END)

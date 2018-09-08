@@ -42,7 +42,8 @@ class WrapHyperband:
             # hp.loguniform returns a value drawn according to exp(uniform(low, high)) so that the logarithm of the
             # return value is uniformly distributed.
             'learning_rate': hp.loguniform('lr', -12, -4),
-            'momentum': hp.choice('momentum', [0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95]),
+            'weight_decay': hp.loguniform('weight_decay', -12, -4),
+            'momentum': hp.choice('momentum', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
         }
         self.train_file = train_file
         self.test_file = test_file
@@ -77,12 +78,13 @@ class WrapHyperband:
         epoch_limit = int(n_iterations)
         batch_size = self.batch_size
         learning_rate = params['learning_rate']
+        weight_decay = params['weight_decay']
         momentum = params['momentum']
 
         # train a model
         model, optimizer, stats_dictionary = train(self.train_file, self.test_file, batch_size, epoch_limit, prev_ite,
                                                    self.gpu_mode, num_workers, retrain_model, retrain_model_path,
-                                                   learning_rate, momentum)
+                                                   learning_rate, weight_decay, momentum)
 
         return model, optimizer, stats_dictionary
 
