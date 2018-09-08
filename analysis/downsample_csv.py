@@ -40,10 +40,30 @@ sys.stderr.write(str("Hom-alt:\t" + str(dictionary[HOM_ALT]) + "\t" + str((dicti
 het_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HET] * 3.0)) if dictionary[HET] else 0
 hom_alt_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HOM_ALT] * 3.0)) if dictionary[HOM_ALT] else 0
 
+sys.stderr.write(str(het_over_sampling_ratio) + "\n")
 if het_over_sampling_ratio > 1:
-    records[HET] = list(records[HET]) * int(het_over_sampling_ratio - 1)
+    oversampled_het = list(records[HET]) * max(1, int(het_over_sampling_ratio))
+    het_over_sampling_ratio -= int(het_over_sampling_ratio)
+
+    if het_over_sampling_ratio > 0:
+        more_needed = int(len(records[HET]) * het_over_sampling_ratio)
+        random.shuffle(records[HET])
+        oversampled_het = oversampled_het + records[HET][0:more_needed]
+
+    records[HET] = oversampled_het
+
 if hom_alt_over_sampling_ratio > 1:
-    records[HOM_ALT] = list(records[HOM_ALT]) * int(hom_alt_over_sampling_ratio - 1)
+    oversampled_homalt = list(records[HOM_ALT]) * max(1, int(hom_alt_over_sampling_ratio))
+    hom_alt_over_sampling_ratio -= int(hom_alt_over_sampling_ratio)
+
+    if hom_alt_over_sampling_ratio > 0:
+        more_needed = int(len(records[HOM_ALT]) * hom_alt_over_sampling_ratio)
+        random.shuffle(records[HOM_ALT])
+        oversampled_homalt = oversampled_homalt + records[HOM_ALT][0:more_needed]
+
+    records[HOM_ALT] = oversampled_homalt
+
+sys.stderr.write(str(het_over_sampling_ratio) + " " + str(hom_alt_over_sampling_ratio) + "\n" )
 
 dictionary = dict()
 dictionary[HOM] = 0
@@ -62,5 +82,5 @@ for line in all_records:
 sys.stderr.write("After over-sampling:\n")
 total = dictionary[HOM] + dictionary[HET] + dictionary[HOM_ALT]
 sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[HOM] * 100) / total) + "%" + "\n"))
-sys.stderr.write(str("Hom:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
+sys.stderr.write(str("Het:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
 sys.stderr.write(str("Hom-alt:\t" + str(dictionary[HOM_ALT]) + "\t" + str((dictionary[HOM_ALT] * 100) / total) + "%" + "\n"))
