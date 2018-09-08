@@ -1,6 +1,5 @@
 import torch
-from modules.models.inception import inception_v3
-
+from modules.models.resnet import resnet18_custom
 
 class ModelHandler:
     @staticmethod
@@ -9,7 +8,7 @@ class ModelHandler:
 
     @staticmethod
     def get_new_model(gpu_mode):
-        model = inception_v3()
+        model = resnet18_custom()
         if gpu_mode:
             model = model.cuda()
         return model

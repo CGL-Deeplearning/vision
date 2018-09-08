@@ -74,7 +74,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite, gpu_mode, nu
         model.train()
 
         batch_no = 1
-        with tqdm(total=len(train_loader), desc='Loss', leave=True, ncols=50) as progress_bar:
+        with tqdm(total=len(train_loader), desc='Loss', leave=True, ncols=100) as progress_bar:
             for (images, labels, rec) in train_loader:
                 if gpu_mode:
                     images = images.cuda()
