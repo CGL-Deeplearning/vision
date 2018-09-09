@@ -12,7 +12,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from modules.core.dataloader import PileupDataset, TextColor
 from modules.models.ModelHandler import ModelHandler
-from modules.models.inception import inception_v3
 """
 Train a model and save the model that performs best.
 
@@ -60,7 +59,7 @@ def test(test_file, batch_size, gpu_mode, trained_model, num_classes, num_worker
     accuracy = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
     with torch.no_grad():
-        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, dynamic_ncols=True) as pbar:
+        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, ncols=50) as pbar:
             for i, (images, labels, records) in enumerate(validation_loader):
                 if gpu_mode:
                     images = images.cuda()
@@ -122,9 +121,9 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
-    # {'weight_decay': 0.00029336512964591496, 'learning_rate': 1.4573188939410545e-05}
-    model = inception_v3()
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=0.0001)
+    # 'learning_rate': 0.00015646082166587494, 'weight_decay': 0.00015015832083429306
+    model = ModelHandler.get_new_model(gpu_mode)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00015646082166587494, weight_decay=0.00015015832083429306)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     # print out total number of trainable parameters in model
@@ -161,7 +160,7 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
         model = model.train()
 
         sys.stderr.write(TextColor.PURPLE + 'Epoch: ' + str(epoch + 1) + "\n" + TextColor.END)
-        with tqdm(total=len(train_loader), desc='Loss', leave=True, dynamic_ncols=True) as progress_bar:
+        with tqdm(total=len(train_loader), desc='Loss', leave=True, ncols=50) as progress_bar:
             for i, (images, labels, records) in enumerate(train_loader):
                 if gpu_mode:
                     images = images.cuda()
