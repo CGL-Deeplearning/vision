@@ -7,6 +7,7 @@ HOM_ALT = 2
 
 file_name = sys.argv[1]
 downsample_rate = float(sys.argv[2])
+oversampling_ratio = int(sys.argv[3])
 
 dictionary = dict()
 dictionary[HOM] = 0
@@ -37,12 +38,15 @@ sys.stderr.write(str("Hom:\t\t" + str(dictionary[HOM]) + "\t" + str((dictionary[
 sys.stderr.write(str("Het:\t\t" + str(dictionary[HET]) + "\t" + str((dictionary[HET] * 100) / total) + "%" + "\n"))
 sys.stderr.write(str("Hom-alt:\t" + str(dictionary[HOM_ALT]) + "\t" + str((dictionary[HOM_ALT] * 100) / total) + "%" + "\n"))
 
-het_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HET] * 3.0)) if dictionary[HET] else 0
-hom_alt_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HOM_ALT] * 3.0)) if dictionary[HOM_ALT] else 0
-
 # force not to oversample
-het_over_sampling_ratio = 0
-hom_alt_over_sampling_ratio = 0
+if oversampling_ratio <= 0:
+    het_over_sampling_ratio = 0
+    hom_alt_over_sampling_ratio = 0
+else:
+    het_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HET] * oversampling_ratio)) if dictionary[HET] else 0
+    hom_alt_over_sampling_ratio = (float(dictionary[HOM]) / float(dictionary[HOM_ALT] * oversampling_ratio)) if dictionary[
+        HOM_ALT] else 0
+
 
 if het_over_sampling_ratio > 1:
     oversampled_het = list(records[HET]) * max(1, int(het_over_sampling_ratio))
