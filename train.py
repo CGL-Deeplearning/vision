@@ -121,9 +121,10 @@ def train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_workers,
                               )
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)\
 
-    # 'learning_rate': 0.00015646082166587494, 'weight_decay': 0.00015015832083429306
+    # 'weight_decay': 7.50100195037884e-06, 'learning_rate': 0.00023342801798666553
     model = ModelHandler.get_new_model(gpu_mode)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00015646082166587494, weight_decay=0.00015015832083429306)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00023342801798666553, weight_decay=7.50100195037884e-06)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     # print out total number of trainable parameters in model
