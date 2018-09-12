@@ -39,7 +39,7 @@ def test(test_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
                                    shuffle=False,
                                    num_workers=num_workers
                                    )
-    sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
+    # sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
     # set the evaluation mode of the model
     test_model = trained_model.eval()
@@ -50,13 +50,13 @@ def test(test_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
     criterion = nn.CrossEntropyLoss()
 
     # Test the Model
-    sys.stderr.write(TextColor.PURPLE + 'Test starting\n' + TextColor.END)
+    sys.stderr.write(TextColor.CYAN + 'Test starting\n')
     total_loss = 0
     total_images = 0
     accuracy = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
     with torch.no_grad():
-        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, ncols=100) as pbar:
+        with tqdm(total=len(validation_loader), desc='Accuracy: ', ncols=100) as pbar:
             for i, (images, labels, records) in enumerate(validation_loader):
                 if gpu_mode:
                     images = images.cuda()
@@ -81,8 +81,8 @@ def test(test_file, batch_size, gpu_mode, trained_model, num_workers, num_classe
 
     avg_loss = total_loss / total_images if total_images else 0
 
-    sys.stderr.write(TextColor.YELLOW + 'Test Loss: ' + str(avg_loss) + "\n" + TextColor.END)
+    sys.stderr.write(TextColor.GREEN + 'Test Loss: ' + str(avg_loss) + "\n")
     sys.stderr.write("Confusion Matrix: \n" + str(confusion_matrix.conf) + "\n" + TextColor.END)
 
-    return {'loss': avg_loss, 'accuracy': accuracy}
+    return str(confusion_matrix.conf), {'loss': avg_loss, 'accuracy': accuracy}
 

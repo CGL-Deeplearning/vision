@@ -10,7 +10,7 @@ import time
 # Custom generator for our dataset
 from modules.hyperband.hyperband import Hyperband
 from modules.handlers.TextColor import TextColor
-from modules.hyperband.train import train
+from modules.models.train import train
 """
 Tune hyper-parameters of a model using hyperband.
 Input:
@@ -70,8 +70,8 @@ class WrapHyperband:
         # Number of iterations or epoch for the model to train on
         n_iterations = int(round(n_iterations))
         params, retrain_model, retrain_model_path, prev_ite = model_params
-        sys.stderr.write(TextColor.BLUE + '\nEpochs: ' + str(n_iterations) + "\n" + TextColor.END)
-        sys.stderr.write(TextColor.BLUE + str(params) + "\n" + TextColor.END)
+        sys.stderr.write(TextColor.DARKCYAN + '\nEpochs: ' + str(n_iterations) + "\n" + TextColor.END)
+        sys.stderr.write(TextColor.DARKCYAN + str(params) + "\n" + TextColor.END)
 
         num_workers = self.num_workers
         epoch_limit = int(n_iterations)
@@ -83,7 +83,8 @@ class WrapHyperband:
         # train a model
         model, optimizer, stats_dictionary = train(self.train_file, self.test_file, batch_size, epoch_limit, prev_ite,
                                                    self.gpu_mode, num_workers, retrain_model, retrain_model_path,
-                                                   learning_rate, weight_decay, momentum)
+                                                   learning_rate, weight_decay, momentum, stats_output_dir="",
+                                                   model_output_dir="", hyperband_mode=True, num_classes=3)
 
         return model, optimizer, stats_dictionary
 
@@ -105,10 +106,13 @@ class WrapHyperband:
         results = sorted(results, key=lambda r: r['loss'])[:5]
         for i, result in enumerate(results):
             print(i+1)
-            print("Loss:\t\t", result['loss'])
-            print("Accuracy:\t", result['accuracy'])
-            print("Params:\t\t", result['params'])
-            print("Model path:\t", result['model_path'])
+            print("Model path:\t\t", result['model_path'])
+            print("Parameters:\t\t", result['params'])
+            print("Total Epochs:\t\t", result['iterations'])
+            print("Final Loss:\t\t", result['loss'])
+            print("Final Accuracy:\t\t", result['accuracy'])
+            print("Accuracy epoch:\t\t", result['accuracy_epoch'])
+            print("Loss epoch:\t\t", result['loss_epoch'])
 
 
 def handle_output_directory(output_dir):

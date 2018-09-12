@@ -29,7 +29,7 @@ def save_model(model, optimizer, file_name):
         'state_dict': model.state_dict(),
         'optimizer': optimizer.state_dict(),
     }, file_name)
-    sys.stderr.write(TextColor.RED + "\nMODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
+    sys.stderr.write(TextColor.RED + "MODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
 
 
 class Hyperband:
@@ -97,7 +97,7 @@ class Hyperband:
                 n_configs = n * self.eta ** (-i)
                 n_iterations = int(ceil(r * self.eta ** (i)))
 
-                sys.stderr.write(TextColor.BLUE + "\n*** {} configurations x {:.5f} iterations each"
+                sys.stderr.write(TextColor.DARKCYAN + "*** {} configurations x {:.5f} iterations each"
                                  .format(n_configs, n_iterations) + "\n" + TextColor.END)
 
                 logging.info("\n*** {} configurations x {:.1f} iterations each".format(n_configs, n_iterations))
@@ -107,7 +107,7 @@ class Hyperband:
 
                 for config_index, config in enumerate(model_configs):
                     self.counter += 1
-                    sys.stderr.write(TextColor.BLUE + "{} | {} | lowest loss so far: {} | accuracy: {} | (run {})"
+                    sys.stderr.write(TextColor.DARKCYAN + "{} | {} | lowest loss so far: {} | accuracy: {} | (run {})"
                                      .format(self.counter, ctime(), self.best_loss, self.best_acc, self.best_counter)
                                      + TextColor.END)
                     logging.info("{} | {} | lowest loss so far: {} | (run {})"
@@ -124,7 +124,6 @@ class Hyperband:
                     assert ('loss' in result)
 
                     seconds = int(round(time() - start_time))
-                    sys.stderr.write(TextColor.BLUE + "\n{} seconds.\n".format(seconds) + TextColor.END)
 
                     loss = result['loss']
                     val_losses.append(loss)
