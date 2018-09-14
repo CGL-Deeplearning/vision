@@ -197,7 +197,7 @@ class View:
         """
 
         # declare the size of the image
-        image_height, image_width = 50, 20
+        image_height, image_width = 150, 150
         if len(candidate_list) == 0:
             return
 
@@ -494,7 +494,7 @@ def handle_output_directory(output_dir):
 
     # create an internal directory so we don't overwrite previous runs
     timestr = time.strftime("%m%d%Y_%H%M%S")
-    internal_directory = "holdout_size_20x50_run_" + timestr + "/"
+    internal_directory = "run_" + timestr + "/"
     output_dir = output_dir + internal_directory
 
     if not os.path.exists(output_dir):
