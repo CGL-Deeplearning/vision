@@ -32,11 +32,11 @@ def inception_v3(pretrained=False, **kwargs):
 
 class Inception3(nn.Module):
 
-    def __init__(self, num_classes=3, aux_logits=True, transform_input=False):
+    def __init__(self, num_classes=3, aux_logits=False, transform_input=False):
         super(Inception3, self).__init__()
         self.aux_logits = aux_logits
         self.transform_input = transform_input
-        self.Conv2d_1a_3x3 = BasicConv2d(7, 32, kernel_size=3, stride=1) # changed this from stride=2 to 1
+        self.Conv2d_1a_3x3 = BasicConv2d(7, 32, kernel_size=3, stride=2)
         self.Conv2d_2a_3x3 = BasicConv2d(32, 32, kernel_size=3)
         self.Conv2d_2b_3x3 = BasicConv2d(32, 64, kernel_size=3, padding=1)
         self.Conv2d_3b_1x1 = BasicConv2d(64, 80, kernel_size=1)
@@ -49,6 +49,8 @@ class Inception3(nn.Module):
         self.Mixed_6c = InceptionC(768, channels_7x7=160)
         self.Mixed_6d = InceptionC(768, channels_7x7=160)
         self.Mixed_6e = InceptionC(768, channels_7x7=192)
+        if aux_logits:
+            self.AuxLogits = InceptionAux(768, num_classes)
         self.Mixed_7a = InceptionD(768)
         self.Mixed_7b = InceptionE(1280)
         self.Mixed_7c = InceptionE(2048)
@@ -67,51 +69,60 @@ class Inception3(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        # 299 x 299 x 3
+        if self.transform_input:
+            x = x.clone()
+            x[:, 0] = x[:, 0] * (0.229 / 0.5) + (0.485 - 0.5) / 0.5
+            x[:, 1] = x[:, 1] * (0.224 / 0.5) + (0.456 - 0.5) / 0.5
+            x[:, 2] = x[:, 2] * (0.225 / 0.5) + (0.406 - 0.5) / 0.5
+        # 150 x 150 x 3
         x = self.Conv2d_1a_3x3(x)
-        # 149 x 149 x 32
+        # 74 x 74 x 32
         x = self.Conv2d_2a_3x3(x)
-        # 147 x 147 x 32
+        # 72 x 72 x 32
         x = self.Conv2d_2b_3x3(x)
-        # 147 x 147 x 64
-        x = F.max_pool2d(x, kernel_size=3, stride=1)
-        # 73 x 73 x 64
+        # 72 x 72 x 64
+        # x = F.max_pool2d(x, kernel_size=3, stride=2)
+        # 72 x 72 x 64
         x = self.Conv2d_3b_1x1(x)
-        # 73 x 73 x 80
+        # 72 x 72 x 80
         x = self.Conv2d_4a_3x3(x)
-        # 71 x 71 x 192
-        x = F.max_pool2d(x, kernel_size=3, stride=1)
-
-        # 35 x 35 x 192
+        # 70 x 70 x 192
+        x = F.max_pool2d(x, kernel_size=3, stride=2)
+        # 34 x 34 x 192
         x = self.Mixed_5b(x)
-        # 35 x 35 x 256
+        # 34 x 34 x 256
         x = self.Mixed_5c(x)
-        # 35 x 35 x 288
+        # 34 x 34 x 288
         x = self.Mixed_5d(x)
-        # 35 x 35 x 288
+        # 34 x 34 x 288
         x = self.Mixed_6a(x)
-        # 17 x 17 x 768
+        # 16 x 16 x 768
         x = self.Mixed_6b(x)
-        # 17 x 17 x 768
+        # 16 x 16 x 768
         x = self.Mixed_6c(x)
-        # 17 x 17 x 768
+        # 16 x 16 x 768
         x = self.Mixed_6d(x)
-        # 17 x 17 x 768
+        # 16 x 16 x 768
         x = self.Mixed_6e(x)
-        # 17 x 17 x 768
+        # 16 x 16 x 768
+        if self.training and self.aux_logits:
+            aux = self.AuxLogits(x)
         x = self.Mixed_7a(x)
-        # 8 x 8 x 1280
+        # 7 x 7 x 1280
         x = self.Mixed_7b(x)
-        # 8 x 8 x 2048
+        # 7 x 7 x 2048
         x = self.Mixed_7c(x)
-        # 8 x 8 x 2048
-        x = F.avg_pool2d(x, kernel_size=(6, 9))
+        # 7 x 7 x 2048
+        x = F.avg_pool2d(x, kernel_size=7)
         # 1 x 1 x 2048
         x = F.dropout(x, training=self.training)
         # 1 x 1 x 2048
         x = x.view(x.size(0), -1)
         # 2048
         x = self.fc(x)
+        # 1000 (num_classes)
+        if self.training and self.aux_logits:
+            return x, aux
         return x
 
 
@@ -151,11 +162,11 @@ class InceptionB(nn.Module):
 
     def __init__(self, in_channels):
         super(InceptionB, self).__init__()
-        self.branch3x3 = BasicConv2d(in_channels, 384, kernel_size=3, stride=(1, 2))
+        self.branch3x3 = BasicConv2d(in_channels, 384, kernel_size=3, stride=2)
 
         self.branch3x3dbl_1 = BasicConv2d(in_channels, 64, kernel_size=1)
         self.branch3x3dbl_2 = BasicConv2d(64, 96, kernel_size=3, padding=1)
-        self.branch3x3dbl_3 = BasicConv2d(96, 96, kernel_size=3, stride=(1, 2))
+        self.branch3x3dbl_3 = BasicConv2d(96, 96, kernel_size=3, stride=2)
 
     def forward(self, x):
         branch3x3 = self.branch3x3(x)
@@ -164,7 +175,7 @@ class InceptionB(nn.Module):
         branch3x3dbl = self.branch3x3dbl_2(branch3x3dbl)
         branch3x3dbl = self.branch3x3dbl_3(branch3x3dbl)
 
-        branch_pool = F.max_pool2d(x, kernel_size=3, stride=(1, 2))
+        branch_pool = F.max_pool2d(x, kernel_size=3, stride=2)
 
         outputs = [branch3x3, branch3x3dbl, branch_pool]
         return torch.cat(outputs, 1)
@@ -214,12 +225,12 @@ class InceptionD(nn.Module):
     def __init__(self, in_channels):
         super(InceptionD, self).__init__()
         self.branch3x3_1 = BasicConv2d(in_channels, 192, kernel_size=1)
-        self.branch3x3_2 = BasicConv2d(192, 320, kernel_size=3, stride=(1, 2))
+        self.branch3x3_2 = BasicConv2d(192, 320, kernel_size=3, stride=2)
 
         self.branch7x7x3_1 = BasicConv2d(in_channels, 192, kernel_size=1)
         self.branch7x7x3_2 = BasicConv2d(192, 192, kernel_size=(1, 7), padding=(0, 3))
         self.branch7x7x3_3 = BasicConv2d(192, 192, kernel_size=(7, 1), padding=(3, 0))
-        self.branch7x7x3_4 = BasicConv2d(192, 192, kernel_size=3, stride=(1, 2))
+        self.branch7x7x3_4 = BasicConv2d(192, 192, kernel_size=3, stride=2)
 
     def forward(self, x):
         branch3x3 = self.branch3x3_1(x)
@@ -230,7 +241,7 @@ class InceptionD(nn.Module):
         branch7x7x3 = self.branch7x7x3_3(branch7x7x3)
         branch7x7x3 = self.branch7x7x3_4(branch7x7x3)
 
-        branch_pool = F.max_pool2d(x, kernel_size=3, stride=(1, 2))
+        branch_pool = F.max_pool2d(x, kernel_size=3, stride=2)
         outputs = [branch3x3, branch7x7x3, branch_pool]
         return torch.cat(outputs, 1)
 
@@ -289,7 +300,7 @@ class InceptionAux(nn.Module):
 
     def forward(self, x):
         # 17 x 17 x 768
-        x = F.avg_pool2d(x, kernel_size=5, stride=1)
+        x = F.avg_pool2d(x, kernel_size=5, stride=3)
         # 5 x 5 x 768
         x = self.conv0(x)
         # 5 x 5 x 128
