@@ -55,6 +55,7 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
     model = ModelHandler.load_model(model, model_path)
     sys.stderr.write(TextColor.GREEN + "INFO: MODEL LOADED\n" + TextColor.END)
 
+    model = model.eval()
     if gpu_mode:
         model = torch.nn.DataParallel(model).cuda()
 
