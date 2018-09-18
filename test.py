@@ -97,8 +97,8 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                 # print all mismatch indices to the CSV file
                 for index in range(len(preds_numpy)):
                     smry.write(str(index) + "\t" + str(true_label_numpy[index]) + "\t" + str(preds_numpy[index]) + "\t"
-                               + records[index] + "\t" + str(preds_numpy[index][0]) + "\t" + str(preds_numpy[index][1]) + "\t"
-                               + str(preds_numpy[index][2]) + "\n")
+                               + records[index] + "\t" + str(preds[index][0].data) + "\t" + str(preds[index][1].data) + "\t"
+                               + str(preds[index][2].data) + "\n")
 
                 loss = criterion(predictions.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
 
