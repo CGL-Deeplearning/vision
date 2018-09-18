@@ -69,7 +69,7 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
     confusion_matrix = meter.ConfusionMeter(num_classes)
 
     # create a CSV file
-    # smry = open("test_miss_calls_" + data_file.split('/')[-1], 'w')
+    smry = open("test_miss_calls_" + data_file.split('/')[-1], 'w')
 
     with torch.no_grad():
         with tqdm(total=len(validation_loader), desc='Accuracy: ', ncols=100) as pbar:
@@ -82,22 +82,22 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                 predictions = model(images)
                 confusion_matrix.add(predictions.data, labels.data)
 
-                # m = nn.Softmax(dim=1)
-                # soft_probs = m(predictions)
-                # preds = soft_probs.cpu()
-                #
-                # # converts predictions to numpy array
-                # preds_numpy = preds.cpu().data.topk(1)[1].numpy().ravel().tolist()
-                # true_label_numpy = labels.cpu().data.numpy().ravel().tolist()
-                #
-                # eq = np.equal(preds_numpy, true_label_numpy)
-                # # find all mismatch indices
-                # mismatch_indices = np.where(eq == False)[0]
-                #
-                # # print all mismatch indices to the CSV file
-                # for index in mismatch_indices:
-                #     smry.write(str(true_label_numpy[index]) + "\t" + str(preds_numpy[index]) + "\t"
-                #                + records[index] + "\t" + str(preds[index]) + "\n")
+                m = nn.Softmax(dim=1)
+                soft_probs = m(predictions)
+                preds = soft_probs.cpu()
+
+                # converts predictions to numpy array
+                preds_numpy = preds.cpu().data.topk(1)[1].numpy().ravel().tolist()
+                true_label_numpy = labels.cpu().data.numpy().ravel().tolist()
+
+                eq = np.equal(preds_numpy, true_label_numpy)
+                # find all mismatch indices
+                mismatch_indices = np.where(eq == False)[0]
+
+                # print all mismatch indices to the CSV file
+                for index in mismatch_indices:
+                    smry.write(str(true_label_numpy[index]) + "\t" + str(preds_numpy[index]) + "\t"
+                               + records[index] + "\t" + str(preds[index]) + "\n")
 
                 loss = criterion(predictions.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
 
