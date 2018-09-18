@@ -15,13 +15,6 @@ class ModelHandler:
         return model
 
     @staticmethod
-    def load_model(model_path, gpu_mode):
-        model = torch.load(model_path)
-        if gpu_mode is True:
-            model = model.cuda()
-        return model
-
-    @staticmethod
     def load_optimizer(optimizer, checkpoint_path, gpu_mode):
         if gpu_mode:
             checkpoint = torch.load(checkpoint_path)
@@ -39,12 +32,12 @@ class ModelHandler:
     @staticmethod
     def load_model(model, model_path):
         checkpoint = torch.load(model_path, map_location='cpu')
-        encoder_state_dict = checkpoint['state_dict']
+        state_dict = checkpoint['state_dict']
 
         from collections import OrderedDict
         new_state_dict = OrderedDict()
 
-        for k, v in encoder_state_dict.items():
+        for k, v in state_dict.items():
             name = k
             if k[0:7] == 'module.':
                 name = k[7:]  # remove `module.`
