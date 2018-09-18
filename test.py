@@ -47,21 +47,16 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                                    num_workers=num_workers,
                                    pin_memory=gpu_mode
                                    )
-    sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
-
-    model = resnet18_custom()
+    model = ModelHandler.get_new_model(gpu_mode)
 
     if os.path.isfile(model_path) is False:
-        sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO THE MODEL\n")
+        sys.stderr.write(TextColor.RED + "ERROR: INVALID PATH TO RETRAIN PATH MODEL --retrain_model_path\n")
         exit(1)
-    sys.stderr.write(TextColor.GREEN + "INFO: MODEL LOADING\n" + TextColor.END)
-    model = ModelHandler.load_model_for_training(model, model_path)
-    sys.stderr.write(TextColor.GREEN + "INFO:  MODEL LOADED SUCCESSFULLY\n" + TextColor.END)
+    model = ModelHandler.load_model(model, model_path)
+    sys.stderr.write(TextColor.GREEN + "INFO: MODEL LOADED\n" + TextColor.END)
 
-    # set the evaluation mode of the model
-    test_model = model.eval()
     if gpu_mode:
-        test_model = torch.nn.DataParallel(model).cuda()
+        model = torch.nn.DataParallel(model).cuda()
 
     # Loss
     criterion = nn.CrossEntropyLoss()
@@ -71,16 +66,39 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
     total_images = 0
     accuracy = 0
     confusion_matrix = meter.ConfusionMeter(num_classes)
+
+    # create a CSV file
+    smry = open("test_miss_calls_" + data_file.split('/')[-1], 'w')
+
     with torch.no_grad():
-        with tqdm(total=len(validation_loader), desc='Accuracy: ', leave=True, dynamic_ncols=True) as pbar:
+        with tqdm(total=len(validation_loader), desc='Accuracy: ', ncols=100) as pbar:
             for i, (images, labels, records) in enumerate(validation_loader):
                 if gpu_mode:
                     images = images.cuda()
                     labels = labels.cuda()
 
                 # Predict + confusion_matrix + loss
-                outputs = test_model(images)
-                confusion_matrix.add(outputs.data, labels.data)
+                predictions = model(images)
+                confusion_matrix.add(predictions.data, labels.data)
+
+                m = nn.Softmax(dim=1)
+                soft_probs = m(predictions)
+                preds = soft_probs.cpu()
+
+                # converts predictions to numpy array
+                preds_numpy = preds.cpu().data.topk(1)[1].numpy().ravel().tolist()
+                true_label_numpy = labels.cpu().data.numpy().ravel().tolist()
+
+                eq = np.equal(preds_numpy, true_label_numpy)
+                # find all mismatch indices
+                mismatch_indices = np.where(eq == False)[0]
+
+                # print all mismatch indices to the CSV file
+                for index in mismatch_indices:
+                    smry.write(str(true_label_numpy[index]) + "\t" + str(preds_numpy[index]) + "\t"
+                               + records[index] + "\t" + str(preds[index]) + "\n")
+
+                loss = criterion(predictions.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
 
                 # Progress bar update
                 pbar.update(1)
@@ -88,8 +106,6 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                 denom = (cm_value.sum() - cm_value[0][0]) if (cm_value.sum() - cm_value[0][0]) > 0 else 1.0
                 accuracy = 100.0 * (cm_value[1][1] + cm_value[2][2]) / denom
                 pbar.set_description("Accuracy: " + str(accuracy))
-
-                loss = criterion(outputs.contiguous().view(-1, num_classes), labels.contiguous().view(-1))
 
                 # loss count
                 total_loss += loss.item()
@@ -105,7 +121,6 @@ if __name__ == '__main__':
     Processes arguments and performs tasks.
     '''
     parser = argparse.ArgumentParser()
-    parser.register("type", "bool", lambda v: v.lower() == "true")
     parser.add_argument(
         "--test_file",
         type=str,
