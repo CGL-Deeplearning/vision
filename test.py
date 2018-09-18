@@ -90,13 +90,13 @@ def test(data_file, batch_size, model_path, gpu_mode, num_workers, num_classes=3
                 preds_numpy = preds.cpu().data.topk(1)[1].numpy().ravel().tolist()
                 true_label_numpy = labels.cpu().data.numpy().ravel().tolist()
 
-                eq = np.equal(preds_numpy, true_label_numpy)
+                # eq = np.equal(preds_numpy, true_label_numpy)
                 # find all mismatch indices
                 # mismatch_indices = np.where(eq == False)[0]
                 preds_data = preds.cpu().data.numpy()
                 # print all mismatch indices to the CSV file
-                for index in range(len(preds_numpy)):
-                    smry.write(str(index) + "\t" + str(true_label_numpy[index]) + "\t" + str(preds_numpy[index]) + "\t"
+                for index in range(len(preds_data)):
+                    smry.write(str(index+1) + "\t" + str(true_label_numpy[index]) + "\t" + str(preds_numpy[index]) + "\t"
                                + records[index] + "\t" + str(preds_data[index][0]) + "\t" + str(preds_data[index][1]) + "\t"
                                + str(preds_data[index][2]) + "\n")
 
