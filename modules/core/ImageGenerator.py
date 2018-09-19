@@ -11,11 +11,11 @@ This script creates pileup images given a vcf record, bam alignment file and ref
 imageChannels: Handles how many channels to create for each base and their structure
 
 """
-MAP_QUALITY_FILTER = 5.0
-MAX_COLOR_VALUE = 254.0
-BASE_QUALITY_CAP = 40.0
-MAP_QUALITY_CAP = 60.0
-MIN_DELETE_QUALITY = 20.0
+MAP_QUALITY_FILTER = 5
+MAX_COLOR_VALUE = 254
+BASE_QUALITY_CAP = 40
+MAP_QUALITY_CAP = 60
+MIN_DELETE_QUALITY = 20
 MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
 DELETE_CIGAR_CODE = 2
@@ -83,15 +83,15 @@ class ImageGenerator:
         ref_row, ref_start, ref_end = self.image_row_for_ref
         start_index = self.positional_info_position_to_index[start_pos] - self.positional_info_position_to_index[ref_start]
         end_index = self.positional_info_position_to_index[end_pos] - self.positional_info_position_to_index[ref_start]
-        ref_row = np.array(ref_row[start_index:end_index])
+        ref_row = np.array(ref_row[start_index:end_index], dtype=np.uint8)
 
         if left_pad > 0:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
-            ref_row = np.concatenate((np.array(empty_channels_list), ref_row), axis=0)
+            ref_row = np.concatenate((np.array(empty_channels_list, dtype=np.uint8), ref_row), axis=0)
 
         if len(ref_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(ref_row))
-            ref_row = np.concatenate((ref_row, np.array(empty_channels_list)), axis=0)
+            ref_row = np.concatenate((ref_row, np.array(empty_channels_list, dtype=np.uint8)), axis=0)
 
         if len(ref_row) > image_width:
             ref_row = ref_row[:image_width]
@@ -112,10 +112,10 @@ class ImageGenerator:
                 if alt in read_alleles:
                     supporting = True
                     break
-        support_val = 254.0 if supporting is True else 152.0
+        support_val = 254 if supporting is True else 152
 
-        read_row = np.array(self.image_row_for_reads[read_id][0])
-        read_row = np.insert(read_row, 6, support_val, axis=1)
+        read_row = np.array(self.image_row_for_reads[read_id][0], dtype=np.uint8)
+        read_row[:, 5] = read_row[:, 5] * support_val
 
         read_start_new = read_start
         read_end_new = read_end
@@ -137,15 +137,15 @@ class ImageGenerator:
             distance = self.positional_info_position_to_index[read_start_new] - \
                       self.positional_info_position_to_index[image_start]
             empty_channels_list = [imageChannels.get_empty_channels()] * int(distance)
-            image_row = np.concatenate((np.array(empty_channels_list), image_row), axis=0)
+            image_row = np.concatenate((np.array(empty_channels_list, dtype=np.uint8), image_row), axis=0)
 
         if left_pad:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
-            image_row = np.concatenate((np.array(empty_channels_list), image_row), axis=0)
+            image_row = np.concatenate((np.array(empty_channels_list, dtype=np.uint8), image_row), axis=0)
 
         if len(image_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(image_row))
-            image_row = np.concatenate((image_row, np.array(empty_channels_list)), axis=0)
+            image_row = np.concatenate((image_row, np.array(empty_channels_list, dtype=np.uint8)), axis=0)
         if len(image_row) > image_width:
             image_row = image_row[:image_width]
 
@@ -195,7 +195,7 @@ class ImageGenerator:
                 break
 
         for i in range(image_height - len(whole_image)):
-            empty_channels = [[0, 0, 0, 0, 0, 0, 0]] * image_width
+            empty_channels = [[0, 0, 0, 0, 0, 0]] * image_width
             whole_image.append(empty_channels)
 
         return np.array(whole_image, dtype=np.uint8)

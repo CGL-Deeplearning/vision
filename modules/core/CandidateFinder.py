@@ -14,22 +14,22 @@ Dictionaries it updates:
 """
 
 
-MAX_COLOR_VALUE = 254.0
-BASE_QUALITY_CAP = 40.0
-MAP_QUALITY_CAP = 60.0
-MAP_QUALITY_FILTER = 5.0
-MIN_DELETE_QUALITY = 20.0
+MAX_COLOR_VALUE = 254
+BASE_QUALITY_CAP = 40
+MAP_QUALITY_CAP = 60
+MAP_QUALITY_FILTER = 5
+MIN_DELETE_QUALITY = 0
 MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
 DELETE_CIGAR_CODE = 2
 IMAGE_DEPTH_THRESHOLD = 300
 
-global_base_color_dictionary = {'A': 254.0, 'C': 100.0, 'G': 180.0, 'T': 30.0, '*': 5.0, '.': 5.0, 'N': 5.0}
-global_cigar_color_dictionary = {0: MAX_COLOR_VALUE, 1: MAX_COLOR_VALUE*0.6, 2: MAX_COLOR_VALUE*0.3}
-
-## testing speed improvements of doing channels without support in method
-
-DEFAULT_MIN_MAP_QUALITY = 0
+# reads with mapping quality more than the default min map quality will be processed
+DEFAULT_MIN_MAP_QUALITY = 1
+# reads with base quality and mapping quality more than these will provide candidate alleles
+MIN_BASE_QUALITY_FOR_CANDIDATE = 5
+MIN_MAP_QUALITY_FOR_CANDIDATE = 5
+# candidate thresholds
 MIN_MISMATCH_THRESHOLD = 1
 MIN_MISMATCH_PERCENT_THRESHOLD = 5
 MIN_COVERAGE_THRESHOLD = 5
@@ -73,17 +73,19 @@ class CandidateFinder:
         self.reference_dictionary = {}
 
         # few new dictionaries for image creation
-        self.base_dictionary = defaultdict(lambda: defaultdict(int))
-        self.insert_dictionary = defaultdict(lambda: defaultdict(int))
-        self.read_info = defaultdict(list)
+        self.base_dictionary = defaultdict(lambda: defaultdict(tuple))
+        self.insert_dictionary = defaultdict(lambda: defaultdict(tuple))
+        self.delete_dictionary = defaultdict(lambda: defaultdict(tuple))
+        self.read_info = defaultdict(tuple)
         self.insert_length_info = defaultdict(int)
+        self.delete_length_info = defaultdict(int)
         self.positional_read_info = defaultdict(list)
 
         # for image generation
-        self.image_row_for_reads = defaultdict(list)
+        self.image_row_for_reads = defaultdict(tuple)
         self.image_row_for_ref = defaultdict(list)
-        self.positional_info_index_to_position = defaultdict(int)
-        self.positional_info_position_to_index = defaultdict(int)
+        self.positional_info_index_to_position = defaultdict(tuple)
+        self.positional_info_position_to_index = defaultdict(tuple)
         self.allele_dictionary = defaultdict(lambda: defaultdict(list))
         self.read_id_by_position = defaultdict(list)
 
@@ -109,27 +111,35 @@ class CandidateFinder:
 
         return ref_alignment_stop
 
-    #def _update_base_dictionary(self, read_id, pos, base, quality):
-        #self.base_dictionary[read_id][pos] = (base, quality)
-
     def _update_insert_dictionary(self, read_id, pos, bases, qualities):
         self.insert_dictionary[read_id][pos] = (bases, qualities)
         self.insert_length_info[pos] = max(self.insert_length_info[pos], len(bases))
 
-    def _update_read_allele_dictionary(self, read_id, pos, allele, type):
+    def _update_delete_dictionary(self, read_id, pos, bases):
+        self.delete_dictionary[read_id][pos] = (bases, [0] * len(bases))
+        self.delete_length_info[pos] = max(self.delete_length_info[pos], len(bases))
+
+    def _update_read_allele_dictionary(self, read_id, pos, allele, allele_type, base_quality):
         """
         Update the read dictionary with an allele
         :param pos: Genomic position
         :param allele: Allele found in that position
-        :param type: IN, DEL or SUB
+        :param allele_type: IN, DEL or SUB
         :return:
         """
+        ref_alignment_start, ref_alignment_stop, mapping_quality, is_reverse = self.read_info[read_id]
+        # filter candidates based on read qualities
+        if mapping_quality < MIN_MAP_QUALITY_FOR_CANDIDATE:
+            return
+        if base_quality < MIN_BASE_QUALITY_FOR_CANDIDATE:
+            return
+
         if pos not in self.read_allele_dictionary:
             self.read_allele_dictionary[pos] = {}
         if (allele, type) not in self.read_allele_dictionary[pos]:
-            self.read_allele_dictionary[pos][(allele, type)] = 0
+            self.read_allele_dictionary[pos][(allele, allele_type)] = 0
 
-        self.read_allele_dictionary[pos][(allele, type)] += 1
+        self.read_allele_dictionary[pos][(allele, allele_type)] += 1
 
     def _update_positional_allele_dictionary(self, read_id, pos, allele, type, mapping_quality):
         """
@@ -171,7 +181,7 @@ class CandidateFinder:
             # self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
             if allele != ref:
                 self.mismatch_count[i] += 1
-                self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE)
+                self._update_read_allele_dictionary(read_id, i, allele, MISMATCH_ALLELE, qualities[i-alignment_position])
             else:
                 self.match_count[i] += 1
                 # this slows things down a lot. Don't add reference allele to the dictionary if we don't use them
@@ -193,7 +203,7 @@ class CandidateFinder:
         self.mismatch_count[alignment_position] += 1
 
         for i in range(start, stop):
-            self.base_dictionary[read_id][i] = ('*', MIN_DELETE_QUALITY)
+            self.base_dictionary[read_id][i] = ('.', MIN_DELETE_QUALITY)
             # self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
             # increase the coverage
             self.mismatch_count[i] += 1
@@ -203,7 +213,8 @@ class CandidateFinder:
         allele = self.reference_dictionary[alignment_position] + ref_sequence
 
         # record the delete where it first starts
-        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, DELETE_ALLELE)
+        self._update_delete_dictionary(read_id, alignment_position, allele)
+        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, DELETE_ALLELE, 60)
 
     def parse_insert(self, read_id, alignment_position, read_sequence, qualities):
         """
@@ -219,7 +230,7 @@ class CandidateFinder:
 
         # record the insert where it first starts
         self.mismatch_count[alignment_position] += 1
-        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE)
+        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE, max(qualities))
         self._update_insert_dictionary(read_id, alignment_position, read_sequence, qualities)
 
     def find_read_candidates(self, read):
@@ -233,7 +244,7 @@ class CandidateFinder:
         self.read_allele_dictionary = {}
         ref_alignment_start = read.reference_start
         ref_alignment_stop = self.get_read_stop_position(read)
-        # if the region has very high coverage, we are not going to parse through all the reads
+        # if the region has reached a very high coverage, we are not going to parse through all the reads
         if self.coverage[ref_alignment_start] > 300:
             return False
         cigar_tuples = read.cigartuples
@@ -428,66 +439,28 @@ class CandidateFinder:
                 if pos not in self.base_dictionary[read_id] and pos not in self.insert_dictionary[read_id]:
                     print(pos, read_id)
                     continue
-                if pos in self.base_dictionary[read_id]:
-                    base, base_q = self.base_dictionary[read_id][pos]
-                    cigar_code = 0 if base != '*' else 1
+
+                # if this read has an insert then make the anchor empty
+                if read_id in self.insert_dictionary and pos in self.insert_dictionary[read_id]:
+                    # for the anchor position of an insert
+                    base, base_qual = self.base_dictionary[read_id][pos]
                     ref_base = self.reference_dictionary[pos]
-
-                    is_match = True if ref_base == base else False
-
-                    base_color = global_base_color_dictionary[base] \
-                        if base in global_base_color_dictionary else 0.0
-                    base_quality_color = (MAX_COLOR_VALUE * min(base_q, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
-                    map_quality_color = (MAX_COLOR_VALUE * min(mapping_quality, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
-                    strand_color = 240.0 if strand_direction else 70.0
-                    match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
-                    cigar_color = global_cigar_color_dictionary[cigar_code] \
-                        if cigar_code in global_cigar_color_dictionary else 0.0
-                    read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
-
-
-
-                if pos in self.insert_length_info:
-                    length_of_insert = self.insert_length_info[pos]
-                    total_insert_bases = 0
-                    if read_id in self.insert_dictionary and pos in self.insert_dictionary[read_id]:
-                        in_bases, in_qualities = self.insert_dictionary[read_id][pos]
-                        total_insert_bases = len(in_bases)
-                        for i in range(total_insert_bases):
-                            base = in_bases[i]
-                            base_q = in_qualities[i]
-                            cigar_code = 2
-                            ref_base = ''
-                            is_match = True if ref_base == base else False
-
-                            base_color = global_base_color_dictionary[base] \
-                                if base in global_base_color_dictionary else 0.0
-                            base_quality_color = (MAX_COLOR_VALUE * min(base_q, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
-                            map_quality_color = (MAX_COLOR_VALUE * min(mapping_quality, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
-                            strand_color = 240.0 if strand_direction else 70.0
-                            match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
-                            cigar_color = global_cigar_color_dictionary[cigar_code] \
-                                if cigar_code in global_cigar_color_dictionary else 0.0
-                            read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
-
-                    if length_of_insert > total_insert_bases:
-                        dot_bases = length_of_insert - total_insert_bases
-                        for i in range(dot_bases):
-                            base = '*'
-                            base_q = MIN_DELETE_QUALITY
-                            cigar_code = 2
-                            ref_base = ''
-                            is_match = True if ref_base == base else False
-
-                            base_color = global_base_color_dictionary[base] \
-                                if base in global_base_color_dictionary else 0.0
-                            base_quality_color = (MAX_COLOR_VALUE * min(base_q, BASE_QUALITY_CAP)) / BASE_QUALITY_CAP
-                            map_quality_color = (MAX_COLOR_VALUE * min(mapping_quality, MAP_QUALITY_CAP)) / MAP_QUALITY_CAP
-                            strand_color = 240.0 if strand_direction else 70.0
-                            match_color = MAX_COLOR_VALUE * 0.2 if is_match is True else MAX_COLOR_VALUE * 1.0
-                            cigar_color = global_cigar_color_dictionary[cigar_code] \
-                                if cigar_code in global_cigar_color_dictionary else 0.0
-                            read_to_image_row.append([base_color, base_quality_color, map_quality_color, strand_color, match_color, cigar_color])
+                    base = '*'
+                    base_pixel = imageChannels(base, base_qual, mapping_quality, strand_direction, ref_base)
+                    read_to_image_row.append(base_pixel.get_channels_except_support())
+                elif read_id in self.delete_dictionary and pos in self.delete_dictionary[read_id]:
+                    # for the anchor position of a delete
+                    base, base_qual = self.base_dictionary[read_id][pos]
+                    ref_base = self.reference_dictionary[pos]
+                    base = '*'
+                    base_pixel = imageChannels(base, base_qual, mapping_quality, strand_direction, ref_base)
+                    read_to_image_row.append(base_pixel.get_channels_except_support())
+                else:
+                    # otherwise simply put the anchor position as it is
+                    base, base_qual = self.base_dictionary[read_id][pos]
+                    ref_base = self.reference_dictionary[pos]
+                    base_pixel = imageChannels(base, base_qual, mapping_quality, strand_direction, ref_base)
+                    read_to_image_row.append(base_pixel.get_channels_except_support())
 
             self.image_row_for_reads[read_id] = (read_to_image_row, star_pos, end_pos)
 
@@ -507,12 +480,13 @@ class CandidateFinder:
             self.positional_info_index_to_position[index] = (pos, False)
             self.positional_info_position_to_index[pos] = index
             index += 1
-            if pos in self.insert_length_info:
-                for i in range(self.insert_length_info[pos]):
-                    base = '*'
-                    reference_to_image_row.append(imageChannels.get_channels_for_ref(base))
-                    self.positional_info_index_to_position[index] = (pos, True)
-                    index += 1
+            # no need to add inserts anymore!
+            # if pos in self.insert_length_info:
+            #     for i in range(self.insert_length_info[pos]):
+            #         base = '*'
+            #         reference_to_image_row.append(imageChannels.get_channels_for_ref(base))
+            #         self.positional_info_index_to_position[index] = (pos, True)
+            #         index += 1
 
         self.image_row_for_ref = (reference_to_image_row, left_position, right_position)
 
@@ -525,15 +499,17 @@ class CandidateFinder:
         st_time = time.time()
         read_id_list = []
         total_reads = 0
+        read_unique_id = 0
         for read in reads:
             # check if the read is usable
             if read.mapping_quality >= DEFAULT_MIN_MAP_QUALITY and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
 
-                read.query_name = read.query_name + '_1' if read.is_read1 else read.query_name + '_2'
+                read.query_name = read.query_name + '_' + str(read_unique_id)
                 if self.find_read_candidates(read=read):
                     read_id_list.append(read.query_name)
                     total_reads += 1
+                read_unique_id += 1
 
         if total_reads == 0:
             return []

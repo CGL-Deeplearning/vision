@@ -197,7 +197,7 @@ class View:
         """
 
         # declare the size of the image
-        image_height, image_width = 150, 150
+        image_height, image_width = 50, 50
         if len(candidate_list) == 0:
             return
 
@@ -247,7 +247,7 @@ class View:
             indx += 1
 
         # the image dataset we save. The index name in h5py is "images".
-        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 7), np.uint8,
+        img_dset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, 6), np.uint8,
                                             compression='gzip')
         # the labels for images that we saved
         label_dset = hdf5_file.create_dataset("labels", (len(label_set),), np.uint8)
@@ -476,7 +476,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=2600465, end_position=2601470, thread_no=1)
+    view_object.parse_region(start_position=8637610, end_position=8637615, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

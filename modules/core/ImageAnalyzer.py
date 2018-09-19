@@ -18,6 +18,7 @@ def get_pixel_by_base(base):
         return [255, 192, 203, 255]
     return [0, 0, 0, 255]
 
+
 def get_base_by_color(base):
     """
     Get color based on a base.
@@ -30,11 +31,14 @@ def get_base_by_color(base):
     if base >= 180:
         return 'G'
     if base >= 100:
-        return 'C'
-    if base >= 30:
         return 'T'
-    if base >= 5:
+    if base >= 30:
+        return 'C'
+    if base >= 10:
         return '*'
+    if base >= 5:
+        return '.'
+
 
 
 def get_alt_support_by_color(is_in_support):
@@ -129,26 +133,18 @@ def analyze_np_array(img, img_height, img_width):
     print("BASE CHANNEL")
     for i in range(img_height):
         for j in range(img_width):
+            # print(img[0][i][j], get_base_by_color(img[0][i][j]))
             if img[0][i][j] != 0:
                 print(get_base_by_color(img[0][i][j]), end='')
             else:
-                print(' ',end='')
+                print(' ', end='')
         print()
 
     print("SUPPORT CHANNEL")
     for i in range(img_height):
         for j in range(img_width):
-            if img[6][i][j] != 0:
-                print(get_alt_support_by_color(img[6][i][j]), end='')
-            else:
-                print(' ', end='')
-        print()
-
-    print("CIGAR CHANNEL")
-    for i in range(img_height):
-        for j in range(img_width):
             if img[5][i][j] != 0:
-                print(get_cigar_by_color(img[5][i][j]), end='')
+                print(get_alt_support_by_color(img[5][i][j]), end='')
             else:
                 print(' ', end='')
         print()
