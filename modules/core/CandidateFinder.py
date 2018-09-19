@@ -25,13 +25,13 @@ DELETE_CIGAR_CODE = 2
 IMAGE_DEPTH_THRESHOLD = 300
 
 # reads with mapping quality more than the default min map quality will be processed
-DEFAULT_MIN_MAP_QUALITY = 5
+DEFAULT_MIN_MAP_QUALITY = 1
 # reads with base quality and mapping quality more than these will provide candidate alleles
-MIN_BASE_QUALITY_FOR_CANDIDATE = 5
-MIN_MAP_QUALITY_FOR_CANDIDATE = 5
+MIN_BASE_QUALITY_FOR_CANDIDATE = 0
+MIN_MAP_QUALITY_FOR_CANDIDATE = 0
 # candidate thresholds
 MIN_MISMATCH_THRESHOLD = 1
-MIN_MISMATCH_PERCENT_THRESHOLD = 10
+MIN_MISMATCH_PERCENT_THRESHOLD = 8
 MIN_COVERAGE_THRESHOLD = 5
 
 PLOIDY = 2
