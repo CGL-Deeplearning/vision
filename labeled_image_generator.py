@@ -51,18 +51,19 @@ def build_chromosomal_interval_trees(confident_bed_path):
     tsv_handler_reference = TsvHandler(tsv_file_path=confident_bed_path)
     # create intervals based on chromosome
     intervals_chromosomal_reference = tsv_handler_reference.get_bed_intervals_by_chromosome(universal_offset=-1)
+
     # create a dictionary to get all chromosomal trees
-    trees_chromosomal = dict()
-
-    # for each chromosome extract the tree and add it to the dictionary
-    for chromosome_name in intervals_chromosomal_reference:
-        intervals = intervals_chromosomal_reference[chromosome_name]
-        tree = IntervalTree(intervals)
-
-        trees_chromosomal[chromosome_name] = tree
+    # trees_chromosomal = dict()
+    #
+    # # for each chromosome extract the tree and add it to the dictionary
+    # for chromosome_name in intervals_chromosomal_reference:
+    #     intervals = intervals_chromosomal_reference[chromosome_name]
+    #     tree = IntervalTree(intervals)
+    #
+    #     trees_chromosomal[chromosome_name] = tree
 
     # return the dictionary containing all the trees
-    return trees_chromosomal
+    return intervals_chromosomal_reference
 
 
 class View:
@@ -278,18 +279,6 @@ class View:
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
         dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
-        # if confident tree is defined then subset the candidates to only those intervals
-        if self.confident_tree is not None:
-            confident_labeled = []
-            for candidate in selected_candidates:
-                pos_st = candidate[1]
-                pos_end = candidate[1]
-                in_conf = self.in_confident_check(pos_st, pos_end)
-
-                if in_conf is True:
-                    confident_labeled.append(candidate)
-            selected_candidates = confident_labeled
-
         # get all labeled candidate sites
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
         # create image generator object with all necessary dictionary
@@ -366,20 +355,38 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
     # create dump directory inside output directory
     output_dir = create_output_dir_for_chromosome(output_path, chr_name)
 
-    # entire length of chromosome
-    fasta_handler = FastaHandler(ref_file)
-    whole_length = fasta_handler.get_chr_sequence_length(chr_name)
+    intervals = []
+    # if there's no confident bed provided, then chop the chromosome
+    if confident_bed_tree is None:
+        # entire length of chromosome
+        fasta_handler = FastaHandler(ref_file)
+        whole_length = fasta_handler.get_chr_sequence_length(chr_name)
+        # .5MB segments at once
+        each_segment_length = 50000
 
-    # .5MB segments at once
-    each_segment_length = 50000
+        # chunk the chromosome into pieces
+        chunks = int(math.ceil(whole_length / each_segment_length))
 
-    # chunk the chromosome into pieces
-    chunks = int(math.ceil(whole_length / each_segment_length))
-    if DEBUG_TEST_PARALLEL:
-        chunks = 4
-    for i in tqdm(range(chunks), ncols=100):
-        start_position = i * each_segment_length
-        end_position = min((i + 1) * each_segment_length, whole_length)
+        for i in tqdm(range(chunks), ncols=100):
+            start_position = i * each_segment_length
+            end_position = min((i + 1) * each_segment_length, whole_length)
+            intervals.append([start_position, end_position])
+    else:
+        each_segment_length = 50000
+        for interval in confident_bed_tree[chr_name]:
+            start_position, end_position = interval
+            if end_position - start_position + 1 < each_segment_length:
+                intervals.append(interval)
+            else:
+                st_ = start_position
+                while st_ < end_position:
+                    end_ = min(st_ + each_segment_length, end_position)
+                    intervals.append([st_, end_])
+                    st_ = end_
+
+    for i in tqdm(range(len(intervals)), ncols=100):
+        start_position = intervals[i][0]
+        end_position = intervals[i][1]
         # gather all parameters
         args = (chr_name, bam_file, ref_file, vcf_file, output_dir, start_position, end_position, confident_bed_tree, i)
 
@@ -561,11 +568,11 @@ if __name__ == '__main__':
 
     # if the confident bed is not empty then create the tree
     if FLAGS.confident_bed != '':
-        confident_tree_build = build_chromosomal_interval_trees(FLAGS.confident_bed)
+        confident_intervals = build_chromosomal_interval_trees(FLAGS.confident_bed)
     else:
-        confident_tree_build = None
+        confident_intervals = None
 
-    if confident_tree_build is not None:
+    if confident_intervals is not None:
         sys.stderr.write(TextColor.PURPLE + "CONFIDENT TREE LOADED\n" + TextColor.END)
     else:
         sys.stderr.write(TextColor.RED + "CONFIDENT BED IS NULL\n" + TextColor.END)
@@ -577,11 +584,11 @@ if __name__ == '__main__':
                     reference_file_path=FLAGS.ref,
                     vcf_path=FLAGS.vcf,
                     output_file_path=chromosome_output,
-                    confident_tree=confident_tree_build)
+                    confident_tree=confident_intervals)
         test(view)
     elif FLAGS.chromosome_name is not None:
         chromosome_level_parallelization(FLAGS.chromosome_name, FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
-                                         FLAGS.max_threads, confident_tree_build, singleton_run=True)
+                                         FLAGS.max_threads, confident_intervals, singleton_run=True)
     else:
         genome_level_parallelization(FLAGS.bam, FLAGS.ref, FLAGS.vcf, FLAGS.output_dir,
-                                     FLAGS.max_threads, confident_tree_build)
+                                     FLAGS.max_threads, confident_intervals)
