@@ -96,16 +96,16 @@ class ResNet(nn.Module):
     def __init__(self, in_channels, block, layers, num_classes=3):
         self.inplanes = 80
         super(ResNet, self).__init__()
-        self.Context_Conv2d_0a = BasicConv2d(in_channels, 14, kernel_size=3, groups=in_channels)
-        self.Context_Conv2d_0b = BasicConv2d(14, 28, kernel_size=5, padding=1, groups=14)
-        self.Context_Conv2d_0c = BasicConv2d(28, 56, kernel_size=5, padding=1, groups=28)
-        self.Conv2d_1a_3x3 = BasicConv2d(56, 80, kernel_size=3, padding=(1, 0))
+        self.Context_Conv2d_0a = BasicConv2d(in_channels, 12, kernel_size=3, groups=in_channels)
+        self.Context_Conv2d_0b = BasicConv2d(12, 24, kernel_size=5, padding=1, groups=12)
+        self.Context_Conv2d_0c = BasicConv2d(24, 48, kernel_size=5, padding=1, groups=24)
+        self.Conv2d_1a_3x3 = BasicConv2d(48, 80, kernel_size=3, padding=(1, 0))
 
         self.layer1 = self._make_layer(block, 128, layers[0])
-        self.layer2 = self._make_layer(block, 192, layers[1], stride=1)
+        self.layer2 = self._make_layer(block, 192, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        self.avgpool = nn.AvgPool2d(kernel_size=(1, 6))
+        self.avgpool = nn.AvgPool2d(kernel_size=3)
         self.fc = nn.Linear(2048, num_classes)
 
         for m in self.modules():
@@ -148,7 +148,7 @@ class ResNet(nn.Module):
         return x
 
 
-def resnet18_custom(input_channels=7):
+def resnet18_custom(input_channels=6):
     """Constructs a ResNet-18 model.
     """
     model = ResNet(input_channels, BasicBlock, [2, 3, 3, 2])
