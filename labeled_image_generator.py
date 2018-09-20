@@ -227,7 +227,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         each_segment_length = 100000
         for interval in confident_bed_tree[chr_name]:
             start_position, end_position = interval
-            end_position = end_position + 1
+            end_position = end_position
             if end_position - start_position + 1 < each_segment_length:
                 intervals.append([start_position, end_position])
             else:
