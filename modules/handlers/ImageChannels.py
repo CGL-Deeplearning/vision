@@ -48,7 +48,7 @@ class imageChannels:
         map_quality_color = int(MAX_COLOR_VALUE * (min(self.map_qual, MAP_QUALITY_CAP) / MAP_QUALITY_CAP))
         strand_color = 240 if self.is_rev else 70
         match_color = int(MAX_COLOR_VALUE * 0.2) if self.is_match is True else int(MAX_COLOR_VALUE * 1.0)
-        # assume all the reads is in support
+        # assume all the reads is not supporting as that's the majority of cases
         support_color = 1
 
         return [base_color, base_quality_color, map_quality_color, strand_color, match_color, support_color]

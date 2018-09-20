@@ -23,7 +23,7 @@ def analyze_image(hdf5_file_path, index):
     # whole_img = image_analyzer.np_array_to_img(image, image.shape[0], image.shape[1])
     # misc.imsave(hdf5_file_path + '_' + str(index) + ".png", np.array(whole_img), format="PNG")
     # image_analyzer.analyze_np_array(image, image.shape[0], image.shape[1])
-    image_analyzer.analyze_np_array(image, 16, image.shape[1])
+    image_analyzer.analyze_np_array(image, image.shape[0], image.shape[1])
 
 
 if __name__ == '__main__':

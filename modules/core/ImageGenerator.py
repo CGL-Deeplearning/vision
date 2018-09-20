@@ -3,6 +3,7 @@ import numpy as np
 from scipy import misc
 import h5py
 import os
+from operator import itemgetter
 from modules.handlers.ImageChannels import imageChannels
 from modules.core.CandidateFinder import MATCH_ALLELE, INSERT_ALLELE, DELETE_ALLELE
 from modules.core.CandidateLabeler import CandidateLabeler
@@ -169,14 +170,17 @@ class ImageGenerator:
             distance = self.positional_info_position_to_index[read_start_new] - \
                       self.positional_info_position_to_index[image_start]
             empty_channels_list = [imageChannels.get_empty_channels()] * int(distance)
+            # replacing this with native list operation may make the code faster
             image_row = np.concatenate((np.array(empty_channels_list, dtype=np.uint8), image_row), axis=0)
 
         if left_pad:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(left_pad)
+            # replacing this with native list operation may make the code faster
             image_row = np.concatenate((np.array(empty_channels_list, dtype=np.uint8), image_row), axis=0)
 
         if len(image_row) < image_width:
             empty_channels_list = [imageChannels.get_empty_channels()] * int(image_width - len(image_row))
+            # replacing this with native list operation may make the code faster
             image_row = np.concatenate((image_row, np.array(empty_channels_list, dtype=np.uint8)), axis=0)
         if len(image_row) > image_width:
             image_row = image_row[:image_width]
@@ -191,7 +195,7 @@ class ImageGenerator:
         return image
 
     def create_image(self, query_start_pos, query_end_pos, ref, alts, alt_types,
-                     image_height=300, image_width=300, ref_band=5):
+                     image_height, image_width, ref_band=5):
         alts_norm = []
         for i, alt in enumerate(alts):
             alts_norm.append((alt, alt_types[i]))
@@ -208,18 +212,19 @@ class ImageGenerator:
         for i in range(ref_band):
             whole_image.append(ref_row)
 
-        intersected_reads = self.positional_read_info[query_start_pos]
-        is_intersectable = True
-        for alt in alts:
-            if alt[1] != DELETE_ALLELE:
-                is_intersectable = False
+        reads = self.positional_read_info[query_start_pos]
+        # is_intersectable = True
+        # for alt in alts:
+        #     if alt[1] != DELETE_ALLELE:
+        #         is_intersectable = False
+        #
+        # if is_intersectable is True:
+        #     for pos in range(query_start_pos+1, query_end_pos+1):
+        #         intersected_reads = set(intersected_reads).intersection(self.positional_read_info[pos])
 
-        if is_intersectable is True:
-            for pos in range(query_start_pos+1, query_end_pos+1):
-                intersected_reads = set(intersected_reads).intersection(self.positional_read_info[pos])
-
+        reads = sorted(reads, key=itemgetter(1))
         # O(n)
-        for read in intersected_reads:
+        for read in reads:
             read_row = self.get_read_row(query_start_pos, alts, read, start_pos, end_pos, left_pad, image_width)
             if len(whole_image) < image_height:
                 whole_image.append(read_row)
@@ -234,7 +239,7 @@ class ImageGenerator:
 
     @staticmethod
     def generate_and_save_candidate_images(chromosome_name, candidate_list, image_generator, thread_no, output_dir,
-                                           image_height=50, image_width=50, image_channels=6):
+                                           image_height, image_width, image_channels=6):
         """
         Generate and save images from a given labeled candidate list.
         :param chromosome_name: Name of the chromosome which is being processed

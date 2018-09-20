@@ -1,5 +1,6 @@
 from collections import defaultdict
-from modules.handlers.ImageChannels import imageChannels
+from modules.handlers.ImageChannels import global_base_color_dictionary, MAX_COLOR_VALUE, MAP_QUALITY_CAP, \
+    BASE_QUALITY_CAP
 import operator
 import time
 import math
@@ -441,26 +442,56 @@ class CandidateFinder:
                     continue
 
                 # if this read has an insert then make the anchor empty
+                # it may look repetitive and ugly, but doing inplace operation in python instead of function call boosts
+                # the runtime
                 if read_id in self.insert_dictionary and pos in self.insert_dictionary[read_id]:
                     # for the anchor position of an insert
                     base, base_qual = self.base_dictionary[read_id][pos]
                     ref_base = self.reference_dictionary[pos]
                     base = '*'
-                    base_pixel = imageChannels(base, base_qual, mapping_quality, strand_direction, ref_base)
-                    read_to_image_row.append(base_pixel.get_channels_except_support())
+                    match = True if ref_base == base else False
+
+                    base_color = global_base_color_dictionary[base] if base in global_base_color_dictionary else 0
+                    base_qual_color = int(MAX_COLOR_VALUE * (min(base_qual, BASE_QUALITY_CAP) / BASE_QUALITY_CAP))
+                    map_qual_color = int(MAX_COLOR_VALUE * (min(mapping_quality, MAP_QUALITY_CAP) / MAP_QUALITY_CAP))
+                    strand_color = 240 if strand_direction else 70
+                    match_color = int(MAX_COLOR_VALUE * 0.2) if match is True else int(MAX_COLOR_VALUE * 1.0)
+                    support_color = 1
+                    pixel_ = [base_color, base_qual_color, map_qual_color, strand_color, match_color, support_color]
+                    read_to_image_row.append(pixel_)
                 elif read_id in self.delete_dictionary and pos in self.delete_dictionary[read_id]:
                     # for the anchor position of a delete
                     base, base_qual = self.base_dictionary[read_id][pos]
                     ref_base = self.reference_dictionary[pos]
                     base = '*'
-                    base_pixel = imageChannels(base, base_qual, mapping_quality, strand_direction, ref_base)
-                    read_to_image_row.append(base_pixel.get_channels_except_support())
+                    match = True if ref_base == base else False
+
+                    base_color = global_base_color_dictionary[base] if base in global_base_color_dictionary else 0
+                    base_qual_color = int(MAX_COLOR_VALUE * (min(base_qual, BASE_QUALITY_CAP) / BASE_QUALITY_CAP))
+                    map_qual_color = int(MAX_COLOR_VALUE * (min(mapping_quality, MAP_QUALITY_CAP) / MAP_QUALITY_CAP))
+                    strand_color = 240 if strand_direction else 70
+                    match_color = int(MAX_COLOR_VALUE * 0.2) if match is True else int(MAX_COLOR_VALUE * 1.0)
+                    support_color = 1
+                    pixel_ = [base_color, base_qual_color, map_qual_color, strand_color, match_color, support_color]
+                    read_to_image_row.append(pixel_)
                 else:
                     # otherwise simply put the anchor position as it is
                     base, base_qual = self.base_dictionary[read_id][pos]
                     ref_base = self.reference_dictionary[pos]
-                    base_pixel = imageChannels(base, base_qual, mapping_quality, strand_direction, ref_base)
-                    read_to_image_row.append(base_pixel.get_channels_except_support())
+                    match = True if ref_base == base else False
+
+                    base_color = global_base_color_dictionary[base] if base in global_base_color_dictionary else 0
+                    base_qual_color = int(MAX_COLOR_VALUE * (min(base_qual, BASE_QUALITY_CAP) / BASE_QUALITY_CAP))
+                    map_qual_color = int(MAX_COLOR_VALUE * (min(mapping_quality, MAP_QUALITY_CAP) / MAP_QUALITY_CAP))
+                    strand_color = 240 if strand_direction else 70
+                    match_color = int(MAX_COLOR_VALUE * 0.2) if match is True else int(MAX_COLOR_VALUE * 1.0)
+                    support_color = 1
+
+                    pixel_ = [base_color, base_qual_color, map_qual_color, strand_color, match_color, support_color]
+                    if base == '.':
+                        pixel_ = [0, 0, 0, 0, 0, 0]
+
+                    read_to_image_row.append(pixel_)
 
             self.image_row_for_reads[read_id] = (read_to_image_row, star_pos, end_pos)
 
@@ -476,17 +507,23 @@ class CandidateFinder:
 
         for pos in range(left_position, right_position):
             base = self.reference_dictionary[pos] if pos in self.reference_dictionary else 'N'
-            reference_to_image_row.append(imageChannels.get_channels_for_ref(base))
+            # base color
+            base_color = global_base_color_dictionary[base] if base in global_base_color_dictionary else 0
+            # highest base quality
+            base_quality_color = int(MAX_COLOR_VALUE)
+            # highest map quality
+            map_quality_color = int(MAX_COLOR_VALUE)
+            # strand is forward
+            strand_color = 240
+            # matches ref
+            match_color = int(MAX_COLOR_VALUE * 0.2)
+            # not supporing alt
+            support_color = int(MAX_COLOR_VALUE * 0.6)
+            pixel_ = [base_color, base_quality_color, map_quality_color, strand_color, match_color, support_color]
+            reference_to_image_row.append(pixel_)
             self.positional_info_index_to_position[index] = (pos, False)
             self.positional_info_position_to_index[pos] = index
             index += 1
-            # no need to add inserts anymore!
-            # if pos in self.insert_length_info:
-            #     for i in range(self.insert_length_info[pos]):
-            #         base = '*'
-            #         reference_to_image_row.append(imageChannels.get_channels_for_ref(base))
-            #         self.positional_info_index_to_position[index] = (pos, True)
-            #         index += 1
 
         self.image_row_for_ref = (reference_to_image_row, left_position, right_position)
 
