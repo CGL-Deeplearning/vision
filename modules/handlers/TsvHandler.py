@@ -21,7 +21,7 @@ class TsvHandler:
             start = int(start)
             stop = int(stop)
 
-            intervals.append([start,stop])
+            intervals.append([start, stop])
 
         tsv_file.close()
 

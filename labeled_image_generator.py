@@ -89,8 +89,8 @@ class View:
         """
         # get dictionary of variant records for full region
         self.vcf_handler.populate_dictionary(contig=self.chromosome_name,
-                                             start_pos=start_pos,
-                                             end_pos=end_pos,
+                                             start_pos=start_pos - 5,
+                                             end_pos=end_pos + 5,
                                              hom_filter=filter_hom_ref)
 
         # get separate positional variant dictionaries for IN, DEL, and SNP
@@ -127,8 +127,8 @@ class View:
                                            region_end_position=end_position)
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-        dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
 
+        dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
         # get all labeled candidate sites
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
         # create image generator object with all necessary dictionary
@@ -336,7 +336,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=1159710, end_position=1159720, thread_no=1)
+    view_object.parse_region(start_position=428605, end_position=428607, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
