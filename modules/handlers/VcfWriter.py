@@ -96,6 +96,8 @@ class VCFWriter:
                 alt_probs[(alt1, alt1_type)] = (record[8:])
                 alt_with_types.append((alt1, record[6]))
 
+        if rec_alt1 not in alt_probs or rec_alt2 not in alt_probs or 'both' not in alt_probs:
+            print(record)
         p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
         p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
         p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
