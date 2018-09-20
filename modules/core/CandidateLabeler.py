@@ -213,8 +213,8 @@ class CandidateLabeler:
         :param chromosome_name: Name of chromosome
         :param start: Allele start position
         :param stop: Allele end position
-        :param alleles: All alleles
-        :param alleles_insert: Insert alleles
+        :param alleles_snp: SNP alleles
+        :param alleles_in: Insert alleles
         :param ref_seq: reference Sequence
         :param genotypes: Genotypes
         :return: A list containing (chr start stop ref_seq alt1 alt2 gt1 gt2)
@@ -235,6 +235,31 @@ class CandidateLabeler:
             all_candidates.append([chromosome_name, start, stop, ref_seq, allele, gt, gt_q, gt_f])
 
         return all_candidates
+
+    @staticmethod
+    def get_combined_gt(gt1, gt2):
+        """
+        Given two genotypes get the combined genotype. This is used to create labels for the third image.
+        If two alleles have two different genotypes then the third genotype is inferred using this method.
+
+        - If genotype1 is HOM then genotype of third image is genotype2
+        - If genotype2 is HOM then genotype of third image is genotype1
+        - If both gt are  HOM then genotype of third image is HOM
+        - If genotype1, genotype2 both are HET then genotype of third image is HOM_ALT
+        - If none of these cases match then we have an invalid genotype
+        :param gt1: Genotype of first allele
+        :param gt2: Genotype of second allele
+        :return: genotype of image where both alleles are used together
+        """
+        if gt1 == 0:
+            return gt2
+        if gt2 == 0:
+            return gt1
+        if gt1 == 0 and gt2 == 0:
+            return 0
+        if gt1 == 1 and gt2 == 1:
+            return 2
+        return None
 
     def get_labeled_candidates(self, chromosome_name, positional_vcf, candidate_sites):
         """

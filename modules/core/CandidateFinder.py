@@ -432,7 +432,7 @@ class CandidateFinder:
                 alt1_freq, alt2_freq]
 
     def postprocess_reads(self, read_id_list):
-        for read_id in read_id_list:
+        for read_id, read_start_position, read_end_position in read_id_list:
             star_pos, end_pos, mapping_quality, strand_direction = self.read_info[read_id]
             read_to_image_row = []
             for pos in range(star_pos, end_pos):
@@ -497,7 +497,7 @@ class CandidateFinder:
         :return:
         """
         st_time = time.time()
-        read_id_list = []
+        # read_id_list = []
         total_reads = 0
         read_unique_id = 0
         for read in reads:
@@ -507,22 +507,16 @@ class CandidateFinder:
 
                 read.query_name = read.query_name + '_' + str(read_unique_id)
                 if self.find_read_candidates(read=read):
-                    read_id_list.append(read.query_name)
+                    # read_id_list.append(read.query_name)
                     total_reads += 1
                 read_unique_id += 1
 
         if total_reads == 0:
             return []
 
-        self.postprocess_reads(read_id_list)
-
-        self.postprocess_reference()
-
         selected_allele_list = []
-        for pos in range(self.region_start_position, self.region_end_position):
-            if pos not in self.positional_allele_dictionary:
-                continue
-
+        postprocess_read_id_list = set()
+        for pos in self.positional_allele_dictionary:
             ref = self.reference_dictionary[pos]
 
             all_allele_dictionary = self.positional_allele_dictionary[pos]
@@ -542,7 +536,12 @@ class CandidateFinder:
             dp = self.coverage[pos]
             ref_count = self.coverage[pos] - all_mismatch_count
             candidate_record = [self.chromosome_name] + self._get_record(pos, alt1, alt2, ref, ref_count) + [mq_rms] + [dp]
-
+            postprocess_read_id_list.update(self.read_id_by_position[pos])
             selected_allele_list.append(candidate_record)
+
+        postprocess_read_id_list = list(postprocess_read_id_list)
+        if len(selected_allele_list) > 0:
+            self.postprocess_reference()
+            self.postprocess_reads(postprocess_read_id_list)
 
         return selected_allele_list
