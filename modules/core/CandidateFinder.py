@@ -554,6 +554,8 @@ class CandidateFinder:
         selected_allele_list = []
         postprocess_read_id_list = set()
         for pos in self.positional_allele_dictionary:
+            if pos < self.region_start_position or pos > self.region_end_position:
+                continue
             ref = self.reference_dictionary[pos]
 
             all_allele_dictionary = self.positional_allele_dictionary[pos]
