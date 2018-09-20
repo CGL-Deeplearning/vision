@@ -47,7 +47,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
                               )
     # this needs to change
     model = ModelHandler.get_new_model(gpu_mode)
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     if retrain_model is True:
