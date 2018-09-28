@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from modules.core.dataloader import PileupDataset, TextColor
+from modules.core.data_sampler import BalancedSampler
 from modules.models.ModelHandler import ModelHandler
 from modules.models.test import test
 """
@@ -40,8 +41,8 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
 
     train_data_set = PileupDataset(train_file, transformations)
     train_loader = DataLoader(train_data_set,
+                              sampler=BalancedSampler(train_data_set),
                               batch_size=batch_size,
-                              shuffle=True,
                               num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
