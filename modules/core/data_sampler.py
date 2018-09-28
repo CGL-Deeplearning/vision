@@ -10,6 +10,7 @@ class BalancedSampler(sampler.Sampler):
     """
 
     def __init__(self, dataset):
+        print("Sampler initialization starting")
         self.indices = list(range(len(dataset)))
 
         self.num_samples = len(self.indices)
@@ -26,6 +27,7 @@ class BalancedSampler(sampler.Sampler):
         weights = [1.0 / label_frequency[dataset[idx][1]] for idx in self.indices]
 
         self.weights = torch.DoubleTensor(weights)
+        print("Sampler initialization finished")
 
     def __iter__(self):
         return (self.indices[i] for i in torch.multinomial(self.weights, self.num_samples, replacement=True))
