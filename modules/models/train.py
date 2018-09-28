@@ -38,14 +38,17 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
         confusion_matrix_logger = None
 
     transformations = transforms.Compose([transforms.ToTensor()])
-
+    print("Initializating dataset")
     train_data_set = PileupDataset(train_file, transformations)
+    print("Dataset done")
+    print("Initializing dataloader")
     train_loader = DataLoader(train_data_set,
                               sampler=BalancedSampler(train_data_set),
                               batch_size=batch_size,
                               num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
+    print("Initialization done")
     # this needs to change
     model = ModelHandler.get_new_model(gpu_mode)
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
