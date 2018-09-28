@@ -15,24 +15,23 @@ class BalancedSampler(sampler.Sampler):
         labels = pandas_df.str.split('\t', expand=True)[8]
 
         self.indices = list(range(len(labels)))
-        print("Indices calculated, total: ", len(labels))
         self.num_samples = len(self.indices)
 
-        print("Calculating label frequency")
         label_frequency = labels.value_counts().to_dict()
 
-        print("Finished calculating label frequency")
         data = {'label': labels, 'weight': 0.0}
         weights = pd.DataFrame(data=data)
-        print("Setting weights")
+
         weights.loc[weights.label == '0', 'weight'] = 1.0 / label_frequency['0']
         weights.loc[weights.label == '1', 'weight'] = 1.0 / label_frequency['1']
         weights.loc[weights.label == '2', 'weight'] = 1.0 / label_frequency['2']
-        print("Weights calculated")
+        print("Sampler weights:",
+              "\n0: ", 1.0 / label_frequency['0'],
+              "\n1: ", 1.0 / label_frequency['1'],
+              "\n2: ", 1.0 / label_frequency['2'])
 
         weights = weights['weight'].tolist()
         self.weights = torch.DoubleTensor(weights)
-        print("Sampler initialization finished")
 
     def __iter__(self):
         return (self.indices[i] for i in torch.multinomial(self.weights, self.num_samples, replacement=True))
