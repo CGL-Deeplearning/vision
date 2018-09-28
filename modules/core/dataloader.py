@@ -29,12 +29,14 @@ class PileupDataset(Dataset):
         A CSV file path
     """
 
-    def __init__(self, csv_path, transform=None):
+    def __init__(self, csv_path, transform=None, check_images=False):
         tmp_df = pd.read_csv(csv_path, header=None)
-        for img_file in tmp_df[0]:
-            if os.path.isfile(img_file) is False:
-                print("Some images referenced in the CSV file were not found: ", img_file)
-                exit()
+
+        if check_images:
+            for img_file in tmp_df[0]:
+                if os.path.isfile(img_file) is False:
+                    print("Some images referenced in the CSV file were not found: ", img_file)
+                    exit()
         # assert tmp_df[0].apply(lambda x: os.path.isfile(x)).all(), \
         #     "Some images referenced in the CSV file were not found: "
         self.transform = transform

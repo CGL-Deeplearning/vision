@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import sampler
+import pandas as pd
 
 
 class BalancedSampler(sampler.Sampler):
@@ -9,23 +10,27 @@ class BalancedSampler(sampler.Sampler):
         A data set containing images
     """
 
-    def __init__(self, dataset):
-        print("Sampler initialization starting")
-        self.indices = list(range(len(dataset)))
+    def __init__(self, csv_path):
+        pandas_df = pd.read_csv(csv_path, header=None)[2]
+        labels = pandas_df.str.split('\t', expand=True)[8]
 
+        self.indices = list(range(len(labels)))
+        print("Indices calculated, total: ", len(labels))
         self.num_samples = len(self.indices)
 
-        label_frequency = {}
-        for idx in self.indices:
-            label = dataset[idx][1]
+        print("Calculating label frequency")
+        label_frequency = labels.value_counts().to_dict()
 
-            if label in label_frequency:
-                label_frequency[label] += 1
-            else:
-                label_frequency[label] = 1
+        print("Finished calculating label frequency")
+        data = {'label': labels, 'weight': 0.0}
+        weights = pd.DataFrame(data=data)
+        print("Setting weights")
+        weights.loc[weights.label == '0', 'weight'] = 1.0 / label_frequency['0']
+        weights.loc[weights.label == '1', 'weight'] = 1.0 / label_frequency['1']
+        weights.loc[weights.label == '2', 'weight'] = 1.0 / label_frequency['2']
+        print("Weights calculated")
 
-        weights = [1.0 / label_frequency[dataset[idx][1]] for idx in self.indices]
-
+        weights = weights['weight'].tolist()
         self.weights = torch.DoubleTensor(weights)
         print("Sampler initialization finished")
 
