@@ -38,17 +38,13 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
         confusion_matrix_logger = None
 
     transformations = transforms.Compose([transforms.ToTensor()])
-    print("Initializating dataset")
     train_data_set = PileupDataset(train_file, transformations)
-    print("Dataset done")
-    print("Initializing dataloader")
     train_loader = DataLoader(train_data_set,
                               sampler=BalancedSampler(train_file),
                               batch_size=batch_size,
                               num_workers=num_workers,
                               pin_memory=gpu_mode
                               )
-    print("Initialization done")
     # this needs to change
     model = ModelHandler.get_new_model(gpu_mode)
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
@@ -126,7 +122,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
             test_loss_logger.write(str(epoch + 1) + "," + str(stats_dictionary['loss']) + "," +
                                    str(stats_dictionary['accuracy']) + "\n")
             confusion_matrix_logger.write(str(epoch + 1) + "\n" + str(confusion_matrix) + "\n")
-            save_best_model(model, optimizer, model_output_dir)
+            save_best_model(model, optimizer, model_output_dir, '_' + str(epoch + 1))
 
         lr_scheduler.step()
         # if epoch > 3:
@@ -141,7 +137,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
     return model, optimizer, stats
 
 
-def save_best_model(best_model, optimizer, file_name):
+def save_best_model(best_model, optimizer, file_name, epoch_no):
     """
     Save the best model
     :param best_model: A trained model
@@ -152,12 +148,12 @@ def save_best_model(best_model, optimizer, file_name):
     sys.stderr.write(TextColor.BLUE + "SAVING MODEL.\n" + TextColor.END)
     # if os.path.isfile(file_name + '_model.pkl'):
     #     os.remove(file_name + '_model.pkl')
-    if os.path.isfile(file_name + '_checkpoint.pkl'):
-        os.remove(file_name + '_checkpoint.pkl')
+    if os.path.isfile(file_name + epoch_no + '_checkpoint.pkl'):
+        os.remove(file_name + epoch_no + '_checkpoint.pkl')
     # torch.save(best_model, file_name + '_model.pkl')
     ModelHandler.save_checkpoint({
         'state_dict': best_model.state_dict(),
         'optimizer': optimizer.state_dict(),
-    }, file_name + '_checkpoint.pkl')
+    }, file_name + epoch_no + '_checkpoint.pkl')
     sys.stderr.write(TextColor.RED + "MODEL SAVED SUCCESSFULLY.\n" + TextColor.END)
 

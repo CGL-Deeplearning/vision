@@ -25,10 +25,6 @@ class BalancedSampler(sampler.Sampler):
         weights.loc[weights.label == '0', 'weight'] = 1.0 / label_frequency['0']
         weights.loc[weights.label == '1', 'weight'] = 1.0 / label_frequency['1']
         weights.loc[weights.label == '2', 'weight'] = 1.0 / label_frequency['2']
-        print("Sampler weights:",
-              "\n0: ", 1.0 / label_frequency['0'],
-              "\n1: ", 1.0 / label_frequency['1'],
-              "\n2: ", 1.0 / label_frequency['2'])
 
         weights = weights['weight'].tolist()
         self.weights = torch.DoubleTensor(weights)
