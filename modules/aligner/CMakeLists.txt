@@ -1,0 +1,32 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 3.8)
+
+# name of the project is VISION
+PROJECT(ssw)
+
+
+SET(LIBRARY_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ssw.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/ssw.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ssw_cpp.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ssw_cpp.cpp
+)
+
+ADD_LIBRARY(ssw_lib ${LIBRARY_FILES})
+
+FIND_PACKAGE(PythonInterp 3 REQUIRED)
+FIND_PACKAGE(PythonLibs 3 REQUIRED)
+
+if (PYTHONINTERP_FOUND)
+    message("Python found")
+else()
+    message("Python not found")
+endif()
+
+message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
+message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
+message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
+message(STATUS "CURRENT DIRECTORY = ${CMAKE_CURRENT_SOURCE_DIR}")
+
+ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/dep/pybind11)
+pybind11_add_module(ssw_api ${CMAKE_CURRENT_SOURCE_DIR}/ssw_api.cpp)
+TARGET_LINK_LIBRARIES(ssw_api PRIVATE ssw_lib)

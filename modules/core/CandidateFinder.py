@@ -26,14 +26,13 @@ DELETE_CIGAR_CODE = 2
 IMAGE_DEPTH_THRESHOLD = 300
 
 # reads with mapping quality more than the default min map quality will be processed
-DEFAULT_MIN_MAP_QUALITY = 1
+DEFAULT_MIN_MAP_QUALITY = 10
 # reads with base quality and mapping quality more than these will provide candidate alleles
-MIN_BASE_QUALITY_FOR_CANDIDATE = 0
-MIN_MAP_QUALITY_FOR_CANDIDATE = 0
+MIN_BASE_QUALITY_FOR_CANDIDATE = 5
+MIN_MAP_QUALITY_FOR_CANDIDATE = 5
 # candidate thresholds
 MIN_MISMATCH_THRESHOLD = 1
 MIN_MISMATCH_PERCENT_THRESHOLD = 8
-MIN_COVERAGE_THRESHOLD = 5
 
 PLOIDY = 2
 MATCH_ALLELE = 0
@@ -47,7 +46,7 @@ class CandidateFinder:
     Given reads that align to a site and a pointer to the reference fasta file handler,
     candidate finder finds possible variant candidates_by_read of that site.
     """
-    def __init__(self, reads, fasta_handler, chromosome_name, region_start_position, region_end_position):
+    def __init__(self, fasta_handler, chromosome_name, region_start_position, region_end_position):
         """
         Initialize a candidate finder object.
         :param reads: Reads that align to the site
@@ -60,7 +59,6 @@ class CandidateFinder:
         self.region_end_position = region_end_position
         self.chromosome_name = chromosome_name
         self.fasta_handler = fasta_handler
-        self.reads = reads
 
         # the store which reads are creating candidates in that position
         self.coverage = defaultdict(int)
@@ -212,7 +210,6 @@ class CandidateFinder:
 
         # the allele is the anchor + what's being deleted
         allele = self.reference_dictionary[alignment_position] + ref_sequence
-
         # record the delete where it first starts
         self._update_delete_dictionary(read_id, alignment_position, allele)
         self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, DELETE_ALLELE, 60)
@@ -228,7 +225,6 @@ class CandidateFinder:
         """
         # the allele is the anchor + what's being deleted
         allele = self.reference_dictionary[alignment_position] + read_sequence
-
         # record the insert where it first starts
         self.mismatch_count[alignment_position] += 1
         self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE, max(qualities))
@@ -246,8 +242,8 @@ class CandidateFinder:
         ref_alignment_start = read.reference_start
         ref_alignment_stop = self.get_read_stop_position(read)
         # if the region has reached a very high coverage, we are not going to parse through all the reads
-        if self.coverage[ref_alignment_start] > 300:
-            return False
+        # if self.coverage[ref_alignment_start] > 300:
+        #     return False
         cigar_tuples = read.cigartuples
         read_sequence = read.query_sequence
         read_id = read.query_name
@@ -374,6 +370,10 @@ class CandidateFinder:
             read_index_increment = 0
         elif cigar_code == 4:
             # soft clip
+            self.parse_insert(read_id=read_id,
+                              alignment_position=alignment_position - 1,
+                              read_sequence=read_sequence,
+                              qualities=quality)
             ref_index_increment = 0
             # print("CIGAR CODE ERROR SC")
         elif cigar_code == 5:
@@ -396,15 +396,12 @@ class CandidateFinder:
         Apply filter to alleles. The filter we use now are:
         MIN_MISMATCH_THRESHOLD: The count of the allele has to be greater than this value
         MIN_MISMATCH_PERCENT_THRESHOLD: The percent to the coverage has to be greater than this
-        MIN_COVERAGE_THRESHOLD: Coverage of the threshold has to be greater than this
         :param position: genomic position
         :param allele_frequency_list: list of tuples containing allele sequence and their frequency
         :return: A filtered list of alleles
         """
         filtered_list = list()
         for allele, count in allele_frequency_list:
-            allele_sequence, allele_type = allele
-            coverage = self.coverage[position] if self.coverage[position] else 0
             frequency = round(count / self.coverage[position], 3) if self.coverage[position] else 0
 
             if frequency * 100 >= MIN_MISMATCH_PERCENT_THRESHOLD:
@@ -539,9 +536,8 @@ class CandidateFinder:
         read_unique_id = 0
         for read in reads:
             # check if the read is usable
-            if read.mapping_quality >= DEFAULT_MIN_MAP_QUALITY and read.is_secondary is False \
+            if read.mapping_quality >= MIN_BASE_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
-
                 read.query_name = read.query_name + '_' + str(read_unique_id)
                 if self.find_read_candidates(read=read):
                     # read_id_list.append(read.query_name)

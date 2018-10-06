@@ -15,6 +15,7 @@ from modules.core.ImageGenerator import ImageGenerator
 from modules.handlers.VcfHandler import VCFFileProcessor
 from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.FileManager import FileManager
+from modules.core.LocalAssembler import LocalAssembler
 """
 This script creates training images from BAM, Reference FASTA and truth VCF file. The process is:
 - Find candidates that can be variants
@@ -114,17 +115,20 @@ class View:
         :param thread_no: Thread no for this region
         :return:
         """
-        # get the reads that fall in that region
-        reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
-                                           start=start_position,
-                                           stop=end_position)
+
+        local_assembler = LocalAssembler(self.fasta_handler,
+                                         self.bam_handler,
+                                         self.chromosome_name,
+                                         start_position,
+                                         end_position)
+        reads = local_assembler.perform_local_assembly()
 
         # create candidate finder object
-        candidate_finder = CandidateFinder(reads=reads,
-                                           fasta_handler=self.fasta_handler,
+        candidate_finder = CandidateFinder(fasta_handler=self.fasta_handler,
                                            chromosome_name=self.chromosome_name,
                                            region_start_position=start_position,
                                            region_end_position=end_position)
+
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
 
@@ -336,7 +340,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=418005, end_position=428807, thread_no=1)
+    view_object.parse_region(start_position=3562415, end_position=3562425, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
