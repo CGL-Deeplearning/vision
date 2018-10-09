@@ -8,9 +8,9 @@ from collections import defaultdict
 import numpy as np
 
 sns.set(color_codes=True)
-MULTI_ALLELE_QUAL_FILTER = 5.0
-SINGLE_ALLELE_SNP_QUAL_FILTER = 3.0
-SINGLE_ALLELE_INDEL_QUAL_FILTER = 5.0
+MULTI_ALLELE_QUAL_FILTER = 0.0
+SINGLE_ALLELE_SNP_QUAL_FILTER = 1.0
+SINGLE_ALLELE_INDEL_QUAL_FILTER = 1.0
 
 
 def read_file(file_name):

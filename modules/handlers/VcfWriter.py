@@ -9,6 +9,12 @@ DEL_TYPE = '3'
 IN_TYPE = '2'
 SNP_TYPE = '1'
 
+QUAL_FILTER = 5.0
+GQ_FILTER = 5.0
+MULTI_ALLELE_QUAL_FILTER = 5.0
+SINGLE_ALLELE_SNP_QUAL_FILTER = 5.0
+SINGLE_ALLELE_INDEL_QUAL_FILTER = 5.0
+
 
 class VCFWriter:
     def __init__(self, bam_file_path, sample_name, output_dir):
@@ -69,93 +75,132 @@ class VCFWriter:
         return tuple(split_values)
 
     @staticmethod
-    def get_genotype_for_multiple_allele(records):
+    def get_genotype_for_single_allele(record):
+        chromosome_name, pos_start, pos_end, ref, alt1, alt2, alt1_type, alt2_type = record[0:8]
+        alt_type = int(alt1_type)
+        probabilities = [float(record[8]), float(record[9]), float(record[10])]
 
+        genotype_list = ['0/0', '0/1', '1/1']
+        qual = sum(probabilities) - probabilities[0]
+        phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
+
+        # it's a SNP
+        if alt_type == 1:
+            if phred_qual < SINGLE_ALLELE_SNP_QUAL_FILTER:
+                index = 0
+                gq = probabilities[0]
+            else:
+                gq, index = max([(v, i) for i, v in enumerate(probabilities)])
+        else:
+            # in an indel
+            if phred_qual < SINGLE_ALLELE_INDEL_QUAL_FILTER:
+                index = 0
+                gq = probabilities[0]
+            else:
+                gq, index = max([(v, i) for i, v in enumerate(probabilities)])
+        phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
+
+        return chromosome_name, pos_start, pos_end, ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
+
+    @staticmethod
+    def get_genotype_for_multiple_allele(records):
         ref = '.'
         st_pos = 0
         end_pos = 0
         chrm = ''
         rec_alt1 = '.'
         rec_alt2 = '.'
-        alt_probs = defaultdict(list)
-        alt_with_types = []
+        alt_probs = defaultdict(tuple)
         for record in records:
-            chrm = record[0]
-            st_pos = record[1]
-            end_pos = record[2]
-            ref = record[3]
-            alt1 = record[4]
-            alt2 = record[5]
-            alt1_type = record[6]
-            alt2_type = record[7]
+            chrm, st_pos, end_pos, ref, alt1, alt2, alt1_type, alt2_type = record[0:8]
+            probs = [float(record[8]), float(record[9]), float(record[10])]
             if alt1 != '.' and alt2 != '.':
                 rec_alt1 = (alt1, alt1_type)
                 rec_alt2 = (alt2, alt2_type)
-                alt_probs['both'] = (record[8:])
+                alt_probs['both'] = probs
             else:
-                alt_probs[(alt1, alt1_type)] = (record[8:])
-                alt_with_types.append((alt1, record[6]))
+                alt_probs[(alt1, alt1_type)] = probs
 
-        if rec_alt1 not in alt_probs or rec_alt2 not in alt_probs or 'both' not in alt_probs:
-            print(record)
         p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
         p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
         p11 = min(alt_probs[rec_alt1][2], alt_probs['both'][2])
         p02 = min(alt_probs[rec_alt2][1], alt_probs['both'][1])
         p22 = min(alt_probs[rec_alt2][2], alt_probs['both'][2])
-        p12 = min(max(alt_probs[rec_alt1][1], alt_probs[rec_alt1][2]),
-                  max(alt_probs[rec_alt2][1], alt_probs[rec_alt2][2]),
-                  max(alt_probs['both'][1], alt_probs['both'][2]))
+        p12 = alt_probs['both'][2]
+
         # print(alt_probs)
-        prob_list = [p00, p01, p11, p02, p22, p12]
-        # print(prob_list)
-        sum_probs = sum(prob_list)
-        # print(sum_probs)
-        normalized_list = [(float(i) / sum_probs) if sum_probs else 0 for i in prob_list]
-        prob_list = normalized_list
-        # print(prob_list)
-        # print(sum(prob_list))
-        genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
-        gq, index = 0, 0
-        for i, prob in enumerate(prob_list):
-            if gq <= prob and prob > 0:
-                index = i
-                gq = prob
-        qual = sum(prob_list) - prob_list[0]
-        if index == 5:
-            ref, rec_alt1, rec_alt2 = VCFWriter.solve_multiple_alts(alt_with_types, ref)
-        else:
-            if index <= 2:
-                ref, rec_alt1, rec_alt2 = VCFWriter.solve_single_alt(alt_with_types[0], ref)
+        alt1_probs = [p00, p01, p11]
+        alt1_norm_probs = [(float(prob) / sum(alt1_probs)) if sum(alt1_probs) else 0 for prob in alt1_probs]
+        alt1_qual = sum(alt1_norm_probs) - alt1_norm_probs[0]
+
+        alt2_probs = [p00, p02, p22]
+        alt2_norm_probs = [(float(prob) / sum(alt2_probs)) if sum(alt2_probs) else 0 for prob in alt2_probs]
+        alt2_qual = sum(alt2_norm_probs) - alt2_norm_probs[0]
+
+        alt1_phred_qual = min(60, -10 * np.log10(1 - alt1_qual) if 1 - alt1_qual >= 0.0000001 else 60)
+        alt2_phred_qual = min(60, -10 * np.log10(1 - alt2_qual) if 1 - alt2_qual >= 0.0000001 else 60)
+
+        if alt1_phred_qual < MULTI_ALLELE_QUAL_FILTER and alt2_phred_qual < MULTI_ALLELE_QUAL_FILTER:
+            if alt1_phred_qual > alt2_phred_qual:
+                probs = [p00, p01, p11]
+                sum_probs = sum(probs)
+                probs = [(float(i) / sum_probs) if sum_probs else 0 for i in probs]
+
+                genotype_list = ['0/0', '0/1', '1/1']
+                gq, index = max([(v, i) for i, v in enumerate(probs)])
+                qual = sum(probs) - probs[0]
+                phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
+                phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
+                return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[
+                    index], phred_qual, phred_gq
             else:
-                ref, rec_alt2, rec_alt1 = VCFWriter.solve_single_alt(alt_with_types[1], ref)
+                probs = [p00, p02, p22]
+                sum_probs = sum(probs)
+                probs = [(float(i) / sum_probs) if sum_probs else 0 for i in probs]
 
-        phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
-        phred_qual = math.ceil(phred_qual * 100.0) / 100.0
-        phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-        phred_gq = math.ceil(phred_gq * 100.0) / 100.0
+                genotype_list = ['0/0', '0/2', '2/2']
+                gq, index = max([(v, i) for i, v in enumerate(probs)])
+                qual = sum(probs) - probs[0]
+                phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
+                phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
+                return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[
+                    index], phred_qual, phred_gq
+        elif alt1_phred_qual < MULTI_ALLELE_QUAL_FILTER:
+            probs = [p00, p02, p22]
+            sum_probs = sum(probs)
+            probs = [(float(i) / sum_probs) if sum_probs else 0 for i in probs]
 
-        return chrm, st_pos, end_pos, ref, [rec_alt1, rec_alt2], genotype_list[index], phred_qual, phred_gq
+            genotype_list = ['0/0', '0/2', '2/2']
+            gq, index = max([(v, i) for i, v in enumerate(probs)])
+            qual = sum(probs) - probs[0]
+            phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
+            phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
+            return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[index], phred_qual, phred_gq
+        elif alt2_phred_qual < MULTI_ALLELE_QUAL_FILTER:
+            probs = [p00, p01, p11]
+            sum_probs = sum(probs)
+            probs = [(float(i) / sum_probs) if sum_probs else 0 for i in probs]
 
-    @staticmethod
-    def get_genotype_for_single_allele(records):
-        for record in records:
-            probs = [record[8], record[9], record[10]]
             genotype_list = ['0/0', '0/1', '1/1']
             gq, index = max([(v, i) for i, v in enumerate(probs)])
             qual = sum(probs) - probs[0]
-            ref = record[3]
-            alt_with_types = list()
-            alt_with_types.append((record[4], record[6]))
-            # print(alt_with_types)
-            ref, alt1, alt2 = VCFWriter.solve_single_alt(alt_with_types[0], ref)
-            # print(ref, rec_alt1, rec_alt2)
             phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
-            phred_qual = math.ceil(phred_qual * 100.0) / 100.0
             phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-            phred_gq = math.ceil(phred_gq * 100.0) / 100.0
-
-            return record[0], record[1], record[2], ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
+            return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[index], phred_qual, phred_gq
+        else:
+            prob_list = [p00, p01, p11, p02, p22, p12]
+            sum_probs = sum(prob_list)
+            # print(sum_probs)
+            normalized_list = [(float(i) / sum_probs) if sum_probs else 0 for i in prob_list]
+            prob_list = normalized_list
+            # print(prob_list)
+            # print(sum(prob_list))
+            genotype_list = ['0/0', '0/1', '1/1', '0/2', '2/2', '1/2']
+            gq, index = max([(v, i) for i, v in enumerate(prob_list)])
+            qual = sum(prob_list) - prob_list[0]
+            phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
+            phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
+            return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[index], phred_qual, phred_gq
 
     @staticmethod
     def get_proper_alleles(record):
@@ -186,9 +231,9 @@ class VCFWriter:
             return 'conflictPos'
         if genotype == '0/0':
             return 'refCall'
-        if phred_qual <= 1:
+        if phred_qual <= QUAL_FILTER:
             return 'lowQUAL'
-        if phred_gq <= 1:
+        if phred_gq <= GQ_FILTER:
             return 'lowGQ'
         return 'PASS'
 

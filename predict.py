@@ -4,16 +4,13 @@ import operator
 import os
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from modules.models.inception import Inception3
-from modules.models.resnet import resnet18_custom
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
 from modules.handlers.VcfWriter import VCFWriter
-
-
-
+from modules.models.ModelHandler import ModelHandler
 
 """
 This script uses a trained model to call variants on a given set of images generated from the genome.
@@ -55,35 +52,10 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
     # load the model
-    if gpu_mode is False:
-        checkpoint = torch.load(model_path, map_location='cpu')
-        state_dict = checkpoint['state_dict']
-        # print("test1")
+    model = ModelHandler.get_new_model(gpu_mode)
+    model = ModelHandler.load_model(model, model_path)
 
-        # In state dict keys there is an extra word inserted by model parallel: "module.". We remove it here
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-
-        for k, v in state_dict.items():
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
-
-        model = resnet18_custom()
-        model.load_state_dict(new_state_dict)
-        model.cpu()
-    else:
-        checkpoint = torch.load(model_path, map_location='cpu')
-        #print("gpu mode")
-        state_dict = checkpoint['state_dict']
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-
-        for k, v in state_dict.items():
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
-
-        model = resnet18_custom()
-        model.load_state_dict(new_state_dict)
+    if gpu_mode:
         model = model.cuda()
         model = torch.nn.DataParallel(model).cuda()
 
@@ -91,12 +63,9 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
     model.eval()
 
     with torch.no_grad():
-        for counter, (images, records) in enumerate(testloader):
-            #images = Variable(images)
-
+        for images, records in tqdm(testloader, file=sys.stdout, ncols=50):
             if gpu_mode:
                 images = images.cuda()
-                #print("test gpu mode images.cuda()")
 
             preds = model(images)
             # One dimensional softmax is used to convert the logits to probability distribution
@@ -112,12 +81,6 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
                 prob_hom, prob_het, prob_hom_alt = probs
                 prediction_dict[pos_st].append((chr_name, pos_st, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
                                                 prob_hom, prob_het, prob_hom_alt))
-
-            # print("test4")
-
-            sys.stderr.write(TextColor.BLUE + " BATCHES DONE: " + str(counter + 1) + "/" +
-                             str(len(testloader)) + "\n" + TextColor.END)
-            sys.stderr.flush()
 
     return prediction_dict
 
@@ -144,7 +107,7 @@ def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
         if len(records) > 1:
             chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_multiple_allele(records)
         else:
-            chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_single_allele(records)
+            chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_single_allele(records[0])
 
         all_calls.append((chrm, int(st_pos), int(end_pos), ref, alts, genotype, qual, gq))
 
