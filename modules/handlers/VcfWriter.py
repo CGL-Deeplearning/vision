@@ -9,11 +9,11 @@ DEL_TYPE = '3'
 IN_TYPE = '2'
 SNP_TYPE = '1'
 
-QUAL_FILTER = 5.0
-GQ_FILTER = 5.0
-MULTI_ALLELE_QUAL_FILTER = 5.0
-SINGLE_ALLELE_SNP_QUAL_FILTER = 5.0
-SINGLE_ALLELE_INDEL_QUAL_FILTER = 5.0
+QUAL_FILTER = 0.0
+GQ_FILTER = 0.0
+MULTI_ALLELE_QUAL_FILTER = 0.0
+SINGLE_ALLELE_SNP_QUAL_FILTER = 0.0
+SINGLE_ALLELE_INDEL_QUAL_FILTER = 0.0
 
 
 class VCFWriter:
@@ -84,6 +84,10 @@ class VCFWriter:
         qual = sum(probabilities) - probabilities[0]
         phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
 
+        alt_with_types = list()
+        alt_with_types.append((alt1, alt1_type))
+        ref, alt1, alt2 = VCFWriter.solve_single_alt(alt_with_types[0], ref)
+
         # it's a SNP
         if alt_type == 1:
             if phred_qual < SINGLE_ALLELE_SNP_QUAL_FILTER:
@@ -111,6 +115,8 @@ class VCFWriter:
         rec_alt1 = '.'
         rec_alt2 = '.'
         alt_probs = defaultdict(tuple)
+        alt_with_types = []
+
         for record in records:
             chrm, st_pos, end_pos, ref, alt1, alt2, alt1_type, alt2_type = record[0:8]
             probs = [float(record[8]), float(record[9]), float(record[10])]
@@ -120,6 +126,7 @@ class VCFWriter:
                 alt_probs['both'] = probs
             else:
                 alt_probs[(alt1, alt1_type)] = probs
+                alt_with_types.append((alt1, alt1_type))
 
         p00 = min(alt_probs[rec_alt1][0], alt_probs[rec_alt2][0], alt_probs['both'][0])
         p01 = min(alt_probs[rec_alt1][1], alt_probs['both'][1])
@@ -151,8 +158,10 @@ class VCFWriter:
                 qual = sum(probs) - probs[0]
                 phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
                 phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-                return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[
-                    index], phred_qual, phred_gq
+
+                ref, alt1, alt2 = VCFWriter.solve_single_alt(rec_alt1, ref)
+
+                return chrm, st_pos, end_pos, ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
             else:
                 probs = [p00, p02, p22]
                 sum_probs = sum(probs)
@@ -163,8 +172,10 @@ class VCFWriter:
                 qual = sum(probs) - probs[0]
                 phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
                 phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-                return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[
-                    index], phred_qual, phred_gq
+
+                ref, alt2, alt1 = VCFWriter.solve_single_alt(rec_alt2, ref)
+
+                return chrm, st_pos, end_pos, ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
         elif alt1_phred_qual < MULTI_ALLELE_QUAL_FILTER:
             probs = [p00, p02, p22]
             sum_probs = sum(probs)
@@ -175,7 +186,10 @@ class VCFWriter:
             qual = sum(probs) - probs[0]
             phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
             phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-            return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[index], phred_qual, phred_gq
+
+            ref, alt2, alt1 = VCFWriter.solve_single_alt(rec_alt2, ref)
+
+            return chrm, st_pos, end_pos, ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
         elif alt2_phred_qual < MULTI_ALLELE_QUAL_FILTER:
             probs = [p00, p01, p11]
             sum_probs = sum(probs)
@@ -186,7 +200,10 @@ class VCFWriter:
             qual = sum(probs) - probs[0]
             phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
             phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-            return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[index], phred_qual, phred_gq
+
+            ref, alt1, alt2 = VCFWriter.solve_single_alt(rec_alt1, ref)
+
+            return chrm, st_pos, end_pos, ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
         else:
             prob_list = [p00, p01, p11, p02, p22, p12]
             sum_probs = sum(prob_list)
@@ -200,7 +217,9 @@ class VCFWriter:
             qual = sum(prob_list) - prob_list[0]
             phred_qual = min(60, -10 * np.log10(1 - qual) if 1 - qual >= 0.0000001 else 60)
             phred_gq = min(60, -10 * np.log10(1 - gq) if 1 - gq >= 0.0000001 else 60)
-            return chrm, st_pos, end_pos, ref, [rec_alt1[0], rec_alt2[0]], genotype_list[index], phred_qual, phred_gq
+
+            ref, alt1, alt2 = VCFWriter.solve_multiple_alts([rec_alt1, rec_alt2], ref)
+            return chrm, st_pos, end_pos, ref, [alt1, alt2], genotype_list[index], phred_qual, phred_gq
 
     @staticmethod
     def get_proper_alleles(record):
