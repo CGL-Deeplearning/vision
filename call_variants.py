@@ -141,9 +141,9 @@ def handle_output_directory(output_dir):
 
 def call_variants_on_multiple_chromosome(csv_dir, bam_file_path, sample_name, output_dir,
                                          batch_size, model_path, gpu_mode, num_workers):
-    # chr_list = ["chr20", "chr21", "chr22"]
-    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
-                "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
+    chr_list = ["chr20", "chr21", "chr22"]
+    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
+    #             "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
     # object that can write and handle VCF
     vcf_writer = VCFWriter(bam_file_path, sample_name, output_dir)
 
