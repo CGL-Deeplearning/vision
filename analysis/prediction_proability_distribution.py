@@ -8,9 +8,9 @@ from collections import defaultdict
 import numpy as np
 
 sns.set(color_codes=True)
-MULTI_ALLELE_QUAL_FILTER = 0.0
-SINGLE_ALLELE_SNP_QUAL_FILTER = 1.0
-SINGLE_ALLELE_INDEL_QUAL_FILTER = 1.0
+MULTI_ALLELE_QUAL_FILTER = 5.0
+SINGLE_ALLELE_SNP_QUAL_FILTER = 3.0
+SINGLE_ALLELE_INDEL_QUAL_FILTER = 5.0
 
 
 def read_file(file_name):
@@ -327,7 +327,7 @@ if __name__ == '__main__':
         parse_multi_allelic_records(multi_allelic_recods)
 
     overall_fp = false_positives_sngl + false_positives_mult
-    overall_fn = false_negative_sngl + false_negative_sngl
+    overall_fn = false_negative_sngl + false_negative_mult
     print("Overall ACCURACY:")
     print("FALSE POSITIVE:\t", str(overall_fp))
     print("FALSE NEGATIVE:\t", str(overall_fn))
