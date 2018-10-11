@@ -14,11 +14,11 @@ Dictionaries it updates:
 - edit_count:           records number of mismatches in a position          {int -> int}
 """
 # reads with base quality and mapping quality more than these will provide candidate alleles
-MIN_BASE_QUALITY_FOR_CANDIDATE = 15
-MIN_MAP_QUALITY_FOR_CANDIDATE = 15
+MIN_BASE_QUALITY_FOR_CANDIDATE = 5
+MIN_MAP_QUALITY_FOR_CANDIDATE = 5
 # candidate thresholds
-MIN_MISMATCH_THRESHOLD = 1
-MIN_MISMATCH_PERCENT_THRESHOLD = 8
+MIN_MISMATCH_THRESHOLD = 0
+MIN_MISMATCH_PERCENT_THRESHOLD = 0
 
 PLOIDY = 2
 MATCH_ALLELE = 0
@@ -118,8 +118,6 @@ class CandidateFinder:
             if base not in ['A', 'C', 'G', 'T']:
                 return
         # filter candidates based on read qualities
-        if mapping_quality < MIN_MAP_QUALITY_FOR_CANDIDATE:
-            return
         if base_quality < MIN_BASE_QUALITY_FOR_CANDIDATE:
             return
 
