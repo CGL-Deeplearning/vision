@@ -88,7 +88,7 @@ def produce_vcf(prediction_dictionary, bam_file_path, sample_name, output_dir):
         if len(records) > 1:
             chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_multiple_allele(records)
         else:
-            chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_single_allele(records)
+            chrm, st_pos, end_pos, ref, alts, genotype, qual, gq = vcf_writer.get_genotype_for_single_allele(records[0])
 
         all_calls.append((chrm, int(st_pos), int(end_pos), ref, alts, genotype, qual, gq))
 
