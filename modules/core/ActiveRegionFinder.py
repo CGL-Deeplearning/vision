@@ -2,12 +2,13 @@ from collections import defaultdict
 
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077"""
 
-MATCH_WEIGHT = -0.2
-MISMATCH_WEIGHT = 0.5
-INSERT_WEIGHT = 0.2
-DELETE_WEIGHT = 0.2
-SOFT_CLIP_WEIGHT = 0.001
-THRESHOLD_VALUE = -10.0
+MATCH_WEIGHT = -0.06
+MISMATCH_WEIGHT = -0.09
+INSERT_WEIGHT = 2.5
+DELETE_WEIGHT = 1.8
+SOFT_CLIP_WEIGHT = 3.0
+THRESHOLD_VALUE = 2.2
+
 DEFAULT_MIN_MAP_QUALITY = 5.0
 MIN_REGION_SIZE = 80
 
@@ -130,18 +131,27 @@ class ActiveRegionFinder:
             # insert
             # alignment position is where the next alignment starts, for insert and delete this
             # position should be the anchor point hence we use a -1 to refer to the anchor point
-            self.candidate_position_weighted_sum[alignment_position] += INSERT_WEIGHT
+            start = alignment_position - length + 1
+            end = alignment_position + length
+            for pos in range(start, end+1):
+                self.candidate_position_weighted_sum[pos] += INSERT_WEIGHT
             ref_index_increment = 0
         elif cigar_code == 2 or cigar_code == 3:
             # delete or ref_skip
             # alignment position is where the next alignment starts, for insert and delete this
             # position should be the anchor point hence we use a -1 to refer to the anchor point
-            self.candidate_position_weighted_sum[alignment_position] += DELETE_WEIGHT
+            start = alignment_position + 1
+            end = alignment_position + length
+            for pos in range(start, end + 1):
+                self.candidate_position_weighted_sum[pos] += DELETE_WEIGHT
             read_index_increment = 0
         elif cigar_code == 4:
             # soft clip
             ref_index_increment = 0
-            self.candidate_position_weighted_sum[alignment_position] += SOFT_CLIP_WEIGHT
+            start = alignment_position - length + 1
+            end = alignment_position + length
+            for pos in range(start, end + 1):
+                self.candidate_position_weighted_sum[pos] += INSERT_WEIGHT
             # print("CIGAR CODE ERROR SC")
         elif cigar_code == 5:
             # hard clip

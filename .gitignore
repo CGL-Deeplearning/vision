@@ -8,6 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+modules/aligner/ssw_aligner/
 env/
 build/
 develop-eggs/

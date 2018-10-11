@@ -13,7 +13,7 @@ INSERT_WEIGHT = 0.2
 DELETE_WEIGHT = 0.2
 SOFT_CLIP_WEIGHT = 0.001
 THRESHOLD_VALUE = 0.0
-DEFAULT_MIN_MAP_QUALITY = 15
+DEFAULT_MIN_MAP_QUALITY = 14
 MIN_BASE_QUALITY = 15
 MIN_REGION_SIZE = 80
 MAX_ACTIVE_REGION_SIZE = 1000
@@ -81,6 +81,7 @@ class LocalAssembler:
         haplotypes = [ref_prefix + hap + ref_suffix for hap in region_with_reads.haplotypes]
         aligner = SSWAligner(ref_start, ref_end, ref_seq)
 
+        # specifically here
         realigned_reads = aligner.align_reads(haplotypes, region_with_reads.reads)
 
         return realigned_reads
@@ -156,6 +157,7 @@ class LocalAssembler:
             assembly_active_regions[max_window_index].assign_read(read)
 
         for active_region in assembly_active_regions:
+            # problem is here now
             realigned_reads.extend(self.perform_local_alignment(active_region))
 
         return realigned_reads

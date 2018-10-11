@@ -270,7 +270,6 @@ class CandidateFinder:
             ref_sequence_segment = ref_sequence[ref_index:ref_index+length]
             read_quality_segment = read_quality[read_index:read_index+length]
             read_sequence_segment = read_sequence[read_index:read_index+length]
-
             if cigar_code != 0 and found_valid_cigar is False:
                 read_index += length
                 continue
@@ -435,7 +434,7 @@ class CandidateFinder:
             read_to_image_row = []
             for pos in range(star_pos, end_pos):
                 if pos not in self.base_dictionary[read_id] and pos not in self.insert_dictionary[read_id]:
-                    print(pos, read_id)
+                    # this is a common case after realignment
                     continue
 
                 # if this read has an insert then make the anchor empty

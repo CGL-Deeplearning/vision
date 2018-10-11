@@ -42,6 +42,7 @@ MATCH_PENALTY = 4
 MISMATCH_PENALTY = 6
 GAP_OPEN_PENALTY = 8
 GAP_EXTEND_PENALTY = 2
+
 _SSW_CIGAR_CHARS = {
     'M': 0,
     '=': 0,
@@ -56,6 +57,17 @@ _SSW_CIGAR_CHARS_REV = {
     2: 'D',
     4: 'S'
 }
+
+MATCH_CIGAR = 0
+INSERT_CIGAR = 1
+DELETE_CIGAR = 2
+REF_SKIP_CIGAR = 3
+SOFT_CLIP_CIGAR = 4
+HARD_CLIP_CIGAR = 5
+PAD_CIGAR = 6
+EQUAL_CIGAR = 7
+X_CIGAR = 8
+BACK_CIGAR = 9
 
 class LibSSWPairwiseAligner(object):
   def __init__(self, query_seq, match, mismatch, gap_open_penalty,
@@ -207,10 +219,10 @@ class SingleAlnOp(object):
     Raises:
       ValueError: if cigar_op isn't one of the expected ops.
     """
-    if (self.cigar_op in [0, 7, 8] or
-        self.cigar_op in [1, 4]):
+    if (self.cigar_op in [MATCH_CIGAR, EQUAL_CIGAR, X_CIGAR] or
+        self.cigar_op in [INSERT_CIGAR, SOFT_CLIP_CIGAR]):
       return self.pos + 1
-    elif (self.cigar_op in [2, 3]):
+    elif (self.cigar_op in [DELETE_CIGAR, X_CIGAR, HARD_CLIP_CIGAR]):
       return self.pos
     raise ValueError('Unexpected cigar_op', self.cigar_op)
 
@@ -335,9 +347,7 @@ class SSWAligner(object):
 
   def _set_target_alignment_info(self, target, alignment):
     # Note: query_end is inclusive.
-    if (alignment.query_begin != 0 or
-        alignment.query_end != len(target.sequence) - 1):
-      logging.warning('aligner: Target alignment should be end-to-end.')
+    if alignment.query_begin != 0 or alignment.query_end != len(target.sequence) - 1:
       return False
     target.gaps = self._cigar_str_to_gaps(alignment.cigar_string, 0)
 
@@ -350,12 +360,12 @@ class SSWAligner(object):
           ref_pos, ref_pos + pre_gap_len)
       ref_pos += pre_gap_len
       target_pos += pre_gap_len
-      if gap.cigar_op == 1:
+      if gap.cigar_op in [INSERT_CIGAR, SOFT_CLIP_CIGAR]:
         target.ref_pos_mapping[target_pos] = ref_pos
         target_pos += 1
-      elif gap.cigar_op == 2:
+      elif gap.cigar_op in [DELETE_CIGAR, REF_SKIP_CIGAR]:
         ref_pos += 1
-      elif gap.cigar_op == 0:
+      elif gap.cigar_op in [MATCH_CIGAR, X_CIGAR, EQUAL_CIGAR]:
         target.ref_pos_mapping[target_pos] = ref_pos
         ref_pos += 1
         target_pos += 1
@@ -368,9 +378,9 @@ class SSWAligner(object):
     return True
 
   def _indel_to_single_aln_ops(self, start_pos, cigar_op, size):
-    if cigar_op == 1:
+    if cigar_op == INSERT_CIGAR:
       return [SingleAlnOp(start_pos + i, cigar_op) for i in range(size)]
-    elif cigar_op == 2:
+    elif cigar_op == DELETE_CIGAR:
       return [SingleAlnOp(start_pos, cigar_op) for i in range(size)]
     else:
       raise ValueError('Unexpected cigar_op', cigar_op)
@@ -383,12 +393,12 @@ class SSWAligner(object):
     query_pos = 0
     query_pos += query_offset
     for cigar_op, cigar_len in zip(cigar_ops, cigar_lens):
-      if cigar_op == 2:
+      if cigar_op == INSERT_CIGAR:
         gaps += self._indel_to_single_aln_ops(query_pos, cigar_op, cigar_len)
         query_pos += cigar_len
-      elif cigar_op == 1:
+      elif cigar_op == DELETE_CIGAR:
         gaps += self._indel_to_single_aln_ops(query_pos, cigar_op, cigar_len)
-      elif cigar_op == 0:
+      elif cigar_op == MATCH_CIGAR:
         query_pos += cigar_len
       else:
         assert cigar_op in _SSW_CIGAR_CHARS.values()
@@ -411,16 +421,17 @@ class SSWAligner(object):
     """
 
     def _read_pos_offset_adjusment(single_aln_op):
-      if (single_aln_op.cigar_op in utils.CIGAR_ALIGN_OPS or
-          single_aln_op.cigar_op in utils.CIGAR_INSERT_OPS):
+      if (single_aln_op.cigar_op in [MATCH_CIGAR, X_CIGAR, EQUAL_CIGAR] or
+          single_aln_op.cigar_op in [INSERT_CIGAR, SOFT_CLIP_CIGAR]):
         return 1
-      elif single_aln_op.cigar_op in utils.CIGAR_DELETE_OPS:
+      elif single_aln_op.cigar_op in [DELETE_CIGAR, REF_SKIP_CIGAR]:
         return -1
       else:
         raise ValueError('Unexpected cigar op', single_aln_op.cigar_op)
     read_gaps = self._cigar_str_to_gaps(read.alignment.cigar_string,
                                         read.alignment.query_begin)
     target_gaps = read.target.gaps
+
     target_offset = read.alignment.query_begin - (
         read.alignment.reference_begin + read.target_offset)
     gaps = []
@@ -464,12 +475,12 @@ class SSWAligner(object):
         target_offset += _read_pos_offset_adjusment(read_gap)
         read_i += 1
         target_i += 1
-      elif target_gap.cigar_op == 'D':
+      elif target_gap.cigar_op == DELETE_CIGAR:
         assert target_gap.pos + target_offset == read_gap.pos
         gaps.append(
             SingleAlnOp(target_gap.pos + target_offset, target_gap.cigar_op))
         target_i += 1
-      elif read_gap.cigar_op == 'I':
+      elif read_gap.cigar_op == INSERT_CIGAR:
         assert target_gap.pos + target_offset == read_gap.pos
         gaps.append(read_gap)
         target_offset += _read_pos_offset_adjusment(read_gap)
@@ -503,15 +514,15 @@ class SSWAligner(object):
     index = 0
     for cigar_unit in cigar:
       cigar_op, cigar_len = cigar_unit
-      if cigar_op in [2, 3]:
+      if cigar_op in [DELETE_CIGAR, REF_SKIP_CIGAR]:
         index += 1
-      elif cigar_op in [1, 4]:
-        read_offset += cigar_unit.operation_length
+      elif cigar_op in [INSERT_CIGAR, SOFT_CLIP_CIGAR]:
+        read_offset += cigar_len
         index += 1
-      elif cigar_op in [0, 8]:
+      elif cigar_op in [MATCH_CIGAR, X_CIGAR, EQUAL_CIGAR]:
         break
       else:
-        raise ValueError('Unexpected cigar_op', cigar_unit.operation)
+        raise ValueError('Unexpected cigar_op', cigar_op)
     return index, read_offset
 
   def _gaps_to_cigar_ops(self, gaps, seq_start_offset, seq_end_offset):
@@ -564,23 +575,25 @@ class SSWAligner(object):
     query_len = 0
     ref_len = 0
     for cigar_op, cigar_len in readalignment.cigartuples:
-      if cigar_op in [0, 7, 8]:
+      if cigar_op in [MATCH_CIGAR, EQUAL_CIGAR, X_CIGAR]:
         ref_len += cigar_len
         query_len += cigar_len
-      elif cigar_op in [1, 4]:
+      elif cigar_op in [INSERT_CIGAR, SOFT_CLIP_CIGAR]:
         query_len += cigar_len
-      elif cigar_op in [2, 3]:
+      elif cigar_op in [DELETE_CIGAR, REF_SKIP_CIGAR]:
         ref_len += cigar_len
+      elif cigar_op in [HARD_CLIP_CIGAR]:
+        pass
       else:
         raise ValueError('readalignment validation: Unexpected cigar_op %i',
                          readalignment.cigartuples)
-
     if query_len != len(readalignment.query_sequence):
       raise ValueError('readalignment validation: '
                        'cigar is inconsistent with the read length.')
     if aln_pos + ref_len > self.region_end:
       raise ValueError('readalignment validation: '
                        'read end position is out of reference genomic range.')
+    return ref_len
 
   def set_read_cigar(self, read):
     """Set read's cigar information, given alignment result.
@@ -597,45 +610,34 @@ class SSWAligner(object):
     read.readalignment.cigartuples = []
 
     read_gaps = self._read_gaps(read)
-
     cigar = self._gaps_to_cigar_ops(
         read_gaps,
         read.alignment.query_begin,
         # Note: ssw.TabularMSA.query_end is inclusive.
         read.alignment.query_end + 1)
 
-    cigar_start_i, start_read_clipped_bases = self._candidate_clipped_bases(
-        cigar)
+    cigar_start_i, start_read_clipped_bases = self._candidate_clipped_bases(cigar)
+
     if cigar_start_i < len(cigar):
-      tmp_end_i, end_read_clipped_bases = self._candidate_clipped_bases(
-          cigar[::-1])
+      tmp_end_i, end_read_clipped_bases = self._candidate_clipped_bases(cigar[::-1])
       cigar_end_i = len(cigar) - tmp_end_i
       assert cigar_start_i < cigar_end_i
     else:
       cigar_end_i, end_read_clipped_bases = len(cigar), 0
 
     # Construct the cigar string, including hard and soft clipped bases.
-    if read.original_readalignment.cigartuples[0][0] == 5:
+    if read.original_readalignment.cigartuples[0][0] == HARD_CLIP_CIGAR:
       self._add_cigar_unit(
-          read.readalignment.cigartuples, 'H',
+          read.readalignment.cigartuples, HARD_CLIP_CIGAR,
           read.original_readalignment.cigar[0][1])
-    self._add_cigar_unit(read.readalignment.cigartuples,
-                         'S',
-                         read.alignment.query_begin)
-    self._add_cigar_unit(read.readalignment.cigartuples,
-                         'S',
-                         start_read_clipped_bases)
+
+    self._add_cigar_unit(read.readalignment.cigartuples, SOFT_CLIP_CIGAR, read.alignment.query_begin)
+    self._add_cigar_unit(read.readalignment.cigartuples, SOFT_CLIP_CIGAR, start_read_clipped_bases)
     read.readalignment.cigartuples.extend(cigar[cigar_start_i:cigar_end_i])
-    self._add_cigar_unit(read.readalignment.cigartuples,
-                         'S', end_read_clipped_bases)
-    self._add_cigar_unit(read.readalignment.cigartuples,
-                         'S',
-                         len(read.aligned_seq()) - read.alignment.query_end - 1)
-    if (read.original_readalignment.cigar[-1][0] ==
-        'H'):
-      self._add_cigar_unit(
-          read.readalignment.cigartuples, 'H',
-          read.original_readalignment.cigar[-1][1])
+    self._add_cigar_unit(read.readalignment.cigartuples, SOFT_CLIP_CIGAR, end_read_clipped_bases)
+    self._add_cigar_unit(read.readalignment.cigartuples, SOFT_CLIP_CIGAR, len(read.aligned_seq()) - read.alignment.query_end - 1)
+    if read.original_readalignment.cigar[-1][0] == HARD_CLIP_CIGAR:
+      self._add_cigar_unit(read.readalignment.cigartuples, HARD_CLIP_CIGAR, read.original_readalignment.cigar[-1][1])
 
   def set_readalignment(self, read):
     """Set read's readalignment information, given alignment results.
@@ -652,10 +654,12 @@ class SSWAligner(object):
     read.readalignment.reference_start = (read.target.ref_pos_mapping[read.target_offset + read.alignment.reference_begin])
 
     self.set_read_cigar(read)
-    self.sanity_check_readalignment(read.readalignment)
 
+    # this is where things are getting weird
+    ref_len = self.sanity_check_readalignment(read.readalignment)
+    read.readalignment.reference_end = read.readalignment.reference_start + ref_len
     # If the whole read sequence is clipped, reset the readalignment to None.
-    if all(cigar_op in [4, 5, 6]
+    if all(cigar_op in [SOFT_CLIP_CIGAR, HARD_CLIP_CIGAR, PAD_CIGAR]
            for cigar_op, cigar_len in read.readalignment.cigartuples):
       read.readalignment = None
 
@@ -702,6 +706,7 @@ class SSWAligner(object):
     for target in self.targets:
       read_seq = read.aligned_seq()
       target_offsets = _sw_start_offsets(target.kmer_index, read.kmers)
+
       for target_offset in target_offsets:
         alignment_offset, alignment = self._ssw_alignment(
             aligner, read_seq, target.sequence, target_offset)
@@ -716,6 +721,7 @@ class SSWAligner(object):
     if not targets or targets == [self.ref_seq]:
       return reads
     self.set_targets(targets)
+
     realigned_reads = []
     for read in reads:
       read_ssw = Read_ssw(read)
