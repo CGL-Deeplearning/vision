@@ -1,6 +1,6 @@
 from collections import defaultdict
 from modules.handlers.ImageChannels import global_base_color_dictionary, MAX_COLOR_VALUE, MAP_QUALITY_CAP, \
-    BASE_QUALITY_CAP
+    BASE_QUALITY_CAP, MIN_DELETE_QUALITY
 import operator
 import time
 import math
@@ -13,26 +13,12 @@ Dictionaries it updates:
 - coverage:             records coverage of a position                      {int -> int}
 - edit_count:           records number of mismatches in a position          {int -> int}
 """
-
-
-MAX_COLOR_VALUE = 254
-BASE_QUALITY_CAP = 40
-MAP_QUALITY_CAP = 60
-MAP_QUALITY_FILTER = 5
-MIN_DELETE_QUALITY = 0
-MATCH_CIGAR_CODE = 0
-INSERT_CIGAR_CODE = 1
-DELETE_CIGAR_CODE = 2
-IMAGE_DEPTH_THRESHOLD = 300
-
-# reads with mapping quality more than the default min map quality will be processed
-DEFAULT_MIN_MAP_QUALITY = 10
 # reads with base quality and mapping quality more than these will provide candidate alleles
-MIN_BASE_QUALITY_FOR_CANDIDATE = 5
-MIN_MAP_QUALITY_FOR_CANDIDATE = 5
+MIN_BASE_QUALITY_FOR_CANDIDATE = 15
+MIN_MAP_QUALITY_FOR_CANDIDATE = 15
 # candidate thresholds
 MIN_MISMATCH_THRESHOLD = 1
-MIN_MISMATCH_PERCENT_THRESHOLD = 8
+MIN_MISMATCH_PERCENT_THRESHOLD = 12
 
 PLOIDY = 2
 MATCH_ALLELE = 0
@@ -127,6 +113,10 @@ class CandidateFinder:
         :return:
         """
         ref_alignment_start, ref_alignment_stop, mapping_quality, is_reverse = self.read_info[read_id]
+
+        for base in allele:
+            if base not in ['A', 'C', 'G', 'T']:
+                return
         # filter candidates based on read qualities
         if mapping_quality < MIN_MAP_QUALITY_FOR_CANDIDATE:
             return
@@ -227,7 +217,7 @@ class CandidateFinder:
         allele = self.reference_dictionary[alignment_position] + read_sequence
         # record the insert where it first starts
         self.mismatch_count[alignment_position] += 1
-        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE, max(qualities))
+        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, INSERT_ALLELE, min(qualities))
         self._update_insert_dictionary(read_id, alignment_position, read_sequence, qualities)
 
     def find_read_candidates(self, read):
@@ -403,7 +393,7 @@ class CandidateFinder:
         for allele, count in allele_frequency_list:
             frequency = round(count / self.coverage[position], 3) if self.coverage[position] else 0
 
-            if frequency * 100 >= MIN_MISMATCH_PERCENT_THRESHOLD:
+            if count > MIN_MISMATCH_THRESHOLD and frequency * 100 >= MIN_MISMATCH_PERCENT_THRESHOLD:
                 filtered_list.append((allele, count, frequency))
         return filtered_list
 
@@ -535,7 +525,7 @@ class CandidateFinder:
         read_unique_id = 0
         for read in reads:
             # check if the read is usable
-            if read.mapping_quality >= MIN_BASE_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
+            if read.mapping_quality >= MIN_MAP_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 read.query_name = read.query_name + '_' + str(read_unique_id)
                 if self.find_read_candidates(read=read):
