@@ -86,7 +86,7 @@ class LocalAssembler:
 
         return realigned_reads
 
-    def perform_local_assembly(self):
+    def perform_local_assembly(self, perform_alignment=True):
         # get the reads that fall in that region
         all_reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
                                                start=self.region_start_position,
@@ -96,6 +96,9 @@ class LocalAssembler:
             if read.mapping_quality >= DEFAULT_MIN_MAP_QUALITY and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 reads_in_region.append(Read(read))
+
+        if perform_alignment is False:
+            return reads_in_region
 
         # find active regions
         active_region_finder = ActiveRegionFinder(fasta_handler=self.fasta_handler,
