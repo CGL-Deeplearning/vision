@@ -1,10 +1,8 @@
 from collections import defaultdict
 from graphviz import Digraph
 import copy
+from modules.core.OptionValues import MIN_BASE_QUALITY_FOR_CANDIDATE, MIN_EDGE_SUPPORT, MAX_ALLOWED_PATHS
 """doing this: https://software.broadinstitute.org/gatk/documentation/article?id=11076"""
-MIN_BASE_QUALITY = 15
-MIN_EDGE_SUPPORT = 2
-MAX_ALLOWED_PATHS = 256
 
 
 class DeBruijnGraph:
@@ -205,7 +203,8 @@ class DeBruijnGraph:
             if len(read_seq) < self.kmer_size + 1:
                 continue
 
-            next_bad_qual = [index for index, base_qual in enumerate(base_quals) if base_qual < MIN_BASE_QUALITY]
+            next_bad_qual = [index for index, base_qual in enumerate(base_quals)
+                             if base_qual < MIN_BASE_QUALITY_FOR_CANDIDATE]
             next_bad_base = [index for index, read_base in enumerate(read_seq) if not self.check_base_ok(read_base)]
             bad_base_indices = sorted(next_bad_qual + next_bad_base + [len(read_seq) + 1])
 

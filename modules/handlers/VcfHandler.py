@@ -348,6 +348,40 @@ class VCFFileProcessor:
         # Return the file
         return vcf_out
 
+    def get_simple_vcf_records(self, contig, start_pos, end_pos, hom_filter= False):
+        """
+        Process a file of a conting and site.
+        :param contig: Contig (ex: chr3)
+        :param site: Site (:100000-200000)
+        :return:
+        """
+        if start_pos is not None:
+            try:
+                self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig, start_pos, end_pos)
+            except IOError:
+                sys.stderr.write("VCF FILE READ ERROR")
+        elif contig is not None:
+            try:
+                self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig)
+            except IOError:
+                sys.stderr.write("VCF FILE READ ERROR")
+        else:
+            try:
+                self.vcf_records = pysam.VariantFile(self.file_path)
+            except IOError:
+                sys.stderr.write("VCF FILE READ ERROR")
+        # Filter the records
+        filtered_records = self._get_filtered_records(hom_filter)
+
+        simple_recs = []
+        for record in filtered_records:
+            alt1 = record.rec_alts[0]
+            alt2 = record.rec_alts[1] if len(record.rec_alts) == 2 else '.'
+            rec = (record.rec_chrom, record.rec_pos, record.rec_ref, alt1, alt2, record.rec_genotype, True)
+            simple_recs.append(rec)
+
+        return simple_recs
+
     def populate_dictionary(self, contig, start_pos, end_pos, hom_filter= False):
         """
         Process a file of a conting and site.

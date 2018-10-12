@@ -32,16 +32,12 @@ LICENSE:
 # POSSIBILITY OF SUCH DAMAGE.
 """
 import collections
-from modules.aligner.ssw_aligner import ssw_api as libssw
 import re
 import math
 import copy
-
-SEED_K_MER_SIZE = 23
-MATCH_PENALTY = 4
-MISMATCH_PENALTY = 6
-GAP_OPEN_PENALTY = 8
-GAP_EXTEND_PENALTY = 2
+from modules.aligner.ssw_aligner import ssw_api as libssw
+from modules.core.OptionValues import SEED_K_MER_SIZE, MATCH_PENALTY, MISMATCH_PENALTY, \
+  GAP_OPEN_PENALTY, GAP_EXTEND_PENALTY
 
 _SSW_CIGAR_CHARS = {
     'M': 0,
@@ -68,6 +64,7 @@ PAD_CIGAR = 6
 EQUAL_CIGAR = 7
 X_CIGAR = 8
 BACK_CIGAR = 9
+
 
 class LibSSWPairwiseAligner(object):
   def __init__(self, query_seq, match, mismatch, gap_open_penalty,
@@ -720,6 +717,7 @@ class SSWAligner(object):
     targets = sorted(set(targets))
     if not targets or targets == [self.ref_seq]:
       return reads
+
     self.set_targets(targets)
 
     realigned_reads = []

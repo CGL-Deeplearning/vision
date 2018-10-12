@@ -13,7 +13,7 @@ from modules.handlers.TextColor import TextColor
 from modules.handlers.TsvHandler import TsvHandler
 from modules.core.ImageGenerator import ImageGenerator
 from modules.handlers.VcfHandler import VCFFileProcessor
-from modules.core.CandidateLabeler import CandidateLabeler
+from modules.core.CandidateLabelerHap import CandidateLabeler
 from modules.handlers.FileManager import FileManager
 from modules.core.LocalAssembler import LocalAssembler
 """
@@ -98,11 +98,12 @@ class View:
         positional_variants = self.vcf_handler.get_variant_dictionary()
 
         # create an object for labling the allele
-        allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler)
+        allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler, vcf_handler=self.vcf_handler)
 
         # label the sites
         labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
-                                                             positional_vcf=positional_variants,
+                                                             pos_start=start_pos,
+                                                             pos_end=end_pos,
                                                              candidate_sites=selected_candidate_list)
 
         return labeled_sites
@@ -340,7 +341,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=409262, end_position=409671, thread_no=1)
+    view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

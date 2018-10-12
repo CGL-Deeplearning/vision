@@ -1,15 +1,7 @@
 from collections import defaultdict
-
+from modules.core.OptionValues import MATCH_WEIGHT, MISMATCH_WEIGHT, INSERT_WEIGHT, \
+    DELETE_WEIGHT, SOFT_CLIP_WEIGHT, THRESHOLD_VALUE, MIN_REGION_SIZE
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077"""
-
-MATCH_WEIGHT = -0.06
-MISMATCH_WEIGHT = -0.09
-INSERT_WEIGHT = 2.5
-DELETE_WEIGHT = 1.8
-SOFT_CLIP_WEIGHT = 3.0
-THRESHOLD_VALUE = 2.2
-
-MIN_REGION_SIZE = 80
 
 
 class ActiveRegionFinder:
@@ -150,7 +142,7 @@ class ActiveRegionFinder:
             start = alignment_position - length + 1
             end = alignment_position + length
             for pos in range(start, end + 1):
-                self.candidate_position_weighted_sum[pos] += INSERT_WEIGHT
+                self.candidate_position_weighted_sum[pos] += SOFT_CLIP_WEIGHT
             # print("CIGAR CODE ERROR SC")
         elif cigar_code == 5:
             # hard clip

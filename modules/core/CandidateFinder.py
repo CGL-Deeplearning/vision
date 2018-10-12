@@ -1,6 +1,8 @@
 from collections import defaultdict
 from modules.handlers.ImageChannels import global_base_color_dictionary, MAX_COLOR_VALUE, MAP_QUALITY_CAP, \
     BASE_QUALITY_CAP, MIN_DELETE_QUALITY
+from modules.core.OptionValues import MIN_BASE_QUALITY_FOR_CANDIDATE, MIN_MAP_QUALITY_FOR_CANDIDATE, \
+    MIN_MISMATCH_THRESHOLD, MIN_MISMATCH_PERCENT_THRESHOLD
 import operator
 import time
 import math
@@ -13,13 +15,6 @@ Dictionaries it updates:
 - coverage:             records coverage of a position                      {int -> int}
 - edit_count:           records number of mismatches in a position          {int -> int}
 """
-# reads with base quality and mapping quality more than these will provide candidate alleles
-MIN_BASE_QUALITY_FOR_CANDIDATE = 5
-MIN_MAP_QUALITY_FOR_CANDIDATE = 5
-# candidate thresholds
-MIN_MISMATCH_THRESHOLD = 0
-MIN_MISMATCH_PERCENT_THRESHOLD = 0
-
 PLOIDY = 2
 MATCH_ALLELE = 0
 MISMATCH_ALLELE = 1
