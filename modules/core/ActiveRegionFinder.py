@@ -1,6 +1,5 @@
 from collections import defaultdict
-from modules.core.OptionValues import MATCH_WEIGHT, MISMATCH_WEIGHT, INSERT_WEIGHT, \
-    DELETE_WEIGHT, SOFT_CLIP_WEIGHT, THRESHOLD_VALUE, MIN_REGION_SIZE
+from modules.core.OptionValues import ActiveRegionOptions
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077"""
 
 
@@ -113,19 +112,26 @@ class ActiveRegionFinder:
             for i in range(start, stop):
                 allele = read_sequence[i - alignment_position]
                 ref = ref_sequence[i - alignment_position]
-                # self._update_base_dictionary(read_id, i, allele, qualities[i-alignment_position])
+                base_quality = quality[i - alignment_position]
+
+                if base_quality < ActiveRegionOptions.AR_MIN_BASE_QUALITY:
+                    continue
                 if allele != ref:
-                    self.candidate_position_weighted_sum[i] += MISMATCH_WEIGHT
+                    self.candidate_position_weighted_sum[i] += ActiveRegionOptions.MISMATCH_WEIGHT
                 else:
-                    self.candidate_position_weighted_sum[i] += MATCH_WEIGHT
+                    self.candidate_position_weighted_sum[i] += ActiveRegionOptions.MATCH_WEIGHT
         elif cigar_code == 1:
             # insert
             # alignment position is where the next alignment starts, for insert and delete this
             # position should be the anchor point hence we use a -1 to refer to the anchor point
             start = alignment_position - length + 1
             end = alignment_position + length
-            for pos in range(start, end+1):
-                self.candidate_position_weighted_sum[pos] += INSERT_WEIGHT
+            base_quality = min(quality)
+
+            if base_quality >= ActiveRegionOptions.AR_MIN_BASE_QUALITY:
+                for pos in range(start, end+1):
+                    self.candidate_position_weighted_sum[pos] += ActiveRegionOptions.INSERT_WEIGHT
+
             ref_index_increment = 0
         elif cigar_code == 2 or cigar_code == 3:
             # delete or ref_skip
@@ -133,16 +139,23 @@ class ActiveRegionFinder:
             # position should be the anchor point hence we use a -1 to refer to the anchor point
             start = alignment_position + 1
             end = alignment_position + length
-            for pos in range(start, end + 1):
-                self.candidate_position_weighted_sum[pos] += DELETE_WEIGHT
+            base_quality = min(quality)
+
+            if base_quality >= ActiveRegionOptions.AR_MIN_BASE_QUALITY:
+                for pos in range(start, end + 1):
+                    self.candidate_position_weighted_sum[pos] += ActiveRegionOptions.DELETE_WEIGHT
             read_index_increment = 0
         elif cigar_code == 4:
             # soft clip
-            ref_index_increment = 0
             start = alignment_position - length + 1
             end = alignment_position + length
-            for pos in range(start, end + 1):
-                self.candidate_position_weighted_sum[pos] += SOFT_CLIP_WEIGHT
+
+            base_quality = min(quality)
+            if base_quality >= ActiveRegionOptions.AR_MIN_BASE_QUALITY:
+                for pos in range(start, end + 1):
+                    self.candidate_position_weighted_sum[pos] += ActiveRegionOptions.SOFT_CLIP_WEIGHT
+
+            ref_index_increment = 0
             # print("CIGAR CODE ERROR SC")
         elif cigar_code == 5:
             # hard clip
@@ -168,14 +181,16 @@ class ActiveRegionFinder:
             if start_pos is None:
                 start_pos = pos
                 end_pos = pos
-            elif pos > end_pos + MIN_REGION_SIZE:
-                windows.append((start_pos - MIN_REGION_SIZE, end_pos + MIN_REGION_SIZE))
+            elif pos > end_pos + ActiveRegionOptions.AR_MIN_REGION_SIZE:
+                windows.append((start_pos - ActiveRegionOptions.AR_MIN_REGION_SIZE,
+                                end_pos + ActiveRegionOptions.AR_MIN_REGION_SIZE))
                 start_pos = pos
                 end_pos = pos
             else:
                 end_pos = pos
         if start_pos is not None:
-            windows.append((start_pos - MIN_REGION_SIZE, end_pos + MIN_REGION_SIZE))
+            windows.append((start_pos - ActiveRegionOptions.AR_MIN_REGION_SIZE,
+                            end_pos + ActiveRegionOptions.AR_MIN_REGION_SIZE))
 
         return sorted(windows, key=lambda tup: (tup[0], tup[1]))
 
@@ -184,11 +199,12 @@ class ActiveRegionFinder:
             return []
 
         for read in reads:
-            self.find_read_candidates(read)
+            if read.mapping_quality >= ActiveRegionOptions.AR_MIN_MAPQ:
+                self.find_read_candidates(read)
 
         candidate_positions = []
         for pos in range(self.region_start_position, self.region_end_position):
-            if self.candidate_position_weighted_sum[pos] > THRESHOLD_VALUE:
+            if self.candidate_position_weighted_sum[pos] > ActiveRegionOptions.THRESHOLD_VALUE:
                 candidate_positions.append(pos)
         active_regions = self.create_active_regions(candidate_positions)
         return active_regions

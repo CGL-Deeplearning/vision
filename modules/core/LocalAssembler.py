@@ -3,8 +3,8 @@ from modules.core.ActiveRegionFinder import ActiveRegionFinder
 from modules.core.DeBruijnGraph import DeBruijnGraphCreator
 from modules.handlers.Read import Read
 from modules.core.SSWAligner import SSWAligner
-from modules.core.OptionValues import MAX_ACTIVE_REGION_SIZE, MIN_MAP_QUALITY_FOR_CANDIDATE, \
-    MIN_K, MAX_K, STEP_K, ALIGNMENT_SAFE_BASES
+from modules.core.OptionValues import MIN_K, MAX_K, STEP_K, ALIGNMENT_SAFE_BASES
+from modules.core.OptionValues import ActiveRegionOptions
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077
 A version is implemented here: https://github.com/google/deepvariant/blob/r0.7/deepvariant/realigner/aligner.py
 """
@@ -79,8 +79,8 @@ class LocalAssembler:
                                                stop=self.region_end_position)
         reads_in_region = []
         for read in all_reads:
-            if read.mapping_quality >= MIN_MAP_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
-                    and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
+            if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
+                    and read.is_qcfail is False:
                 reads_in_region.append(Read(read))
 
         if perform_alignment is False:
@@ -99,7 +99,7 @@ class LocalAssembler:
         for active_region in active_regions:
             start_pos, end_pos = active_region
 
-            if end_pos - start_pos > MAX_ACTIVE_REGION_SIZE:
+            if end_pos - start_pos > ActiveRegionOptions.AR_MAX_ACTIVE_REGION_SIZE:
                 continue
 
             graph = DeBruijnGraphCreator(start_pos, end_pos)
@@ -116,8 +116,8 @@ class LocalAssembler:
                                                stop=end_pos)
             filtered_reads = []
             for read in reads:
-                if read.mapping_quality >= MIN_MAP_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
-                        and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
+                if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
+                        and read.is_qcfail is False:
                     filtered_reads.append(Read(read))
 
             bounds = (min_k, max_k, 1)
