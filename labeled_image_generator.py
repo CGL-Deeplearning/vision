@@ -13,7 +13,7 @@ from modules.handlers.TextColor import TextColor
 from modules.handlers.TsvHandler import TsvHandler
 from modules.core.ImageGenerator import ImageGenerator
 from modules.handlers.VcfHandler import VCFFileProcessor
-from modules.core.CandidateLabelerHap import CandidateLabeler
+from modules.core.CandidateLabeler import CandidateLabeler
 from modules.handlers.FileManager import FileManager
 from modules.core.LocalAssembler import LocalAssembler
 """
@@ -98,12 +98,11 @@ class View:
         positional_variants = self.vcf_handler.get_variant_dictionary()
 
         # create an object for labling the allele
-        allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler, vcf_handler=self.vcf_handler)
+        allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler)
 
         # label the sites
         labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
-                                                             pos_start=start_pos,
-                                                             pos_end=end_pos,
+                                                             positional_vcf=positional_variants,
                                                              candidate_sites=selected_candidate_list)
 
         return labeled_sites
