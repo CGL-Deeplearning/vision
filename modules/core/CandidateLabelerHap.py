@@ -262,23 +262,19 @@ class CandidateLabeler:
                     return None
             else:
                 ref_prefix = ref.get_seq(position, variant[1])
-                # print("---------------------")
-                # print(ref_prefix)
-                # print(position, variant[1])
 
                 allele = self._allele_from_index(variant, allele_index)
-                position = variant[2]
+                if allele_index == 0:
+                    allele = allele[0]
+                    position = variant[1] + 1
+                else:
+                    position = variant[2]
                 parts.append(ref_prefix + allele)
-                # print(variant[3], allele_index)
-                # print(ref_prefix + allele)
-                # print(position)
-                # print("---------------------")
-                # exit()
 
         # We have some bases left to add between the position of our last variant
         # and the ref_end, so append those now.
         if position < ref_end:
-            parts.append(ref.bases(position, ref_end))
+            parts.append(ref.get_seq(position, ref_end))
 
         return ''.join(parts)
 
@@ -388,10 +384,18 @@ class CandidateLabeler:
             if not current_group:
                 can_add = True
             elif current_record_is_candidate and current_candidate_count < MAX_GROUP_SIZE:
-                if record_start - last_end + 1 <= MAX_SEPARATION:
+                dist = record_start - last_end + 1
+                if dist < 0:
+                    dist = dist * -1
+
+                if dist <= MAX_SEPARATION:
                     can_add = True
             elif not current_record_is_candidate and current_truth_count < MAX_GROUP_SIZE:
-                if record_start - last_end + 1 <= MAX_SEPARATION:
+                dist = record_start - last_end + 1
+                if dist < 0:
+                    dist = dist * -1
+
+                if dist <= MAX_SEPARATION:
                     can_add = True
 
             if can_add:
@@ -492,7 +496,6 @@ class CandidateLabeler:
         # print("TRUTH GROUP:", truth_group)
         truth_haplotypes = self.duplicate_haplotypes(self.create_truth_haplotype(truth_group, ref))
         candidate_haplotypes = self.duplicate_haplotypes(self.create_candidate_haplotype(candidate_group, ref))
-
         found = []
         for vh, vgt in candidate_haplotypes:
             for th, tgt in truth_haplotypes:
