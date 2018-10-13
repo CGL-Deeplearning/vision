@@ -543,7 +543,7 @@ class CandidateLabeler:
             labeled_set = self.find_best_haplotype(candidate_group, truth_group, ref)
 
             if labeled_set is None:
-                raise ValueError('Failed to assign labels for variants')
+                raise ValueError('Failed to assign labels for variants', ref.ref_start, ref.ref_end)
 
             for labeled_candidate in labeled_set.candidates_with_assigned_genotypes():
                 candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]
