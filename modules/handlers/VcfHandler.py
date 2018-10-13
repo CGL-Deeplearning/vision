@@ -16,6 +16,7 @@ position.
 - populate_dictionary() is called to populate the dictionary
 - get_variant_dictionary() is called to get the dictionary
 """
+VCF_OFFSET = 1
 
 
 class VCFRecord:
@@ -330,24 +331,6 @@ class VCFFileProcessor:
         """
         return self.genotype_dictionary
 
-    def test_filtered_records(self):
-        """
-        Test method of the variant dictionary.
-        Create a VariantFile and return it
-        :return:
-        """
-        # Create a new VariantFile
-        vcf_out = pysam.VariantFile('-', 'w')
-        # Get the filtered records
-        filtered_records = self._get_filtered_records()
-
-        # Add all records to the file
-        for record in filtered_records:
-            vcf_out.write(record)
-
-        # Return the file
-        return vcf_out
-
     def get_simple_vcf_records(self, contig, start_pos, end_pos, hom_filter= False):
         """
         Process a file of a conting and site.
@@ -355,6 +338,8 @@ class VCFFileProcessor:
         :param site: Site (:100000-200000)
         :return:
         """
+        start_pos += VCF_OFFSET
+        end_pos += VCF_OFFSET
         if start_pos is not None:
             try:
                 self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig, start_pos, end_pos)
@@ -372,13 +357,12 @@ class VCFFileProcessor:
                 sys.stderr.write("VCF FILE READ ERROR")
         # Filter the records
         filtered_records = self._get_filtered_records(hom_filter)
-
         simple_recs = []
         for record in filtered_records:
-            alt1 = record.rec_alts[0]
-            alt2 = record.rec_alts[1] if len(record.rec_alts) == 2 else '.'
-            rec = (record.rec_chrom, record.rec_pos, record.rec_ref, alt1, alt2, record.rec_genotype, True)
-            simple_recs.append(rec)
+            start_pos = record.rec_pos - VCF_OFFSET
+            end_pos = start_pos + len(record.rec_ref)
+            record = (record.rec_chrom, start_pos, end_pos, record.rec_alleles, record.rec_genotype, True)
+            simple_recs.append(record)
 
         return simple_recs
 

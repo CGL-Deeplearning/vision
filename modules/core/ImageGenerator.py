@@ -24,6 +24,10 @@ MATCH_CIGAR_CODE = 0
 INSERT_CIGAR_CODE = 1
 DELETE_CIGAR_CODE = 2
 
+HOM_CLASS = 0
+HET_CLASS = 1
+HOM_ALT_CLASS = 2
+
 
 class ImageGenerator:
     """
@@ -38,6 +42,37 @@ class ImageGenerator:
         self.positional_read_info = dictionaries[5]
 
     @staticmethod
+    def get_class_label_for_alt1(gt):
+        h1, h2 = gt
+        if h1 == 1 or h2 == 1:
+            if h1 == h2:
+                return HOM_ALT_CLASS
+            else:
+                return HET_CLASS
+        return HOM_CLASS
+
+    @staticmethod
+    def get_class_label_for_alt2(gt):
+        h1, h2 = gt
+        if h1 == 2 or h2 == 2:
+            if h1 == h2:
+                return HOM_ALT_CLASS
+            else:
+                return HET_CLASS
+        return HOM_CLASS
+
+    @staticmethod
+    def get_class_label_for_combined_alt(gt):
+        h1, h2 = gt
+        if h1 == 0 and h2 == 0:
+            return HOM_CLASS
+
+        if h1 == 0 or h2 == 0:
+            return HET_CLASS
+
+        return HOM_ALT_CLASS
+
+    @staticmethod
     def get_combined_records_for_two_alts(record):
         """
         Returns records for sites where we have two alternate alleles.
@@ -46,15 +81,11 @@ class ImageGenerator:
         """
         chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
         # get the genotypes from the record
-        gt1, gt2 = record[-2:]
-        gt1 = gt1[0]
-        gt2 = gt2[0]
+        gt = record[-1]
+        gt1 = ImageGenerator.get_class_label_for_alt1(gt)
+        gt2 = ImageGenerator.get_class_label_for_alt2(gt)
         # get the genotype of the images where both of these alleles are used together
-        gt3 = CandidateLabeler.get_combined_gt(gt1, gt2)
-
-        # if gt3 is None that means we have invalid gt1 and gt2
-        if gt3 is None:
-            sys.stderr.write(TextColor.RED + "WEIRD RECORD: " + str(record) + "\n")
+        gt3 = ImageGenerator.get_class_label_for_combined_alt(gt)
 
         # create two separate records for each of the alleles
         rec_1 = [chr_name, pos_start, pos_end, ref, alt1, '.', rec_type_alt1, 0, gt1]
@@ -267,13 +298,14 @@ class ImageGenerator:
         # expand the records for sites where two alleles are found
         for record in candidate_list:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
-            gt1, gt2 = record[-2:]
-            gt1 = gt1[0]
+            gt = record[-1]
 
             if alt2 != '.':
                 image_record_set.extend(ImageGenerator.get_combined_records_for_two_alts(record))
             else:
-                image_record_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2, gt1])
+                gt1 = ImageGenerator.get_class_label_for_alt1(gt)
+                image_record_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
+                                         gt1])
 
         # set of images and labels we are generating
         img_set = []

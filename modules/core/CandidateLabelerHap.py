@@ -1,4 +1,38 @@
+"""
+REUSED FROM HERE: https://github.com/google/deepvariant/blob/r0.7/deepvariant/labeler/haplotype_labeler.py
+# Copyright 2017 Google Inc.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from this
+#    software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+"""
 from operator import itemgetter
+from collections import defaultdict
+import itertools
+import copy
 """
             possible combos:
             gt1       gt2     Candidate validated?
@@ -54,6 +88,117 @@ REF, ALT, GT = 0, 1, 2
 HOM, HET, HOM_ALT = 0, 1, 2
 
 
+def _variant_genotypes(variants, missing_genotypes_default=(-1, -1)):
+    return [v[4] for v in variants]
+
+
+def n_zeroes(l):
+    return sum(1 for x in l if x == 0)
+
+
+class HaplotypeMatch(object):
+  def __init__(self, haplotypes, candidates, candidate_genotypes, truths, truth_genotypes):
+
+    self.haplotypes = sorted(haplotypes)
+    self.candidates = candidates
+    self.truths = truths
+    self.candidate_genotypes = candidate_genotypes
+    self.truth_genotypes = truth_genotypes
+
+    # Computed on-demand.
+    self._n_false_positives = None
+    self._n_false_negatives = None
+
+  def __str__(self):
+    return ('HaplotypeMatch(haplotypes={}, false_negatives={}, '
+            'false_positives={} true_positives={} match_metrics={}, '
+            'variant_gts={}, true_gts={})').format(
+                self.haplotypes, self.n_false_negatives, self.n_false_positives,
+                self.n_true_positives, self.match_metrics,
+                self.candidate_genotypes, self.truth_genotypes)
+
+  __repr__ = __str__
+
+  @property
+  def original_truth_genotypes(self):
+    return _variant_genotypes(self.truths)
+
+  @property
+  def match_metrics(self):
+    """Quality of this match. Lower scores are better.
+    Returns:
+      tuple[int] where all elements are >= 0: The tuple is suitable for sorting
+      matches, so that sorted(matches, key=lambda x: x.match_metrics) will rank
+      matches so that the best option is first.
+    """
+    return (self.n_false_negatives, self.n_false_positives,
+            self.n_true_positives)
+
+  @property
+  def n_true_positives(self):
+    """Gets the number of candidates whose matched genotype is not (0, 0).
+    Since the candidates don't have expected genotypes, we can only count each
+    site instead of each genotype. So this is the number of candidates whose
+    matched genotype is not (0, 0).
+    Returns:
+      int >= 0.
+    """
+    return len(self.candidate_genotypes) - self.n_false_positives
+
+  @property
+  def n_false_positives(self):
+    """Gets the number of candidates whose matched genotype is (0, 0).
+    Since the candidates don't have expected genotypes, we can only count each
+    site instead of each genotype. So this is the number of candidates whose
+    matched genotype is (0, 0).
+    Returns:
+      int >= 0.
+    """
+    if self._n_false_positives is None:
+      self._n_false_positives = sum(
+          sum(gt) == 0 for gt in self.candidate_genotypes)
+    return self._n_false_positives
+
+  @property
+  def n_false_negatives(self):
+    """Gets the number of missed true genotypes.
+    This is the sum of missed non-ref genotypes over all truth variants. So if
+    we have a matched truth genotype of (0, 1) and the true genotype is (1, 1),
+    then we have 1 FN. If the matched genotype were (0, 0), we'd have 2 FNs.
+    Returns:
+      int >= 0.
+    """
+    if self._n_false_negatives is None:
+      self._n_false_negatives = sum(
+          n_zeroes(assigned_gt) - n_zeroes(original_gt)
+          for original_gt, assigned_gt in zip(self.original_truth_genotypes,
+                                              self.truth_genotypes))
+    return self._n_false_negatives
+
+  def candidates_with_assigned_genotypes(self):
+    with_gts = []
+    for variant, gt in zip(self.candidates, self.candidate_genotypes):
+      v = (variant[0], variant[1], variant[2], variant[3], gt, variant[5], variant[6])
+      with_gts.append(v)
+    return with_gts
+
+
+class RefCache:
+    def __init__(self, ref_seq, ref_start, ref_end):
+        self.ref_seq = ref_seq
+        self.ref_start = ref_start
+        self.ref_end = ref_end
+
+    def get_seq(self, start_pos, end_pos):
+        start_index = start_pos - self.ref_start
+        end_index = end_pos - self.ref_start
+        return self.ref_seq[start_index:end_index]
+
+
+class ImpossibleHaplotype(Exception):
+  """Indicates that an impossible haplotype configuration has been observed."""
+  pass
+
 class CandidateLabeler:
     def __init__(self, fasta_handler, vcf_handler):
         """
@@ -66,211 +211,168 @@ class CandidateLabeler:
         self.delete_char = '*'
         self.vcf_handler = vcf_handler
 
-    def _handle_insert(self, rec):
-        """
-        Process a record that has an insert
-        :param rec: VCF record
-        :return: attributes of the record
-        """
-        ref_seq = rec.ref   # no change necessary
-        alt_seq = rec.alt   # no change necessary
+    def get_reference_sequence(self, candidate_group, truth_group):
+        all_variants = candidate_group + truth_group
+        contig = all_variants[0][0]
+        start = min(v[1] for v in all_variants)
+        end = max(v[2] for v in all_variants)
+        start = start
+        end = end
+        ref_seq = self.fasta_handler.get_sequence(contig, start, end)
 
-        pos = rec.pos + self.vcf_offset
-        return pos, ref_seq, alt_seq, rec.type
+        return RefCache(ref_seq, start, end)
 
-    def _handle_delete(self, rec):
-        """
-        Process a record that has deletes.
-        Deletes are usually grouped together, so we break each of the deletes to make a list.
-        :param rec: VCF record containing a delete
-        :return: A list of delete attributes
-        """
-        delete_list = []
-        for i in range(0, len(rec.ref)):
-            if i < len(rec.alt):
-                continue
-            ref_seq = rec.ref[i]
-            alt_seq = '*'
-            pos = rec.pos + i + self.vcf_offset
-            genotype = rec.type
-            delete_list.append((pos, ref_seq, alt_seq, genotype))
-        return delete_list
+    def all_possible_genotypes(self, gt):
+        alts = set(gt) - {0}
+        return {(0, 0), tuple(gt)} | {(0, alt) for alt in alts}
+
+    def get_genotypes_for_truth(self, truth_set):
+        gts = [v[4] for v in truth_set]
+        return [self.all_possible_genotypes(gt) for gt in gts]
+
+    def get_genotypes_for_candidate(self, num_alts):
+        for j in range(num_alts + 1):
+            for i in range(j + 1):
+                yield (i, j)
 
     @staticmethod
-    def _resolve_suffix_for_insert(ref, alt):
-        len_ref = len(ref) - 1
-        if len_ref == 0:
-            return ref, alt
-        suffix_removed_alt = alt[:-len_ref]
-        return ref[0], suffix_removed_alt
+    def is_overlapping(range_a, range_b):
+        return min(range_a[1], range_b[1]) - max(range_a[0], range_b[0]) >= 0
 
-    @staticmethod
-    def _resolve_suffix_for_delete(ref, alt):
-        len_alt = len(alt) - 1
-        if len_alt == 0:
-            return ref, alt
-        suffix_removed_ref = ref[:-len_alt]
-        return suffix_removed_ref, alt[0]
-
-    @staticmethod
-    def get_label_of_allele(positional_vcf, candidate_allele, allele_types):
-        """
-        Given positional VCFs (IN, DEL, SNP), variant type and a candidate allele, return the try genotype.
-        :param positional_vcf: Three dictionaries for each position
-        :param candidate_allele: Candidate allele
-        :param allele_types: Alt allele type: IN,DEL,SNP
-        :return: genotype
-        """
-        # candidate attributes
-        pos_start, pos_stop, ref, alts = candidate_allele
-        # get all records of that position
-        records = []
-        if pos_start + VCF_OFFSET in positional_vcf.keys():
-            records = positional_vcf[pos_start + VCF_OFFSET]
-            records = [record for type in records for record in type]
-
-        refined_alts = []
-        for i, alt in enumerate(alts):
-            ref_ret = ref
-            alt_seq, alt_type = alt, allele_types[i]
-            if alt_type == DEL_CANDIDATE:
-                ref_ret, alt_seq = alt_seq, ref_ret
-            refined_alts.append([ref_ret, alt_seq, alt_type])
-
-        vcf_recs = []
-        for record in records:
-            # get the alt allele of the record
-            ref = record.ref
-            rec_alt = record.alt
-            if record.genotype_class == "SNP":
-                ref = ref[0]
-                rec_alt = rec_alt[0]
-
-            if record.type == '':
-                record.type = 'Hom'
-            # if the alt allele of the record is same as candidate allele
-            vcf_recs.append((ref, rec_alt, record.type, record.filter, record.mq, record.gq, record.gt))
-        gts = list()
-        for alt in refined_alts:
-            ref_seq, alt_seq, alt_type = alt
-            gt = [0, '.']
-            for vcf_alt in vcf_recs:
-                vcf_ref, vcf_alt, vcf_genotype, vcf_filter, vcf_mq, vcf_gq, vcf_gt = vcf_alt
-
-                if ref_seq == vcf_ref and alt_seq == vcf_alt:
-                    gt = [GENOTYPE_DICT[vcf_genotype], vcf_filter, vcf_mq, vcf_gq, vcf_gt]
-            gts.append(gt)
-
-        return gts
-
-    def _get_all_genotype_labels(self, positional_vcf, start, stop, ref_seq, alleles, allele_types):
-        """
-        Create a list of dictionaries of 3 types of alleles that can be in a position.
-
-        In each position there can be Insert allele, SNP or Del alleles.
-        For total 6 alleles, this method returns 6 genotypes
-        :param positional_vcf: VCF records of each position
-        :param start: Allele start position
-        :param stop: Allele stop position
-        :param ref_seq: Reference sequence
-        :return: Dictionary of genotypes
-        """
-        gts = self.get_label_of_allele(positional_vcf, (start, stop, ref_seq, alleles), allele_types)
-
-        return gts
-
-    @staticmethod
-    def _is_supported(genotypes):
-        """
-        Check if genotype has anything other than Hom
-        :param genotypes: Genotype tuple
-        :return: Boolean [True if it has Het of Hom_alt]
-        """
-        supported = False
-        gt_set = set(genotypes)
-
-        if len(gt_set) == 0:
-            supported = False
-        elif len(gt_set) == 1:
-            if HOM in gt_set:
-                supported = False
+    def split_independent_variants(self, variants_and_genotypes):
+        overlaps = [variants_and_genotypes[0]]
+        for i in range(1, len(variants_and_genotypes)):
+            vgi = variants_and_genotypes[i][0]
+            if any(self.is_overlapping((vg[0][1], vg[0][2]), (vgi[1], vgi[2])) for vg in overlaps):
+                overlaps.append(variants_and_genotypes[i])
             else:
-                supported = True
-        elif len(gt_set) > 1:
-            supported = True
+                return overlaps, variants_and_genotypes[i:]
+        return overlaps, []
 
-        return supported
+    def _allele_from_index(self, variant, allele_index):
+        alleles = variant[3]
+        return alleles[allele_index]
 
-    def _is_position_supported(self, genotypes):
-        """
-        Check if a position has any genotype other than Hom
-        :param genotypes: Genotypes list of that position
-        :return: Boolean [True if it has Het or Hom_alt]
-        """
-        in_supported = self._is_supported(genotypes[IN])
-        del_supported = self._is_supported(genotypes[DEL])
-        snp_supported = self._is_supported(genotypes[SNP])
+    def build_haplotype(self, variants, allele_indices, ref, ref_start, ref_end):
+        parts = []
+        position = ref_start
+        for variant, allele_index in zip(variants, allele_indices):
+            if variant[1] + 1 < position:
+                if allele_index != 0:
+                    return None
+            else:
+                ref_prefix = ref.get_seq(position, variant[1])
+                # print("---------------------")
+                # print(ref_prefix)
+                # print(position, variant[1])
 
-        return in_supported or del_supported or snp_supported
+                allele = self._allele_from_index(variant, allele_index)
+                position = variant[2]
+                parts.append(ref_prefix + allele)
+                # print(variant[3], allele_index)
+                # print(ref_prefix + allele)
+                # print(position)
+                # print("---------------------")
+                # exit()
 
-    def _generate_list(self, chromosome_name, start, stop, alleles_snp, alleles_in, ref_seq, genotypes):
-        """
-        Generate a list of attributes that can be saved of a labeled candidate
-        :param chromosome_name: Name of chromosome
-        :param start: Allele start position
-        :param stop: Allele end position
-        :param alleles_snp: SNP alleles
-        :param alleles_in: Insert alleles
-        :param ref_seq: reference Sequence
-        :param genotypes: Genotypes
-        :return: A list containing (chr start stop ref_seq alt1 alt2 gt1 gt2)
-        """
-        all_candidates = []
-        for i, allele_tuple in enumerate(alleles_snp):
-            allele, freq = allele_tuple
-            gt = genotypes[SNP][i][0]
-            gt_q = genotypes[SNP][i][1]
-            gt_f = genotypes[SNP][i][2]
-            all_candidates.append([chromosome_name, start, stop, ref_seq, allele, gt, gt_q, gt_f])
+        # We have some bases left to add between the position of our last variant
+        # and the ref_end, so append those now.
+        if position < ref_end:
+            parts.append(ref.bases(position, ref_end))
 
-        for i, allele_tuple in enumerate(alleles_in):
-            allele, freq = allele_tuple
-            gt = genotypes[IN][i][0]
-            gt_q = genotypes[IN][i][1]
-            gt_f = genotypes[IN][i][2]
-            all_candidates.append([chromosome_name, start, stop, ref_seq, allele, gt, gt_q, gt_f])
+        return ''.join(parts)
 
-        return all_candidates
+    def phased_genotypes_to_haplotypes(self, variants_and_genotypes, start, ref):
+        genotypes_to_haplotypes = {}
+        genotypes = [vg[1] for vg in variants_and_genotypes]
+        variants = [vg[0] for vg in variants_and_genotypes]
+        all_haploid_genotypes = sorted(set(itertools.product(*genotypes)))
+        end = max(v[2] for v in variants)
+        # print("------------")
+        # print("Genotype to haplotype\n", variants_and_genotypes, start)
+        for phased in all_haploid_genotypes:
+            haplotype = self.build_haplotype(variants, phased, ref, start, end)
+            if haplotype:
+                genotypes_to_haplotypes[phased] = haplotype
+        # print(genotypes_to_haplotypes)
+        # print("------------")
+        return genotypes_to_haplotypes, end
 
-    @staticmethod
-    def get_combined_gt(gt1, gt2):
-        """
-        Given two genotypes get the combined genotype. This is used to create labels for the third image.
-        If two alleles have two different genotypes then the third genotype is inferred using this method.
+    def extend_haplotypes(self, prefix_haplotypes_list, haplotypes):
+        for prefix_haplotypes in prefix_haplotypes_list:
+            if len(prefix_haplotypes) == 1:
+                f, = prefix_haplotypes
+                yield {f + h for h in haplotypes}
+            else:
+                f1, f2 = prefix_haplotypes
+                if len(haplotypes) == 1:
+                    h, = haplotypes
+                    yield {f1 + h, f2 + h}
+                else:
+                    h1, h2 = haplotypes
+                    yield {f1 + h1, f2 + h2}
+                    yield {f1 + h2, f2 + h1}
 
-        - If genotype1 is HOM then genotype of third image is genotype2
-        - If genotype2 is HOM then genotype of third image is genotype1
-        - If both gt are  HOM then genotype of third image is HOM
-        - If genotype1, genotype2 both are HET then genotype of third image is HOM_ALT
-        - If none of these cases match then we have an invalid genotype
-        :param gt1: Genotype of first allele
-        :param gt2: Genotype of second allele
-        :return: genotype of image where both alleles are used together
-        """
-        if gt1 == 0:
-            return gt2
-        if gt2 == 0:
-            return gt1
-        if gt1 == 0 and gt2 == 0:
-            return 0
-        if gt1 == 1 and gt2 == 1:
-            return 2
-        return None
+    def all_diploid_haplotypes(self, variants_and_genotypes, genotypes2haplotype):
+        """Returns all diploid haplotypes for variants given their genotypes."""
+
+        def complement_haploid_genotype(haploid_genotype, genotypes):
+            assert len(haploid_genotype) == len(genotypes)
+            return tuple(
+                g1[1] if hg1 == g1[0] and len(g1) == 2 else g1[0]
+                for hg1, g1 in zip(haploid_genotype, genotypes)
+            )
+        genotypes = [vg[1] for vg in variants_and_genotypes]
+        generated_already = set()
+        for haploid_genotype, haplotype in genotypes2haplotype.items():
+            complement = complement_haploid_genotype(haploid_genotype, genotypes)
+            complement_haplotype = genotypes2haplotype.get(complement, None)
+            if complement_haplotype is not None and complement not in generated_already:
+                generated_already.add(haploid_genotype)
+                yield {haplotype, complement_haplotype}
+
+    def create_haplotypes_recursive(self, variants_and_genotypes, ref, last_pos):
+        if not variants_and_genotypes:
+            yield {ref.get_seq(last_pos, ref.ref_end)} if last_pos != ref.ref_end else {''}
+        else:
+            group, remaining = self.split_independent_variants(variants_and_genotypes)
+            group_haplotypes, next_pos = self.phased_genotypes_to_haplotypes(group, last_pos, ref)
+            prefix_haplotypes = list(self.all_diploid_haplotypes(group, group_haplotypes))
+            if not prefix_haplotypes:
+                raise ImpossibleHaplotype
+            for haplotypes in self.create_haplotypes_recursive(remaining, ref, next_pos):
+                for result in self.extend_haplotypes(prefix_haplotypes, haplotypes):
+                    yield result
+
+    def create_haplotypes(self, variants_and_genotypes, ref, last_pos):
+        try:
+            for r in self.create_haplotypes_recursive(variants_and_genotypes, ref, last_pos):
+                yield r
+        except ImpossibleHaplotype:
+            pass
+
+    def create_truth_haplotype(self, truth_set, ref):
+        all_possible_genotypes = self.get_genotypes_for_truth(truth_set)
+
+        for genotypes in itertools.product(*all_possible_genotypes):
+            combined = [(v, g) for v, g in zip(truth_set, genotypes)]
+            for haplotypes in self.create_haplotypes(combined, ref, ref.ref_start):
+                yield haplotypes, genotypes
+
+    def get_genotypes_for_candidate_set(self, candidate_set):
+        return [{gt for gt in self.get_genotypes_for_candidate(len(v[3]) - 1)} for v in candidate_set]
+
+    def create_candidate_haplotype(self, candidate_set, ref):
+        all_possible_genotypes = self.get_genotypes_for_candidate_set(candidate_set)
+        for genotypes in itertools.product(*all_possible_genotypes):
+            combined = [(v, g) for v, g in zip(candidate_set, genotypes)]
+            # print("COMBINED: ", combined)
+            for haplotypes in self.create_haplotypes(combined, ref, ref.ref_start):
+                yield haplotypes, genotypes
 
     def group_variants(self, candidate_records, chromosome_name, pos_start, pos_end):
         truth_records = self.vcf_handler.get_simple_vcf_records(chromosome_name, pos_start, pos_end)
         combined_records = sorted(truth_records+candidate_records, key=itemgetter(1))
-
         groups = []
 
         current_group = []
@@ -278,18 +380,18 @@ class CandidateLabeler:
         current_candidate_count = 0
         last_end = -1
         for record in combined_records:
-            current_record_is_candidate = record[6]
-            record_pos = record[1]
-            max_allele_length = max(len(record[2]), len(record[3]), len(record[4]))
+            current_record_is_candidate = record[5]
+            record_start = record[1]
+            record_end = record[2]
 
             can_add = False
             if not current_group:
                 can_add = True
-            if current_record_is_candidate and current_candidate_count < MAX_GROUP_SIZE:
+            elif current_record_is_candidate and current_candidate_count < MAX_GROUP_SIZE:
                 can_add = True
             elif not current_record_is_candidate and current_truth_count < MAX_GROUP_SIZE:
                 can_add = True
-            elif last_end - record_pos + 1 <= MAX_SEPARATION:
+            elif last_end - record_start + 1 <= MAX_SEPARATION:
                 can_add = True
 
             if can_add:
@@ -298,7 +400,7 @@ class CandidateLabeler:
                     current_candidate_count += 1
                 else:
                     current_truth_count += 1
-                last_end = max(last_end, record_pos + max_allele_length)
+                last_end = max(last_end, record_end)
             else:
                 groups.append(current_group)
 
@@ -306,7 +408,7 @@ class CandidateLabeler:
                 current_truth_count = 0
                 current_candidate_count = 0
 
-                last_end = record_pos + max_allele_length
+                last_end = record_end
                 if current_record_is_candidate:
                     current_candidate_count += 1
                 else:
@@ -316,11 +418,96 @@ class CandidateLabeler:
 
         separated_groups = []
         for group in groups:
-            candidates = [record for record in group if record[6] is False]
-            truths = [record for record in group if record[6] is True]
+            candidates = [record for record in group if record[5] is False]
+            truths = [record for record in group if record[5] is True]
             separated_groups.append((candidates, truths))
 
         return separated_groups
+
+    @staticmethod
+    def solve_multiple_alts(alts, ref):
+        type1, type2 = alts[0][1], alts[1][1]
+        alt1, alt2 = alts[0][0], alts[1][0]
+        if type1 == DEL_CANDIDATE and type2 == DEL_CANDIDATE:
+            if len(alt2) > len(alt1):
+                return alt2, ref, alt2[0] + alt2[len(alt1):]
+            else:
+                return alt1, ref, alt1[0] + alt1[len(alt2):]
+        elif type1 == IN_CANDIDATE and type2 == IN_CANDIDATE:
+            return ref, alt1, alt2
+        elif type1 == DEL_CANDIDATE or type2 == DEL_CANDIDATE:
+            if type1 == DEL_CANDIDATE and type2 == IN_CANDIDATE:
+                return alt1, ref, alt2 + alt1[1:]
+            elif type1 == IN_CANDIDATE and type2 == DEL_CANDIDATE:
+                return alt2, alt1 + alt2[1:], ref
+            elif type1 == DEL_CANDIDATE and type2 == SNP_CANDIDATE:
+                return alt1, ref, alt2 + alt1[1:]
+            elif type1 == SNP_CANDIDATE and type2 == DEL_CANDIDATE:
+                return alt2, alt1 + alt2[1:], ref
+            elif type1 == DEL_CANDIDATE:
+                return alt1, ref, alt2
+            elif type2 == DEL_CANDIDATE:
+                return alt2, alt1, ref
+        else:
+            return ref, alt1, alt2
+
+    @staticmethod
+    def solve_single_alt(alts, ref):
+        # print(alts)
+        alt1, alt_type = alts
+        if alt_type == DEL_CANDIDATE:
+            return alt1, ref
+        return ref, alt1
+
+    def get_proper_candidate(self, candidate):
+        chrm, start_pos, end_pos, ref, alt1, alt2, alt1_type, alt2_type = candidate[0:8]
+        allele_tuple = tuple()
+        if alt2_type == 0:
+            allele_tuple = self.solve_single_alt((alt1, alt1_type), ref)
+        else:
+            allele_tuple = self.solve_multiple_alts(((alt1, alt1_type), (alt2, alt2_type)), ref)
+
+        return chrm, start_pos, start_pos + len(allele_tuple[0]), allele_tuple, (0, 0), False, candidate
+
+    def duplicate_haplotypes(self, haplotypes_and_genotypes):
+        haplotypes_and_genotypes = list(haplotypes_and_genotypes)
+        return [
+            (vh1, vg1)
+            for i, (vh1, vg1) in enumerate(haplotypes_and_genotypes)
+            if not any(vh1 == vh2 for (vh2, _) in haplotypes_and_genotypes[i + 1:])
+        ]
+
+    def select_best_haplotype_match(self, all_matches):
+        sorted_matches = sorted(all_matches, key=lambda x: x.match_metrics)
+        best = sorted_matches[0]
+        equivalents = [
+            f for f in all_matches if f.match_metrics == best.match_metrics
+        ]
+
+        return equivalents[0]
+
+    def find_best_haplotype(self, candidate_group, truth_group, ref):
+        # print("REF SEQ:", ref.ref_seq)
+        # print("CANDIDATE GROUP:", candidate_group)
+        # print("TRUTH GROUP:", truth_group)
+        truth_haplotypes = self.duplicate_haplotypes(self.create_truth_haplotype(truth_group, ref))
+        candidate_haplotypes = self.duplicate_haplotypes(self.create_candidate_haplotype(candidate_group, ref))
+
+        found = []
+        for vh, vgt in candidate_haplotypes:
+            for th, tgt in truth_haplotypes:
+                if th == vh:
+                    found.append(
+                        HaplotypeMatch(
+                            haplotypes=th,
+                            candidates=candidate_group,
+                            candidate_genotypes=vgt,
+                            truths=truth_group,
+                            truth_genotypes=tgt))
+        if not found:
+            return None
+        else:
+            return self.select_best_haplotype_match(found)
 
     def get_labeled_candidates(self, chromosome_name, pos_start, pos_end, candidate_sites):
         """
@@ -329,54 +516,31 @@ class CandidateLabeler:
         :param candidate_sites: Candidates
         :return: List of labeled candidate sites
         """
+        candidate_sites = sorted(candidate_sites, key=itemgetter(1))
         # list of all labeled candidates
-        all_labeled_candidates = []
         candidate_records = []
+
         for candidate in candidate_sites:
-            candidate_record = (candidate[0], candidate[1], candidate[3], candidate[4], candidate[5], (0, 0), False)
+            candidate_record = self.get_proper_candidate(candidate)
             candidate_records.append(candidate_record)
 
         # sort candidates based on positions
         candidate_records = sorted(candidate_records, key=itemgetter(1))
+
         groups = self.group_variants(candidate_records, chromosome_name, pos_start, pos_end)
 
-        #for candidate_group, truth_group in groups:
-        #    ref = self.make_labeler_ref(candidates_group, truth_group)
-        # exit()
-        # for each candidate
-        for candidate_site in candidate_sites:
+        all_labeled_candidates = []
+        for candidate_group, truth_group in groups:
+            ref = self.get_reference_sequence(candidate_group, truth_group)
+            labeled_set = self.find_best_haplotype(candidate_group, truth_group, ref)
 
-            chr_name = candidate_site[CHR_NAME]
-            allele_start = candidate_site[START]
-            allele_stop = candidate_site[STOP]
-            ref_sequence = candidate_site[REF_INDEX]
-            alt1 = candidate_site[ALT1]
-            alt2 = candidate_site[ALT2]
-            alt1_type = candidate_site[ALT1_TYPE]
-            alt2_type = candidate_site[ALT2_TYPE]
-            alleles = list()
-            alleles.append(alt1)
-            alleles.append(alt2)
-            alt_types = list()
-            alt_types.append(alt1_type)
-            alt_types.append(alt2_type)
+            if labeled_set is None:
+                raise ValueError('Failed to assign labels for variants')
 
-            # test the alleles across IN, DEL, and SNP variant dictionaries
-            genotypes = self._get_all_genotype_labels(positional_vcf=positional_vcf,
-                                                      start=allele_start,
-                                                      stop=allele_stop,
-                                                      ref_seq=ref_sequence,
-                                                      alleles=alleles,
-                                                      allele_types=alt_types)
+            for labeled_candidate in labeled_set.candidates_with_assigned_genotypes():
+                candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]
+                all_labeled_candidates.append(candidate_with_gts)
 
-            # get a list of attributes that can be saved
-            labeled_candidate = candidate_site + genotypes
-            all_labeled_candidates.append(labeled_candidate)
-
-            if DEBUG_PRINT_ALL:
-                print()
-                print(allele_start, allele_stop, ref_sequence)
-                print("alleles:        ", alleles)
-                print("Genotypes:     ", genotypes)
+        all_labeled_candidates = sorted(all_labeled_candidates, key=itemgetter(1))
 
         return all_labeled_candidates

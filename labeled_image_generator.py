@@ -89,18 +89,23 @@ class View:
         :return: labeled_sites: Labeled candidate sites. Each containing proper genotype.
         """
         # get dictionary of variant records for full region
-        self.vcf_handler.populate_dictionary(contig=self.chromosome_name,
-                                             start_pos=start_pos - 5,
-                                             end_pos=end_pos + 5,
-                                             hom_filter=filter_hom_ref)
+        # self.vcf_handler.populate_dictionary(contig=self.chromosome_name,
+        #                                      start_pos=start_pos - 5,
+        #                                      end_pos=end_pos + 5,
+        #                                      hom_filter=filter_hom_ref)
 
         # get separate positional variant dictionaries for IN, DEL, and SNP
-        positional_variants = self.vcf_handler.get_variant_dictionary()
+        # positional_variants = self.vcf_handler.get_variant_dictionary()
 
         # create an object for labling the allele
         allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler, vcf_handler=self.vcf_handler)
+        # allele_labler = CandidateLabeler(fasta_handler=self.fasta_handler)
 
         # label the sites
+        # labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
+        #                                                      positional_vcf=positional_variants,
+        #                                                      candidate_sites=selected_candidate_list)
+
         labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
                                                              pos_start=start_pos,
                                                              pos_end=end_pos,
@@ -136,6 +141,7 @@ class View:
         dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
         # get all labeled candidate sites
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
+
         # create image generator object with all necessary dictionary
         image_generator = ImageGenerator(dictionaries_for_images)
 
@@ -341,6 +347,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
+    # view_object.parse_region(start_position=16707560, end_position=16707565, thread_no=1)
     view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
