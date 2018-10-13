@@ -367,61 +367,53 @@ class CandidateLabeler:
                 yield haplotypes, genotypes
 
     def group_variants(self, candidate_records, chromosome_name, pos_start, pos_end):
-        truth_records = self.vcf_handler.get_simple_vcf_records(chromosome_name, pos_start, pos_end)
-        combined_records = sorted(truth_records+candidate_records, key=itemgetter(1))
+        def can_include_in_variant_group(group, group_variant):
+            if not group:
+                return True
+            candidate_rec_count = sum(1 for g in group if g[5] is False)
+            candidate_truth = sum(1 for g in group if g[5] is True)
+            is_truth = group_variant[5]
+            n_of_type = candidate_truth if is_truth else candidate_rec_count
+            if n_of_type >= MAX_GROUP_SIZE:
+                return False
+            else:
+                return any(group_variant[1] - g[2] + 1 <= MAX_SEPARATION for g in group)
+
+        combined_records = sorted(candidate_records, key=itemgetter(1))
+
+        # split the candidate group
         groups = []
-
         current_group = []
-        current_truth_count = 0
-        current_candidate_count = 0
-        last_end = -1
         for record in combined_records:
-            current_record_is_candidate = record[5]
-            record_start = record[1]
-            record_end = record[2]
-
-            can_add = False
-            if not current_group:
-                can_add = True
-            elif current_record_is_candidate and current_candidate_count < MAX_GROUP_SIZE:
-                dist = record_start - last_end + 1
-                if dist < 0:
-                    dist = dist * -1
-
-                if dist <= MAX_SEPARATION:
-                    can_add = True
-            elif not current_record_is_candidate and current_truth_count < MAX_GROUP_SIZE:
-                dist = record_start - last_end + 1
-                if dist < 0:
-                    dist = dist * -1
-
-                if dist <= MAX_SEPARATION:
-                    can_add = True
+            can_add = can_include_in_variant_group(current_group, record)
 
             if can_add:
                 current_group.append(record)
-                if current_record_is_candidate:
-                    current_candidate_count += 1
-                else:
-                    current_truth_count += 1
-                last_end = max(last_end, record_end)
             else:
                 groups.append(current_group)
 
                 current_group = [record]
-                current_truth_count = 0
-                current_candidate_count = 0
 
-                last_end = record_end
-                if current_record_is_candidate:
-                    current_candidate_count += 1
-                else:
-                    current_truth_count += 1
         if current_group:
             groups.append(current_group)
 
+        combined_groups = []
+        for candidate_group in groups:
+            start_pos = min([v[1] for v in candidate_group])
+            end_pos = max([v[2] for v in candidate_group])
+            truth_records = self.vcf_handler.get_simple_vcf_records(chromosome_name, start_pos - MAX_SEPARATION,
+                                                                    end_pos + MAX_SEPARATION)
+            truth_records = sorted(truth_records, key=itemgetter(1))
+            for record in truth_records:
+                if can_include_in_variant_group(candidate_group, record):
+                    candidate_group.append(record)
+                else:
+                    break
+
+            combined_groups.append(candidate_group)
+
         separated_groups = []
-        for group in groups:
+        for group in combined_groups:
             candidates = [record for record in group if record[5] is False]
             truths = [record for record in group if record[5] is True]
             separated_groups.append((candidates, truths))
@@ -536,6 +528,15 @@ class CandidateLabeler:
 
         all_labeled_candidates = []
         for candidate_group, truth_group in groups:
+            # print("------------------------")
+            # print(candidate_group)
+            # print(len(candidate_group))
+            # print("########################")
+            # print(truth_group)
+            # print(len(truth_group))
+            # print("------------------------")
+            if not candidate_group:
+                continue
             if not truth_group:
                 for labeled_candidate in candidate_group:
                     candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]

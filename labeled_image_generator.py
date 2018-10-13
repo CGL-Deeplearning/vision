@@ -37,6 +37,7 @@ Output:
 DEBUG_PRINT_CANDIDATES = False
 DEBUG_TIME_PROFILE = False
 DEBUG_TEST_PARALLEL = False
+BED_POSITION_BUFFER = 30
 
 
 class View:
@@ -237,7 +238,8 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         each_segment_length = 100000
         for interval in confident_bed_tree[chr_name]:
             start_position, end_position = interval
-            end_position = end_position
+            start_position = start_position - BED_POSITION_BUFFER
+            end_position = end_position + BED_POSITION_BUFFER
             if end_position - start_position + 1 < each_segment_length:
                 intervals.append([start_position, end_position])
             else:
@@ -346,7 +348,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=16707560, end_position=16707565, thread_no=1)
+    view_object.parse_region(start_position=912734, end_position=913062, thread_no=1)
     # view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
