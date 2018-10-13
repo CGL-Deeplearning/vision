@@ -105,7 +105,6 @@ class View:
         # labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
         #                                                      positional_vcf=positional_variants,
         #                                                      candidate_sites=selected_candidate_list)
-
         labeled_sites = allele_labler.get_labeled_candidates(chromosome_name=self.chromosome_name,
                                                              pos_start=start_pos,
                                                              pos_end=end_pos,
@@ -348,7 +347,7 @@ def test(view_object):
     """
     start_time = time.time()
     # view_object.parse_region(start_position=16707560, end_position=16707565, thread_no=1)
-    view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
+    view_object.parse_region(start_position=703690, end_position=704693, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

@@ -388,11 +388,11 @@ class CandidateLabeler:
             if not current_group:
                 can_add = True
             elif current_record_is_candidate and current_candidate_count < MAX_GROUP_SIZE:
-                can_add = True
+                if record_start - last_end + 1 <= MAX_SEPARATION:
+                    can_add = True
             elif not current_record_is_candidate and current_truth_count < MAX_GROUP_SIZE:
-                can_add = True
-            elif last_end - record_start + 1 <= MAX_SEPARATION:
-                can_add = True
+                if record_start - last_end + 1 <= MAX_SEPARATION:
+                    can_add = True
 
             if can_add:
                 current_group.append(record)
@@ -504,6 +504,7 @@ class CandidateLabeler:
                             candidate_genotypes=vgt,
                             truths=truth_group,
                             truth_genotypes=tgt))
+        del candidate_haplotypes, truth_haplotypes
         if not found:
             return None
         else:
@@ -524,13 +525,20 @@ class CandidateLabeler:
             candidate_record = self.get_proper_candidate(candidate)
             candidate_records.append(candidate_record)
 
+        del candidate_sites
+
         # sort candidates based on positions
         candidate_records = sorted(candidate_records, key=itemgetter(1))
-
         groups = self.group_variants(candidate_records, chromosome_name, pos_start, pos_end)
 
         all_labeled_candidates = []
         for candidate_group, truth_group in groups:
+            if not truth_group:
+                for labeled_candidate in candidate_group:
+                    candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]
+                    all_labeled_candidates.append(candidate_with_gts)
+                continue
+
             ref = self.get_reference_sequence(candidate_group, truth_group)
             labeled_set = self.find_best_haplotype(candidate_group, truth_group, ref)
 
@@ -540,6 +548,8 @@ class CandidateLabeler:
             for labeled_candidate in labeled_set.candidates_with_assigned_genotypes():
                 candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]
                 all_labeled_candidates.append(candidate_with_gts)
+
+            del labeled_set, ref
 
         all_labeled_candidates = sorted(all_labeled_candidates, key=itemgetter(1))
 
