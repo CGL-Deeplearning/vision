@@ -118,7 +118,7 @@ class CandidateFinder:
 
         if pos not in self.read_allele_dictionary:
             self.read_allele_dictionary[pos] = {}
-        if (allele, type) not in self.read_allele_dictionary[pos]:
+        if (allele, allele_type) not in self.read_allele_dictionary[pos]:
             self.read_allele_dictionary[pos][(allele, allele_type)] = 0
 
         self.read_allele_dictionary[pos][(allele, allele_type)] += 1
@@ -169,7 +169,7 @@ class CandidateFinder:
                 # this slows things down a lot. Don't add reference allele to the dictionary if we don't use them
                 # self._update_read_allele_dictionary(i, allele, MATCH_ALLELE)
 
-    def parse_delete(self, read_id, alignment_position, length, ref_sequence):
+    def parse_delete(self, read_id, alignment_position, length, ref_sequence, quality):
         """
         Process a cigar operation that is a delete
         :param alignment_position: Alignment position
@@ -195,7 +195,7 @@ class CandidateFinder:
         allele = self.reference_dictionary[alignment_position] + ref_sequence
         # record the delete where it first starts
         self._update_delete_dictionary(read_id, alignment_position, allele)
-        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, DELETE_ALLELE, 60)
+        self._update_read_allele_dictionary(read_id, alignment_position + 1, allele, DELETE_ALLELE, min(quality))
 
     def parse_insert(self, read_id, alignment_position, read_sequence, qualities):
         """
@@ -348,7 +348,8 @@ class CandidateFinder:
             self.parse_delete(read_id=read_id,
                               alignment_position=alignment_position-1,
                               ref_sequence=ref_sequence,
-                              length=length)
+                              length=length,
+                              quality=quality)
             read_index_increment = 0
         elif cigar_code == 4:
             # soft clip
@@ -542,8 +543,11 @@ class CandidateFinder:
                 all_mismatch_count += all_allele_dictionary[allele]
 
             # pick the top 2 most frequent allele
+            # print("All alleles: ", all_allele_dictionary)
             allele_frequency_list = list(sorted(all_allele_dictionary.items(), key=operator.itemgetter(1, 0),
                                                 reverse=True))[:PLOIDY]
+            # print("Top picked: ", allele_frequency_list)
+            # print("----------------------------------------")
             allele_list = self._filter_alleles(pos, allele_frequency_list)
             alt1 = allele_list[0] if len(allele_list) >= 1 else None
             alt2 = allele_list[1] if len(allele_list) >= 2 else '.'
