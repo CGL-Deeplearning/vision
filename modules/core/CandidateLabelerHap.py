@@ -263,18 +263,22 @@ class CandidateLabeler:
         parts = []
         position = ref_start
         for variant, allele_index in zip(variants, allele_indices):
-            if variant[1] + 1 < position:
+            if variant[1] < position:
                 if allele_index != 0:
                     return None
             else:
                 ref_prefix = ref.get_seq(position, variant[1])
-
+                # print("Build haplotype")
+                # print("pos: ", position, variant[1], variant[:-1])
+                # print("allele index", allele_index)
+                # print("ref prefix: ", ref_prefix)
                 allele = self._allele_from_index(variant, allele_index)
                 if allele_index == 0:
                     allele = allele[0]
                     position = variant[1] + 1
                 else:
                     position = variant[2]
+                # print("allele: ", allele)
                 parts.append(ref_prefix + allele)
 
         # We have some bases left to add between the position of our last variant
@@ -366,6 +370,9 @@ class CandidateLabeler:
 
     def create_candidate_haplotype(self, candidate_set, ref):
         all_possible_genotypes = self.get_genotypes_for_candidate_set(candidate_set)
+        # print("......................................................")
+        # print("CANDIDATE GENOTYPES:", all_possible_genotypes)
+
         for genotypes in itertools.product(*all_possible_genotypes):
             combined = [(v, g) for v, g in zip(candidate_set, genotypes)]
             # print("COMBINED: ", combined)
@@ -480,11 +487,15 @@ class CandidateLabeler:
         return equivalents[0]
 
     def find_best_haplotype(self, candidate_group, truth_group, ref):
-        # print("REF SEQ:", ref.ref_seq)
-        # print("CANDIDATE GROUP:", candidate_group)
-        # print("TRUTH GROUP:", truth_group)
         truth_haplotypes = self.duplicate_haplotypes(self.create_truth_haplotype(truth_group, ref))
         candidate_haplotypes = self.duplicate_haplotypes(self.create_candidate_haplotype(candidate_group, ref))
+        # print("TRUTH HAPLOTYPES:")
+        # for hap in truth_haplotypes:
+        #     print(hap)
+        # print("CANDIDATE HAPLOTYPES:")
+        # for hap in candidate_haplotypes:
+        #     print(hap)
+
         found = []
         for vh, vgt in candidate_haplotypes:
             for th, tgt in truth_haplotypes:
@@ -525,13 +536,15 @@ class CandidateLabeler:
 
         all_labeled_candidates = []
         for candidate_group, truth_group in groups:
-            # print("------------------------")
-            # print(candidate_group)
-            # print(len(candidate_group))
+            # print("-------------START-----------")
+            # print("Candidate group:")
+            # for candidate in candidate_group:
+            #     print(candidate[:-1])
             # print("########################")
-            # print(truth_group)
-            # print(len(truth_group))
-            # print("------------------------")
+            # print("Truth group:")
+            # for candidate in truth_group:
+            #     print(candidate[:-1])
+            # print("........................")
             if not candidate_group:
                 continue
             if not truth_group:
@@ -541,15 +554,21 @@ class CandidateLabeler:
                 continue
 
             ref = self.get_reference_sequence(candidate_group, truth_group)
+            # print("REF:")
+            # print(ref.ref_seq, ref.ref_start, ref.ref_end)
+            # print(".......................")
             labeled_set = self.find_best_haplotype(candidate_group, truth_group, ref)
 
             if labeled_set is None:
                 raise ValueError('Failed to assign labels for variants', ref.ref_start, ref.ref_end)
 
+            # print("LABELED CANDIDATES:")
             for labeled_candidate in labeled_set.candidates_with_assigned_genotypes():
                 candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]
+                # print(candidate_with_gts)
                 all_labeled_candidates.append(candidate_with_gts)
 
+            # print("------------------------")
             del labeled_set, ref
 
         all_labeled_candidates = sorted(all_labeled_candidates, key=itemgetter(1))
