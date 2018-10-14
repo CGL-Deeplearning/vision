@@ -247,7 +247,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
                 while st_ < end_position:
                     end_ = min(st_ + each_segment_length, end_position)
                     intervals.append([st_, end_])
-                    st_ = end_
+                    st_ = end_ + 1
 
     for i in tqdm(range(len(intervals)), ncols=100):
         start_position = intervals[i][0]

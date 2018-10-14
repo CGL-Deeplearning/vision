@@ -30,8 +30,9 @@ REUSED FROM HERE: https://github.com/google/deepvariant/blob/r0.7/deepvariant/la
 # POSSIBILITY OF SUCH DAMAGE.
 """
 from operator import itemgetter
-from collections import defaultdict
+import collections
 import itertools
+import heapq
 import copy
 """
             possible combos:
@@ -86,6 +87,11 @@ REF, ALT, GT = 0, 1, 2
 
 # Genotype codes
 HOM, HET, HOM_ALT = 0, 1, 2
+
+_CANDIDATE_MARKER = 'candidate'
+_TRUTH_MARKER = 'truth'
+_VariantToGroup = collections.namedtuple('_VariantToGroup',
+                                         ['start', 'type', 'variant'])
 
 
 def _variant_genotypes(variants, missing_genotypes_default=(-1, -1)):
@@ -367,25 +373,31 @@ class CandidateLabeler:
                 yield haplotypes, genotypes
 
     def group_variants(self, candidate_records, chromosome_name, pos_start, pos_end):
-        def can_include_in_variant_group(group, group_variant):
+        def _include_in_variant_group(group, group_variant):
             if not group:
                 return True
-            candidate_rec_count = sum(1 for g in group if g[5] is False)
-            candidate_truth = sum(1 for g in group if g[5] is True)
-            is_truth = group_variant[5]
-            n_of_type = candidate_truth if is_truth else candidate_rec_count
+            n_of_type = sum(1 for g in group if g.type == group_variant.type)
             if n_of_type >= MAX_GROUP_SIZE:
                 return False
             else:
-                return any(group_variant[1] - g[2] + 1 <= MAX_SEPARATION for g in group)
+                return any(
+                    group_variant.variant[1] - g.variant[2] + 1 <= MAX_SEPARATION
+                    for g in group)
 
-        combined_records = sorted(candidate_records, key=itemgetter(1))
+        def to_grouped_variants(variants, candidate_type):
+            """Converts a Variant proto to a _VariantToGroup tuple."""
+            return [_VariantToGroup(v[1], candidate_type, v) for v in variants]
+
+        truth_records = self.vcf_handler.get_simple_vcf_records(chromosome_name, pos_start, pos_end)
+        groupable_variants = heapq.merge(
+            to_grouped_variants(candidate_records, _CANDIDATE_MARKER),
+            to_grouped_variants(truth_records, _TRUTH_MARKER))
 
         # split the candidate group
         groups = []
         current_group = []
-        for record in combined_records:
-            can_add = can_include_in_variant_group(current_group, record)
+        for record in groupable_variants:
+            can_add = _include_in_variant_group(current_group, record)
 
             if can_add:
                 current_group.append(record)
@@ -397,25 +409,10 @@ class CandidateLabeler:
         if current_group:
             groups.append(current_group)
 
-        combined_groups = []
-        for candidate_group in groups:
-            start_pos = min([v[1] for v in candidate_group])
-            end_pos = max([v[2] for v in candidate_group])
-            truth_records = self.vcf_handler.get_simple_vcf_records(chromosome_name, start_pos - MAX_SEPARATION,
-                                                                    end_pos + MAX_SEPARATION)
-            truth_records = sorted(truth_records, key=itemgetter(1))
-            for record in truth_records:
-                if can_include_in_variant_group(candidate_group, record):
-                    candidate_group.append(record)
-                else:
-                    break
-
-            combined_groups.append(candidate_group)
-
         separated_groups = []
-        for group in combined_groups:
-            candidates = [record for record in group if record[5] is False]
-            truths = [record for record in group if record[5] is True]
+        for group in groups:
+            candidates = [record.variant for record in group if record.type == _CANDIDATE_MARKER]
+            truths = [record.variant for record in group if record.type == _TRUTH_MARKER]
             separated_groups.append((candidates, truths))
 
         return separated_groups
