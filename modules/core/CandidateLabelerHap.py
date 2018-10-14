@@ -430,7 +430,7 @@ class CandidateLabeler:
         alt1, alt2 = alts[0][0], alts[1][0]
         if type1 == DEL_CANDIDATE and type2 == DEL_CANDIDATE:
             if len(alt2) > len(alt1):
-                return alt2, ref, alt2[0] + alt2[len(alt1):]
+                return alt2, alt2[0] + alt2[len(alt1):], ref
             else:
                 return alt1, ref, alt1[0] + alt1[len(alt2):]
         elif type1 == IN_CANDIDATE and type2 == IN_CANDIDATE:
