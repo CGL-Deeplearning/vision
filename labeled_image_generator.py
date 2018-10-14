@@ -127,7 +127,7 @@ class View:
                                          self.chromosome_name,
                                          start_position,
                                          end_position)
-        reads = local_assembler.perform_local_assembly(perform_alignment=True)
+        reads = local_assembler.perform_local_assembly(perform_alignment=False)
 
         # create candidate finder object
         candidate_finder = CandidateFinder(fasta_handler=self.fasta_handler,
@@ -348,7 +348,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=12169298, end_position=12170298, thread_no=1)
+    view_object.parse_region(start_position=12292855, end_position=12292955, thread_no=1)
     # view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
