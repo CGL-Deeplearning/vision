@@ -127,7 +127,7 @@ class View:
                                          self.chromosome_name,
                                          start_position,
                                          end_position)
-        reads = local_assembler.perform_local_assembly(perform_alignment=False)
+        reads = local_assembler.perform_local_assembly(perform_alignment=True)
 
         # create candidate finder object
         candidate_finder = CandidateFinder(fasta_handler=self.fasta_handler,
