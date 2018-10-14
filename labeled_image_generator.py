@@ -225,7 +225,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
         fasta_handler = FastaHandler(ref_file)
         whole_length = fasta_handler.get_chr_sequence_length(chr_name)
         # .5MB segments at once
-        each_segment_length = 50000
+        each_segment_length = 1000
 
         # chunk the chromosome into pieces
         chunks = int(math.ceil(whole_length / each_segment_length))
@@ -235,7 +235,7 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
             end_position = min((i + 1) * each_segment_length, whole_length)
             intervals.append([start_position, end_position])
     else:
-        each_segment_length = 100000
+        each_segment_length = 1000
         for interval in confident_bed_tree[chr_name]:
             start_position, end_position = interval
             start_position = start_position - BED_POSITION_BUFFER
