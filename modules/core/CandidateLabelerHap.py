@@ -491,13 +491,13 @@ class CandidateLabeler:
     def find_best_haplotype(self, candidate_group, truth_group, ref):
         truth_haplotypes = self.duplicate_haplotypes(self.create_truth_haplotype(truth_group, ref))
         candidate_haplotypes = self.duplicate_haplotypes(self.create_candidate_haplotype(candidate_group, ref))
-        if DEBUG_IT:
-            print("TRUTH HAPLOTYPES:")
-            for hap in truth_haplotypes:
-                print(hap)
-            print("CANDIDATE HAPLOTYPES:")
-            for hap in candidate_haplotypes:
-                print(hap)
+        # if DEBUG_IT:
+        #     print("TRUTH HAPLOTYPES:")
+        #     for hap in truth_haplotypes:
+        #         print(hap)
+        #     print("CANDIDATE HAPLOTYPES:")
+        #     for hap in candidate_haplotypes:
+        #         print(hap)
 
         found = []
         for vh, vgt in candidate_haplotypes:
@@ -523,8 +523,8 @@ class CandidateLabeler:
         :param candidate_sites: Candidates
         :return: List of labeled candidate sites
         """
-        if DEBUG_IT:
-            print(candidate_sites)
+        # if DEBUG_IT:
+        #     print(candidate_sites)
         candidate_sites = sorted(candidate_sites, key=itemgetter(1))
         # list of all labeled candidates
         candidate_records = []
@@ -541,16 +541,16 @@ class CandidateLabeler:
 
         all_labeled_candidates = []
         for candidate_group, truth_group in groups:
-            if DEBUG_IT:
-                print("-------------START-----------")
-                print("Candidate group:")
-                for candidate in candidate_group:
-                    print(candidate[:-1])
-                print("########################")
-                print("Truth group:")
-                for candidate in truth_group:
-                    print(candidate[:-1])
-                print("........................")
+            # if DEBUG_IT:
+            #     print("-------------START-----------")
+            #     print("Candidate group:")
+            #     for candidate in candidate_group:
+            #         print(candidate[:-1])
+            #     print("########################")
+            #     print("Truth group:")
+            #     for candidate in truth_group:
+            #         print(candidate[:-1])
+            #     print("........................")
             if not candidate_group:
                 continue
             if not truth_group:
@@ -560,25 +560,25 @@ class CandidateLabeler:
                 continue
 
             ref = self.get_reference_sequence(candidate_group, truth_group)
-            if DEBUG_IT:
-                print("REF:")
-                print(ref.ref_seq, ref.ref_start, ref.ref_end)
-                print(".......................")
+            # if DEBUG_IT:
+            #     print("REF:")
+            #     print(ref.ref_seq, ref.ref_start, ref.ref_end)
+            #     print(".......................")
             labeled_set = self.find_best_haplotype(candidate_group, truth_group, ref)
 
             if labeled_set is None:
                 raise ValueError('Failed to assign labels for variants', ref.ref_start, ref.ref_end)
 
-            if DEBUG_IT:
-                print("LABELED CANDIDATES:")
+            # if DEBUG_IT:
+            #     print("LABELED CANDIDATES:")
             for labeled_candidate in labeled_set.candidates_with_assigned_genotypes():
                 candidate_with_gts = labeled_candidate[6] + [labeled_candidate[4]]
-                if DEBUG_IT:
-                    print(candidate_with_gts)
+                # if DEBUG_IT:
+                #     print(candidate_with_gts)
                 all_labeled_candidates.append(candidate_with_gts)
 
-            if DEBUG_IT:
-                print("------------------------")
+            # if DEBUG_IT:
+            #     print("------------------------")
             del labeled_set, ref
 
         all_labeled_candidates = sorted(all_labeled_candidates, key=itemgetter(1))

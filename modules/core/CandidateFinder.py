@@ -106,8 +106,6 @@ class CandidateFinder:
         :param allele_type: IN, DEL or SUB
         :return:
         """
-        ref_alignment_start, ref_alignment_stop, mapping_quality, is_reverse = self.read_info[read_id]
-
         for base in allele:
             if base not in ['A', 'C', 'G', 'T']:
                 return
