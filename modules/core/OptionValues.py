@@ -39,4 +39,4 @@ class ActiveRegionOptions(object):
     INSERT_WEIGHT = 2.5
     DELETE_WEIGHT = 1.8
     SOFT_CLIP_WEIGHT = 3.0
-    THRESHOLD_VALUE = 3.5
+    THRESHOLD_VALUE = 3.0

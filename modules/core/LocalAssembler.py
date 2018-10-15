@@ -3,7 +3,7 @@ from modules.core.ActiveRegionFinder import ActiveRegionFinder
 from modules.core.DeBruijnGraph import DeBruijnGraphCreator
 from modules.handlers.Read import Read
 from modules.core.SSWAligner import SSWAligner
-from modules.core.OptionValues import AlingerOptions, DeBruijnGraphOptions, ActiveRegionOptions
+from modules.core.OptionValues import AlingerOptions, DeBruijnGraphOptions, ActiveRegionOptions, CandidateFinderOptions
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077
 A version is implemented here: https://github.com/google/deepvariant/blob/r0.7/deepvariant/realigner/aligner.py
 """
@@ -115,11 +115,11 @@ class LocalAssembler:
                                                stop=end_pos)
             filtered_reads = []
             for read in reads:
-                if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
-                        and read.is_qcfail is False:
+                if read.mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False \
+                        and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                     filtered_reads.append(Read(read))
 
-            bounds = (min_k, max_k, 1)
+            bounds = (min_k, max_k, DeBruijnGraphOptions.STEP_K)
             haplotypes = graph.find_haplotypes_through_linear_search_over_kmer(ref_sequence, filtered_reads, bounds)
 
             if not haplotypes:
