@@ -24,7 +24,7 @@ class CandidateFinderOptions(object):
     MIN_BASE_QUALITY = 15
     MIN_MAP_QUALITY = 15
     MIN_MISMATCH_THRESHOLD = 1
-    MIN_MISMATCH_PERCENT_THRESHOLD = 12
+    MIN_MISMATCH_PERCENT_THRESHOLD = 10
 
 
 class ActiveRegionOptions(object):
