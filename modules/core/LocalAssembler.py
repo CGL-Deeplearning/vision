@@ -3,8 +3,7 @@ from modules.core.ActiveRegionFinder import ActiveRegionFinder
 from modules.core.DeBruijnGraph import DeBruijnGraphCreator
 from modules.handlers.Read import Read
 from modules.core.SSWAligner import SSWAligner
-from modules.core.OptionValues import MAX_ACTIVE_REGION_SIZE, MIN_MAP_QUALITY_FOR_CANDIDATE, \
-    MIN_K, MAX_K, STEP_K, ALIGNMENT_SAFE_BASES
+from modules.core.OptionValues import AlingerOptions, DeBruijnGraphOptions, ActiveRegionOptions
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077
 A version is implemented here: https://github.com/google/deepvariant/blob/r0.7/deepvariant/realigner/aligner.py
 """
@@ -48,8 +47,8 @@ class LocalAssembler:
     def perform_local_alignment(self, region_with_reads):
         if not region_with_reads.reads:
             return []
-        ref_start = min(region_with_reads.min_read_start, region_with_reads.region_start) - ALIGNMENT_SAFE_BASES
-        ref_end = max(region_with_reads.max_read_end, region_with_reads.region_end) + ALIGNMENT_SAFE_BASES
+        ref_start = min(region_with_reads.min_read_start, region_with_reads.region_start) - AlingerOptions.ALIGNMENT_SAFE_BASES
+        ref_end = max(region_with_reads.max_read_end, region_with_reads.region_end) + AlingerOptions.ALIGNMENT_SAFE_BASES
 
         if ref_end <= region_with_reads.region_end:
             return region_with_reads.reads
@@ -79,8 +78,8 @@ class LocalAssembler:
                                                stop=self.region_end_position)
         reads_in_region = []
         for read in all_reads:
-            if read.mapping_quality >= MIN_MAP_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
-                    and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
+            if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
+                    and read.is_qcfail is False:
                 reads_in_region.append(Read(read))
 
         if perform_alignment is False:
@@ -99,14 +98,14 @@ class LocalAssembler:
         for active_region in active_regions:
             start_pos, end_pos = active_region
 
-            if end_pos - start_pos > MAX_ACTIVE_REGION_SIZE:
+            if end_pos - start_pos > ActiveRegionOptions.MAX_ACTIVE_REGION_SIZE:
                 continue
 
             graph = DeBruijnGraphCreator(start_pos, end_pos)
             ref_sequence = self.fasta_handler.get_sequence(chromosome_name=self.chromosome_name,
                                                            start=start_pos,
                                                            stop=end_pos)
-            bounds = (MIN_K, MAX_K, STEP_K)
+            bounds = (DeBruijnGraphOptions.MIN_K, DeBruijnGraphOptions.MAX_K, DeBruijnGraphOptions.STEP_K)
             min_k, max_k = graph.find_min_k_from_ref(ref_sequence, bounds)
 
             if min_k is None:
@@ -116,8 +115,8 @@ class LocalAssembler:
                                                stop=end_pos)
             filtered_reads = []
             for read in reads:
-                if read.mapping_quality >= MIN_MAP_QUALITY_FOR_CANDIDATE and read.is_secondary is False \
-                        and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
+                if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
+                        and read.is_qcfail is False:
                     filtered_reads.append(Read(read))
 
             bounds = (min_k, max_k, 1)

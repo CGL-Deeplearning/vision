@@ -1,7 +1,7 @@
 from collections import defaultdict
 from graphviz import Digraph
 import copy
-from modules.core.OptionValues import MIN_BASE_QUALITY_FOR_CANDIDATE, MIN_EDGE_SUPPORT, MAX_ALLOWED_PATHS
+from modules.core.OptionValues import DeBruijnGraphOptions
 """doing this: https://software.broadinstitute.org/gatk/documentation/article?id=11076"""
 
 
@@ -96,7 +96,7 @@ class DeBruijnGraph:
         for node_a in unpruned_weights:
             for node_b in unpruned_weights[node_a]:
                 if unpruned_weights[node_a][node_b][1] is False and \
-                        unpruned_weights[node_a][node_b][0] < MIN_EDGE_SUPPORT:
+                        unpruned_weights[node_a][node_b][0] < DeBruijnGraphOptions.MIN_EDGE_SUPPORT:
 
                     self.in_nodes[node_b].remove(node_a)
                     self.out_nodes[node_a].remove(node_b)
@@ -111,7 +111,7 @@ class DeBruijnGraph:
         running_paths.append([source_])
 
         while running_paths:
-            if len(finished_paths) + len(running_paths) > MAX_ALLOWED_PATHS:
+            if len(finished_paths) + len(running_paths) > DeBruijnGraphOptions.MAX_ALLOWED_PATHS:
                 return []
             # get the front path
             current_path = running_paths.pop(0)
@@ -191,6 +191,8 @@ class DeBruijnGraph:
         sink_ = prev_vertex_hash
         # self.visualize('Reference_graph', False)
         for read in self.reads:
+            if read.mapping_quality < DeBruijnGraphOptions.MIN_MAP_QUALITY:
+                continue
             read_start = read.reference_start
             read_seq = read.query_sequence
             base_quals = read.query_qualities
@@ -204,7 +206,7 @@ class DeBruijnGraph:
                 continue
 
             next_bad_qual = [index for index, base_qual in enumerate(base_quals)
-                             if base_qual < MIN_BASE_QUALITY_FOR_CANDIDATE]
+                             if base_qual < DeBruijnGraphOptions.MIN_BASE_QUALITY]
             next_bad_base = [index for index, read_base in enumerate(read_seq) if not self.check_base_ok(read_base)]
             bad_base_indices = sorted(next_bad_qual + next_bad_base + [len(read_seq) + 1])
 

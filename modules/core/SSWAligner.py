@@ -36,8 +36,7 @@ import re
 import math
 import copy
 from modules.aligner.ssw_aligner import ssw_api as libssw
-from modules.core.OptionValues import SEED_K_MER_SIZE, MATCH_PENALTY, MISMATCH_PENALTY, \
-  GAP_OPEN_PENALTY, GAP_EXTEND_PENALTY
+from modules.core.OptionValues import AlingerOptions
 
 _SSW_CIGAR_CHARS = {
     'M': 0,
@@ -324,10 +323,10 @@ class SSWAligner(object):
   def _make_pairwise_aligner(self, query_seq):
     return make_pairwise_aligner(
         query_seq=query_seq,
-        match=MATCH_PENALTY,
-        mismatch=MISMATCH_PENALTY,
-        gap_open_penalty=GAP_OPEN_PENALTY,
-        gap_extend_penalty=GAP_EXTEND_PENALTY)
+        match=AlingerOptions.MATCH_PENALTY,
+        mismatch=AlingerOptions.MISMATCH_PENALTY,
+        gap_open_penalty=AlingerOptions.GAP_OPEN_PENALTY,
+        gap_extend_penalty=AlingerOptions.GAP_EXTEND_PENALTY)
 
   def set_targets(self, target_sequences):
     if self.ref_seq is not None and self.ref_seq in target_sequences:
@@ -337,7 +336,7 @@ class SSWAligner(object):
     self.targets = []
     for target_seq in target_sequences:
       target = Target(target_seq)
-      if target.build_target_index(SEED_K_MER_SIZE):
+      if target.build_target_index(AlingerOptions.SEED_K_MER_SIZE):
         alignment = self._make_pairwise_aligner(target.sequence).align(self.ref_seq)
         if self._set_target_alignment_info(target, alignment):
           self.targets.append(target)
@@ -698,7 +697,7 @@ class SSWAligner(object):
 
   def realign_read(self, read):
     # using this
-    read.set_read_kmers(SEED_K_MER_SIZE)
+    read.set_read_kmers(AlingerOptions.SEED_K_MER_SIZE)
     aligner = self._make_pairwise_aligner(read.aligned_seq())
     for target in self.targets:
       read_seq = read.aligned_seq()
