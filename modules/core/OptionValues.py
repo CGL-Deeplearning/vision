@@ -5,13 +5,15 @@ class DeBruijnGraphOptions(object):
     STEP_K = 1
     MIN_EDGE_SUPPORT = 2
     MAX_ALLOWED_PATHS = 256
+
+    # base and map quality
     MIN_BASE_QUALITY = 15
     MIN_MAP_QUALITY = 15
 
 
 class ActiveRegionOptions(object):
-    MIN_MAPQ = 10
-    MIN_BASE_QUALITY = 15
+    MIN_MAPQ = 15
+    MIN_BASE_QUALITY = 0
     MIN_REGION_SIZE = 80
     MAX_ACTIVE_REGION_SIZE = 1000
 
