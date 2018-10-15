@@ -115,9 +115,6 @@ class CandidateFinder:
         if base_quality < CandidateFinderOptions.MIN_BASE_QUALITY:
             return
 
-        if mapping_quality < CandidateFinderOptions.MIN_MAP_QUALITY:
-            return
-
         if pos not in self.read_allele_dictionary:
             self.read_allele_dictionary[pos] = {}
         if (allele, allele_type) not in self.read_allele_dictionary[pos]:
@@ -154,12 +151,11 @@ class CandidateFinder:
 
         This method updates the candidates dictionary.
         """
-        ref_alignment_start, ref_alignment_stop, mapping_quality, is_reverse = self.read_info[read_id]
         start = alignment_position
         stop = start + length
         for i in range(start, stop):
-            if mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY:
-                self.coverage[i] += 1
+
+            self.coverage[i] += 1
             allele = read_sequence[i-alignment_position]
             ref = ref_sequence[i-alignment_position]
             self.base_dictionary[read_id][i] = (allele, qualities[i-alignment_position])
@@ -187,16 +183,12 @@ class CandidateFinder:
         stop = start + length
         self.mismatch_count[alignment_position] += 1
 
-        ref_alignment_start, ref_alignment_stop, mapping_quality, is_reverse = self.read_info[read_id]
-
         for i in range(start, stop):
             self.base_dictionary[read_id][i] = ('.', MIN_DELETE_QUALITY)
             # self._update_base_dictionary(read_id, i, '*', MIN_DELETE_QUALITY)
             # increase the coverage
             self.mismatch_count[i] += 1
-
-            if mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY:
-                self.coverage[i] += 1
+            self.coverage[i] += 1
 
         # the allele is the anchor + what's being deleted
         allele = self.reference_dictionary[alignment_position] + ref_sequence
@@ -527,8 +519,8 @@ class CandidateFinder:
         read_unique_id = 0
         for read in reads:
             # check if the read is usable
-            if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
-                    and read.is_qcfail is False:
+            if read.mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False \
+                    and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 read.query_name = read.query_name + '_' + str(read_unique_id)
                 if self.find_read_candidates(read=read):
                     # read_id_list.append(read.query_name)
