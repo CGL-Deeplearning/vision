@@ -76,10 +76,11 @@ class LocalAssembler:
         all_reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
                                                start=self.region_start_position,
                                                stop=self.region_end_position)
+        # we realign all these reads
         reads_in_region = []
         for read in all_reads:
-            if read.is_secondary is False and read.is_supplementary is False and read.is_unmapped is False \
-                    and read.is_qcfail is False:
+            if read.mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False and \
+                    read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 reads_in_region.append(Read(read))
 
         if perform_alignment is False:
@@ -91,6 +92,7 @@ class LocalAssembler:
                                                   region_start=self.region_start_position,
                                                   region_end=self.region_end_position
                                                   )
+        # mapq threshold is checked in this
         active_regions = active_region_finder.select_active_region(reads_in_region)
 
         assembly_active_regions = []
@@ -113,9 +115,10 @@ class LocalAssembler:
             reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
                                                start=start_pos,
                                                stop=end_pos)
+            # these reads are only for constructing the graph
             filtered_reads = []
             for read in reads:
-                if read.mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False \
+                if read.mapping_quality >= DeBruijnGraphOptions.MIN_MAP_QUALITY and read.is_secondary is False \
                         and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                     filtered_reads.append(Read(read))
 
@@ -131,6 +134,7 @@ class LocalAssembler:
         if not possible_regions:
             return reads_in_region
 
+        # now we have the list that we filtered at the beginning of this script
         realigned_reads = list()
         for read in reads_in_region:
             read_start = read.reference_start
