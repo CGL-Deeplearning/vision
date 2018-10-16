@@ -113,7 +113,6 @@ class DeBruijnGraph:
         while running_paths:
             if len(finished_paths) + len(running_paths) > DeBruijnGraphOptions.MAX_ALLOWED_PATHS:
                 return []
-            # get the front path
             current_path = running_paths.pop(0)
             running_node = current_path[-1]
             for i in range(len(self.out_nodes[running_node])):
@@ -124,7 +123,6 @@ class DeBruijnGraph:
                     finished_paths.append(current_path + [next_node])
                 else:
                     running_paths.append(current_path + [next_node])
-
         # get haplotypes from paths
         haplotype_set = []
         for path in finished_paths:
@@ -135,23 +133,22 @@ class DeBruijnGraph:
 
         return haplotype_set
 
-    def dfs_cycle_finder(self, source_, sink_):
-        stack_node = list()
-        stack_node.append(source_)
-        visit_color = defaultdict(bool)
+    def dfs_cycle_finder(self, source_, sink_, current_node, visited, stack):
+        if current_node == sink_:
+            return False
 
-        while sink_ not in visit_color:
-            if not stack_node:
-                break
-            current_node = stack_node.pop()
-            visit_color[current_node] = True
-            for j in range(len(self.out_nodes[current_node])):
-                new_node = self.out_nodes[current_node][j]
-                if new_node in visit_color:
-                    # back node, has a cycle
+        visited[current_node] = True
+        stack[current_node] = True
+
+        for j in range(len(self.out_nodes[current_node])):
+            new_node = self.out_nodes[current_node][j]
+            if visited[new_node] is False:
+                if self.dfs_cycle_finder(source_, sink_, new_node, visited, stack) is True:
                     return True
-                stack_node.append(new_node)
+            elif stack[new_node] is True:
+                return True
 
+        stack[current_node] = False
         return False
 
     def add_read_seq_to_graph(self, read_seq):
@@ -221,8 +218,8 @@ class DeBruijnGraph:
                 current_position = bad_position + 1
                 bad_position_index += 1
 
-        # self.visualize_graph()
-        return self.dfs_cycle_finder(source_, sink_), source_, sink_
+        has_cycle = self.dfs_cycle_finder(source_, sink_, source_, defaultdict(bool), defaultdict(bool))
+        return has_cycle, source_, sink_
 
 
 class DeBruijnGraphCreator:
@@ -255,6 +252,7 @@ class DeBruijnGraphCreator:
 
     def find_haplotypes_through_linear_search_over_kmer(self, ref, reads, bounds):
         bound_min_k, bound_max_k, bound_step_k = bounds
+        haplotypes = []
         for k in range(bound_min_k, bound_max_k + 1, bound_step_k):
             graph = DeBruijnGraph(ref, reads, k, self.region_start_position, self.region_end_position)
             has_cycle, source_, sink_ = graph.create_graph()
@@ -263,7 +261,8 @@ class DeBruijnGraphCreator:
             else:
                 # graph.visualize('Before_pruning', False)
                 graph.prune_graph(source_, sink_)
-                return graph.get_haplotypes(source_, sink_)
                 # graph.visualize('Final_pruned', True)
+                haplotypes = graph.get_haplotypes(source_, sink_)
+                break
 
-        return []
+        return haplotypes

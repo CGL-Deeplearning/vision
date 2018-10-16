@@ -66,7 +66,6 @@ class LocalAssembler:
         ref_seq = ref_prefix + ref + ref_suffix
         haplotypes = [ref_prefix + hap + ref_suffix for hap in region_with_reads.haplotypes]
         aligner = SSWAligner(ref_start, ref_end, ref_seq)
-
         realigned_reads = aligner.align_reads(haplotypes, region_with_reads.reads)
 
         return realigned_reads
@@ -123,6 +122,7 @@ class LocalAssembler:
                     filtered_reads.append(Read(read))
 
             bounds = (min_k, max_k, DeBruijnGraphOptions.STEP_K)
+
             haplotypes = graph.find_haplotypes_through_linear_search_over_kmer(ref_sequence, filtered_reads, bounds)
 
             if not haplotypes:
