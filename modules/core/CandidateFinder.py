@@ -395,6 +395,7 @@ class CandidateFinder:
             elif count > CandidateFinderOptions.MIN_MISMATCH_THRESHOLD and \
                     frequency >= CandidateFinderOptions.MIN_MISMATCH_PERCENT_THRESHOLD_INDEL:
                     filtered_list.append((allele, count, frequency))
+            # print("Candidates: ", filtered_list)
         return filtered_list
 
     def _get_record(self, pos, alt1, alt2, ref, ref_count):
@@ -525,7 +526,7 @@ class CandidateFinder:
         read_unique_id = 0
         for read in reads:
             # check if the read is usable
-            if read.mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False \
+            if read.mapping_quality > CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False \
                     and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 read.query_name = read.query_name + '_' + str(read_unique_id)
                 if self.find_read_candidates(read=read):

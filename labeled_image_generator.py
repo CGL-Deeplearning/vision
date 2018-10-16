@@ -348,7 +348,7 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=1091511, end_position=1092511, thread_no=1)
+    view_object.parse_region(start_position=3147597, end_position=3148597, thread_no=1)
     # view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 

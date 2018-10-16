@@ -29,7 +29,7 @@ class RegionBasedHaplotypes:
 
     @staticmethod
     def overlap_length_between_ranges(range_a, range_b):
-        return max(0, (min(range_a[1], range_b[1]) - max(range_a[0], range_a[0])))
+        return max(0, (min(range_a[1], range_b[1]) - max(range_a[0], range_a[0]) + 1))
 
 
 class LocalAssembler:
@@ -75,6 +75,7 @@ class LocalAssembler:
         all_reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
                                                start=self.region_start_position,
                                                stop=self.region_end_position)
+
         # we realign all these reads
         reads_in_region = []
         for read in all_reads:
@@ -133,7 +134,6 @@ class LocalAssembler:
 
         if not possible_regions:
             return reads_in_region
-
         # now we have the list that we filtered at the beginning of this script
         realigned_reads = list()
         for read in reads_in_region:
