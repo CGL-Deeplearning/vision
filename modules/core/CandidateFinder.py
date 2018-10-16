@@ -386,13 +386,14 @@ class CandidateFinder:
         """
         filtered_list = list()
         for allele, count in allele_frequency_list:
-            frequency = round(count / self.coverage[position], 3) if self.coverage[position] else 0
+            frequency = math.ceil(100 * (count / self.coverage[position])) if self.coverage[position] else 0.0
             allele_seq, allele_type = allele
+
             if allele_type == MISMATCH_ALLELE and count > CandidateFinderOptions.MIN_MISMATCH_THRESHOLD and \
-                    frequency * 100 >= CandidateFinderOptions.MIN_MISMATCH_PERCENT_THRESHOLD_SNP:
+                    frequency >= CandidateFinderOptions.MIN_MISMATCH_PERCENT_THRESHOLD_SNP:
                     filtered_list.append((allele, count, frequency))
             elif count > CandidateFinderOptions.MIN_MISMATCH_THRESHOLD and \
-                    frequency * 100 >= CandidateFinderOptions.MIN_MISMATCH_PERCENT_THRESHOLD_INDEL:
+                    frequency >= CandidateFinderOptions.MIN_MISMATCH_PERCENT_THRESHOLD_INDEL:
                     filtered_list.append((allele, count, frequency))
         return filtered_list
 

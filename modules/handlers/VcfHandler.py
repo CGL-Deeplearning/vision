@@ -338,7 +338,7 @@ class VCFFileProcessor:
         :param site: Site (:100000-200000)
         :return:
         """
-        start_pos += VCF_OFFSET
+        start_pos -= VCF_OFFSET
         end_pos += VCF_OFFSET
         if start_pos is not None:
             try:

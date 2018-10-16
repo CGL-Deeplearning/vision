@@ -35,7 +35,7 @@ import itertools
 import heapq
 import copy
 
-DEBUG_IT = False
+DEBUG_IT = True
 """
             possible combos:
             gt1       gt2     Candidate validated?
