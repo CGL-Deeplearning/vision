@@ -338,8 +338,8 @@ class CandidateFinder:
                               read_sequence=read_sequence,
                               qualities=quality)
             ref_index_increment = 0
-        elif cigar_code == 2 or cigar_code == 3:
-            # delete or ref_skip
+        elif cigar_code == 2:
+            # delete
             # alignment position is where the next alignment starts, for insert and delete this
             # position should be the anchor point hence we use a -1 to refer to the anchor point
             self.parse_delete(read_id=read_id,
@@ -348,12 +348,16 @@ class CandidateFinder:
                               length=length,
                               quality=quality)
             read_index_increment = 0
+        elif cigar_code == 3:
+            # ref_skip
+            read_index_increment = 0
         elif cigar_code == 4:
             # soft clip
-            self.parse_insert(read_id=read_id,
-                              alignment_position=alignment_position - 1,
-                              read_sequence=read_sequence,
-                              qualities=quality)
+            # do not parse soft clips
+            # self.parse_insert(read_id=read_id,
+            #                   alignment_position=alignment_position - 1,
+            #                   read_sequence=read_sequence,
+            #                   qualities=quality)
             ref_index_increment = 0
             # print("CIGAR CODE ERROR SC")
         elif cigar_code == 5:
