@@ -143,7 +143,7 @@ class LocalAssembler:
             overlapping_lengths = [RegionBasedHaplotypes.overlap_length_between_ranges(region, read_range)
                                    for region in possible_regions]
             max_length = max(overlapping_lengths)
-            if max_length == 0:
+            if max_length <= 0:
                 realigned_reads.append(read)
                 continue
 
