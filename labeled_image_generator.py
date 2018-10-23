@@ -121,7 +121,7 @@ class View:
         :param thread_no: Thread no for this region
         :return:
         """
-        # st_time = time.time()
+        st_time = time.time()
         local_assembler = LocalAssembler(self.fasta_handler,
                                          self.bam_handler,
                                          self.chromosome_name,
@@ -154,8 +154,8 @@ class View:
                                                           thread_no, self.output_dir,
                                                           image_height=50, image_width=50, image_channels=6)
 
-        # end_time = time.time()
-        # print("TIME ELAPSED: ", start_position, end_position, end_time - st_time)
+        end_time = time.time()
+        print("TIME ELAPSED: ", start_position, end_position, end_time - st_time)
 
 
 def parallel_run(chr_name, bam_file, ref_file, vcf_file, output_dir, start_pos, end_pos, conf_bed_tree, thread_no):
@@ -288,9 +288,9 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     """
 
     # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
-    # chr_list = ["chr19"]
-    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
-                "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
+    chr_list = ["chr6"]
+    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
+    #             "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
 
     program_start_time = time.time()
 
