@@ -133,22 +133,45 @@ class DeBruijnGraph:
 
         return haplotype_set
 
-    def dfs_cycle_finder(self, source_, sink_, current_node, visited, stack):
-        if current_node == sink_:
-            return False
+    # def dfs_cycle_finder(self, source_, sink_, current_node, visited, stack):
+    #     if current_node == sink_:
+    #         return False
+    #
+    #     visited[current_node] = True
+    #     stack[current_node] = True
+    #
+    #     for j in range(len(self.out_nodes[current_node])):
+    #         new_node = self.out_nodes[current_node][j]
+    #         if visited[new_node] is False:
+    #             if self.dfs_cycle_finder(source_, sink_, new_node, visited, stack) is True:
+    #                 return True
+    #         elif stack[new_node] is True:
+    #             return True
+    #
+    #     stack[current_node] = False
+    #     return False
 
-        visited[current_node] = True
-        stack[current_node] = True
+    def dfs_cycle_finder(self, source_, sink_):
+        stack_node = list()
+        stack_node.append(source_)
 
-        for j in range(len(self.out_nodes[current_node])):
-            new_node = self.out_nodes[current_node][j]
-            if visited[new_node] is False:
-                if self.dfs_cycle_finder(source_, sink_, new_node, visited, stack) is True:
+        node_timestamp = defaultdict(int)
+        current_time = 1
+        node_timestamp[source_] = current_time
+
+        # we are sure that this graph is acyclic, no cyclic graph will pass here
+        while True:
+            if not stack_node:
+                break
+            current_node = stack_node.pop()
+            current_time = current_time + 1
+            for j in range(len(self.out_nodes[current_node])):
+                new_node = self.out_nodes[current_node][j]
+                if new_node in node_timestamp and node_timestamp[new_node] < node_timestamp[current_node]:
                     return True
-            elif stack[new_node] is True:
-                return True
+                node_timestamp[new_node] = current_time
+                stack_node.append(new_node)
 
-        stack[current_node] = False
         return False
 
     def add_read_seq_to_graph(self, read_seq):
@@ -218,7 +241,8 @@ class DeBruijnGraph:
                 current_position = bad_position + 1
                 bad_position_index += 1
 
-        has_cycle = self.dfs_cycle_finder(source_, sink_, source_, defaultdict(bool), defaultdict(bool))
+        # has_cycle = self.dfs_cycle_finder(source_, sink_, source_, defaultdict(bool), defaultdict(bool))
+        has_cycle = self.dfs_cycle_finder(source_, sink_)
         return has_cycle, source_, sink_
 
 
