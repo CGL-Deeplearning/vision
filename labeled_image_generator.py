@@ -288,9 +288,9 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
     """
 
     # --- NEED WORK HERE --- GET THE CHROMOSOME NAMES FROM THE BAM FILE
-    chr_list = ["chr19"]
-    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
-    #             "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
+    # chr_list = ["chr19"]
+    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
+                "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19"]
 
     program_start_time = time.time()
 
@@ -351,8 +351,8 @@ def test(view_object):
     :return:
     """
     start_time = time.time()
-    view_object.parse_region(start_position=3147597, end_position=3148597, thread_no=1)
-    # view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
+    # view_object.parse_region(start_position=8926678, end_position=8927210, thread_no=1)
+    view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 
@@ -436,7 +436,7 @@ if __name__ == '__main__':
     FLAGS.output_dir = handle_output_directory(FLAGS.output_dir)
 
     # if the confident bed is not empty then create the tree
-    if FLAGS.confident_bed != '':
+    if FLAGS.confident_bed != '' and FLAGS.test is False:
         confident_intervals = View.build_chromosomal_interval_trees(FLAGS.confident_bed)
     else:
         confident_intervals = None

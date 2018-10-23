@@ -194,7 +194,8 @@ class ActiveRegionFinder:
                 self.find_read_candidates(read)
 
         candidate_positions = []
-        for pos in range(self.region_start_position, self.region_end_position):
+        for pos in range(self.region_start_position - ActiveRegionOptions.BASE_EXPANSION,
+                         self.region_end_position + ActiveRegionOptions.BASE_EXPANSION):
             if self.candidate_position_weighted_sum[pos] >= ActiveRegionOptions.THRESHOLD_VALUE:
                 candidate_positions.append(pos)
         active_regions = self.create_active_regions(candidate_positions)
