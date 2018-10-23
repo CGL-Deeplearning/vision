@@ -152,25 +152,29 @@ class DeBruijnGraph:
     #     return False
 
     def dfs_cycle_finder(self, source_, sink_):
-        stack_node = list()
-        stack_node.append(source_)
+        WHITE = 0
+        GRAY = 1
+        BLACK = 2
 
-        node_timestamp = defaultdict(int)
-        current_time = 1
-        node_timestamp[source_] = current_time
+        ENTER = 0
+        EXIT = 1
 
-        # we are sure that this graph is acyclic, no cyclic graph will pass here
-        while True:
-            if not stack_node:
-                break
-            current_node = stack_node.pop()
-            current_time = current_time + 1
-            for j in range(len(self.out_nodes[current_node])):
-                new_node = self.out_nodes[current_node][j]
-                if new_node in node_timestamp and node_timestamp[new_node] < node_timestamp[current_node]:
-                    return True
-                node_timestamp[new_node] = current_time
-                stack_node.append(new_node)
+        state = {v: WHITE for v in range(0, self.hash_value + 1)}
+        stack = [(ENTER, source_)]
+
+        while stack:
+            act, v = stack.pop()
+            if act == EXIT:
+                state[v] = BLACK
+            else:
+                state[v] = GRAY
+                stack.append((EXIT, v))
+                for j in range(len(self.out_nodes[v])):
+                    n = self.out_nodes[v][j]
+                    if state[n] == GRAY:
+                        return True
+                    elif state[n] == WHITE:
+                        stack.append((ENTER, n))
 
         return False
 
