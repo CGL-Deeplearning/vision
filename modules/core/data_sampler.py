@@ -22,9 +22,9 @@ class BalancedSampler(sampler.Sampler):
         data = {'label': labels, 'weight': 0.0}
         weights = pd.DataFrame(data=data)
 
-        weights.loc[weights.label == '0', 'weight'] = 1.0 / label_frequency['0']
-        weights.loc[weights.label == '1', 'weight'] = 1.0 / label_frequency['1']
-        weights.loc[weights.label == '2', 'weight'] = 1.0 / label_frequency['2']
+        weights.loc[weights.label == '0', 'weight'] = 1.0 / label_frequency['0'] if '0' in label_frequency else 1
+        weights.loc[weights.label == '1', 'weight'] = 1.0 / label_frequency['1'] if '1' in label_frequency else 1
+        weights.loc[weights.label == '2', 'weight'] = 1.0 / label_frequency['2'] if '2' in label_frequency else 1
 
         weights = weights['weight'].tolist()
         self.weights = torch.DoubleTensor(weights)

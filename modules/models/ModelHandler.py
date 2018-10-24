@@ -8,10 +8,8 @@ class ModelHandler:
         torch.save(state, filename)
 
     @staticmethod
-    def get_new_model(gpu_mode):
+    def get_new_model():
         model = resnet18()
-        if gpu_mode:
-            model = model.cuda()
         return model
 
     @staticmethod

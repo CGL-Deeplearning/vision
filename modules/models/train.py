@@ -46,9 +46,12 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
                               pin_memory=gpu_mode
                               )
     # this needs to change
-    model = ModelHandler.get_new_model(gpu_mode)
+    model = ModelHandler.get_new_model()
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
+
+    if gpu_mode:
+        model = model.cuda()
 
     if retrain_model is True:
         if os.path.isfile(retrain_model_path) is False:
