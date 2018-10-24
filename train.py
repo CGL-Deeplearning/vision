@@ -37,9 +37,9 @@ def call_train(train_file, test_file, batch_size, epoch_limit, gpu_mode, num_wor
     :return:
     """
     # {'learning_rate': 1.0067913467039144e-05, 'momentum': 0.8, 'weight_decay': 0.00019917796833840838}
-    learning_rate = 01.0067913467039144e-05
-    weight_decay = 0.00019917796833840838
-    momentum = 0.8
+    learning_rate = 9.18232977246663e-06
+    weight_decay = 0.006112618056787192
+    momentum = 0
     sys.stderr.write(TextColor.BLUE + "Learning rate: " + str(learning_rate) + "\n" + TextColor.END)
     sys.stderr.write(TextColor.BLUE + "Weight Decay: " + str(weight_decay) + "\n" + TextColor.END)
     model, optimizer, stats = train(train_file, test_file, batch_size,
