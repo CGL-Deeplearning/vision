@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from modules.models.resnet import resnet18_custom
+from modules.models.ModelHandler import ModelHandler
 from modules.core.dataloader_predict import PileupDataset, TextColor
 from collections import defaultdict
 from modules.handlers.VcfWriter import VCFWriter
@@ -52,34 +52,11 @@ def predict(test_file, batch_size, model_path, gpu_mode, num_workers):
 
     sys.stderr.write(TextColor.PURPLE + 'Data loading finished\n' + TextColor.END)
 
-    # load the model
-    if gpu_mode is False:
-        checkpoint = torch.load(model_path, map_location='cpu')
-        state_dict = checkpoint['state_dict']
+    model = ModelHandler.get_new_model()
 
-        # In state dict keys there is an extra word inserted by model parallel: "module.". We remove it here
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
+    model = ModelHandler.load_model(model, model_path)
 
-        for k, v in state_dict.items():
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
-
-        model = resnet18_custom()
-        model.load_state_dict(new_state_dict)
-        model.cpu()
-    else:
-        checkpoint = torch.load(model_path, map_location='cpu')
-        state_dict = checkpoint['state_dict']
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-
-        for k, v in state_dict.items():
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
-
-        model = resnet18_custom()
-        model.load_state_dict(new_state_dict)
+    if gpu_mode:
         model = model.cuda()
         model = torch.nn.DataParallel(model).cuda()
 
@@ -164,9 +141,9 @@ def handle_output_directory(output_dir):
 
 def call_variants_on_multiple_chromosome(csv_dir, bam_file_path, sample_name, output_dir,
                                          batch_size, model_path, gpu_mode, num_workers):
-    # chr_list = ["chr20", "chr21", "chr22"]
-    chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
-                "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
+    chr_list = ["chr20", "chr21", "chr22"]
+    # chr_list = ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12",
+    #             "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22"]
     # object that can write and handle VCF
     vcf_writer = VCFWriter(bam_file_path, sample_name, output_dir)
 
