@@ -47,8 +47,8 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
                               )
     # this needs to change
     model = ModelHandler.get_new_model()
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.95)
 
     if gpu_mode:
         model = model.cuda()
@@ -127,7 +127,7 @@ def train(train_file, test_file, batch_size, epoch_limit, prev_ite,
             confusion_matrix_logger.write(str(epoch + 1) + "\n" + str(confusion_matrix) + "\n")
             save_best_model(model, optimizer, model_output_dir, '_' + str(epoch + 1))
 
-        lr_scheduler.step()
+        # lr_scheduler.step()
         # if epoch > 3:
         #     for param_group in optimizer.param_groups:
         #         momentum_value = param_group['momentum']

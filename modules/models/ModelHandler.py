@@ -9,7 +9,7 @@ class ModelHandler:
 
     @staticmethod
     def get_new_model():
-        model = resnet18()
+        model = inception_v3()
         return model
 
     @staticmethod
