@@ -137,7 +137,6 @@ class View:
 
         # go through each read and find candidate positions and alleles
         selected_candidates = candidate_finder.parse_reads_and_select_candidates(reads=reads)
-
         dictionaries_for_images = candidate_finder.get_pileup_dictionaries()
         # get all labeled candidate sites
         labeled_sites = self.get_labeled_candidate_sites(selected_candidates, start_position, end_position, True)
@@ -152,7 +151,7 @@ class View:
         # generate and save candidate images
         ImageGenerator.generate_and_save_candidate_images(self.chromosome_name, labeled_sites, image_generator,
                                                           thread_no, self.output_dir,
-                                                          image_height=50, image_width=50, image_channels=6)
+                                                          image_height=100, image_width=222, image_channels=6)
 
         # end_time = time.time()
         # print("TIME ELAPSED: ", start_position, end_position, end_time - st_time)
@@ -352,7 +351,7 @@ def test(view_object):
     """
     start_time = time.time()
     # view_object.parse_region(start_position=8926678, end_position=8927210, thread_no=1)
-    view_object.parse_region(start_position=703690, end_position=703710, thread_no=1)
+    view_object.parse_region(start_position=8926678, end_position=8927210, thread_no=1)
     print("TOTAL TIME ELAPSED: ", time.time()-start_time)
 
 

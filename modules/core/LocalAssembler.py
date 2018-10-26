@@ -29,7 +29,7 @@ class RegionBasedHaplotypes:
 
     @staticmethod
     def overlap_length_between_ranges(range_a, range_b):
-        return max(0, (min(range_a[1], range_b[1]) - max(range_a[0], range_a[0]) + 1))
+        return max(0, (min(range_a[1], range_b[1]) - max(range_a[0], range_b[0])))
 
 
 class LocalAssembler:
