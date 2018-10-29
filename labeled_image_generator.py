@@ -238,10 +238,21 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
             intervals.append([start_position, end_position])
     else:
         each_segment_length = 1000
+        prev_interval = None
         for interval in confident_bed_tree[chr_name]:
             start_position, end_position = interval
+
+            if prev_interval is not None:
+                prev_start, prev_end = prev_interval
+                can_be_added = min(50, max(0, start_position - prev_end - 1))
+                start_position = start_position - can_be_added
+
+            if start_position == end_position:
+                end_position += 1
+
             start_position = start_position - BED_POSITION_BUFFER
             end_position = end_position + BED_POSITION_BUFFER
+
             if end_position - start_position + 1 < each_segment_length:
                 intervals.append([start_position, end_position])
             else:
@@ -250,6 +261,8 @@ def chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, out
                     end_ = min(st_ + each_segment_length, end_position)
                     intervals.append([st_, end_])
                     st_ = end_ + 1
+
+            prev_interval = interval
 
     for i in tqdm(range(len(intervals)), ncols=100):
         start_position = intervals[i][0]
