@@ -328,7 +328,7 @@ def genome_level_parallelization(bam_file, ref_file, vcf_file, output_dir_path, 
 
         # do a chromosome level parallelization
         chromosome_level_parallelization(chr_name, bam_file, ref_file, vcf_file, output_dir_path,
-                                         max_threads, train_mode, confident_bed_tree)
+                                         max_threads, confident_bed_tree, train_mode)
 
         end_time = time.time()
         sys.stderr.write(TextColor.PURPLE + "FINISHED " + str(chr_name) + " PROCESSES" + "\n")
