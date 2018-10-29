@@ -73,7 +73,7 @@ class ImageGenerator:
         return HOM_ALT_CLASS
 
     @staticmethod
-    def get_combined_records_for_two_alts(record):
+    def get_combined_records_for_two_alts(record, train_mode):
         """
         Returns records for sites where we have two alternate alleles.
         :param record: Record that belong to the site
@@ -81,7 +81,7 @@ class ImageGenerator:
         """
         chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
         # get the genotypes from the record
-        gt = record[-1]
+        gt = record[-1] if train_mode else (0, 0)
         gt1 = ImageGenerator.get_class_label_for_alt1(gt)
         gt2 = ImageGenerator.get_class_label_for_alt2(gt)
         # get the genotype of the images where both of these alleles are used together
@@ -270,7 +270,7 @@ class ImageGenerator:
 
     @staticmethod
     def generate_and_save_candidate_images(chromosome_name, candidate_list, image_generator, thread_no, output_dir,
-                                           image_height, image_width, image_channels=6):
+                                           image_height, image_width, train_mode, image_channels=6):
         """
         Generate and save images from a given labeled candidate list.
         :param chromosome_name: Name of the chromosome which is being processed
@@ -298,10 +298,10 @@ class ImageGenerator:
         # expand the records for sites where two alleles are found
         for record in candidate_list:
             chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2 = record[0:8]
-            gt = record[-1]
+            gt = record[-1] if train_mode else (0, 0)
 
             if alt2 != '.':
-                image_record_set.extend(ImageGenerator.get_combined_records_for_two_alts(record))
+                image_record_set.extend(ImageGenerator.get_combined_records_for_two_alts(record, train_mode))
             else:
                 gt1 = ImageGenerator.get_class_label_for_alt1(gt)
                 image_record_set.append([chr_name, pos_start, pos_end, ref, alt1, alt2, rec_type_alt1, rec_type_alt2,
