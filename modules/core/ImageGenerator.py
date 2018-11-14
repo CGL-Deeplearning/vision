@@ -269,8 +269,7 @@ class ImageGenerator:
         return np.array(whole_image, dtype=np.uint8)
 
     @staticmethod
-    def generate_and_save_candidate_images(chromosome_name, candidate_list, image_generator, thread_no, output_dir,
-                                           image_height, image_width, train_mode, image_channels=6):
+    def generate_and_save_candidate_images(candidate_list, image_generator, image_height, image_width, train_mode):
         """
         Generate and save images from a given labeled candidate list.
         :param chromosome_name: Name of the chromosome which is being processed
@@ -285,14 +284,8 @@ class ImageGenerator:
         """
         # declare the size of the image
         if len(candidate_list) == 0:
-            return
+            return None, None, None
 
-        # create summary file where the location of each image is recorded
-        contig = str(chromosome_name)
-        smry = open(output_dir + "summary/" + "summary" + '_' + contig + "_" + str(thread_no) + ".csv", 'w')
-        # create a h5py file where the images are stored
-        hdf5_filename = output_dir + contig + '_' + str(thread_no) + ".h5"
-        hdf5_file = h5py.File(hdf5_filename, mode='w')
         # list of image records to be generated
         image_record_set = []
         # expand the records for sites where two alleles are found
@@ -310,6 +303,7 @@ class ImageGenerator:
         # set of images and labels we are generating
         img_set = []
         label_set = []
+        img_recs = []
         # index of the image we generate the images
         indx = 0
         for img_record in image_record_set:
@@ -328,16 +322,9 @@ class ImageGenerator:
 
             # the record of the image we want to save in the summary file
             img_rec = str('\t'.join(str(item) for item in img_record))
+            img_recs.append(img_rec)
             label_set.append(label)
             img_set.append(np.array(image_array, dtype=np.uint8))
-            smry.write(os.path.abspath(hdf5_filename) + ',' + str(indx) + ',' + img_rec + '\n')
             indx += 1
 
-        # the image dataset we save. The index name in h5py is "images".
-        img_dataset = hdf5_file.create_dataset("images", (len(img_set),) + (image_height, image_width, image_channels),
-                                               np.uint8, compression='gzip')
-        # the labels for images that we saved
-        label_dataset = hdf5_file.create_dataset("labels", (len(label_set),), np.uint8)
-        # save the images and labels to the h5py file
-        img_dataset[...] = img_set
-        label_dataset[...] = label_set
+        return img_set, label_set, img_recs

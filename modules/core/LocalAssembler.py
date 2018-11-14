@@ -4,6 +4,7 @@ from modules.core.DeBruijnGraph import DeBruijnGraphCreator
 from modules.handlers.Read import Read
 from modules.core.SSWAligner import SSWAligner
 from modules.core.OptionValues import AlingerOptions, DeBruijnGraphOptions, ActiveRegionOptions, CandidateFinderOptions
+import numpy as np
 """doing this: https://software.broadinstitute.org/gatk/documentation/article.php?id=11077
 A version is implemented here: https://github.com/google/deepvariant/blob/r0.7/deepvariant/realigner/aligner.py
 """
@@ -82,6 +83,22 @@ class LocalAssembler:
             if read.mapping_quality >= CandidateFinderOptions.MIN_MAP_QUALITY and read.is_secondary is False and \
                     read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
                 reads_in_region.append(Read(read))
+        all_reads = reads_in_region
+
+        if len(all_reads) > AlingerOptions.MAX_READ_IN_REGION:
+            # https://github.com/google/nucleus/blob/master/nucleus/util/utils.py
+            # reservoir_sample method utilized here
+            random = np.random.RandomState(AlingerOptions.RANDOM_SEED)
+            sample = []
+            for i, read in enumerate(all_reads):
+                if len(sample) < AlingerOptions.MAX_READ_IN_REGION:
+                    sample.append(read)
+                else:
+                    j = random.randint(0, i + 1)
+                    if j < AlingerOptions.MAX_READ_IN_REGION:
+                        sample[j] = read
+
+            all_reads = sample
 
         if perform_alignment is False:
             return reads_in_region
@@ -112,19 +129,10 @@ class LocalAssembler:
 
             if min_k is None:
                 continue
-            reads = self.bam_handler.get_reads(chromosome_name=self.chromosome_name,
-                                               start=start_pos,
-                                               stop=end_pos)
-            # these reads are only for constructing the graph
-            filtered_reads = []
-            for read in reads:
-                if read.mapping_quality >= DeBruijnGraphOptions.MIN_MAP_QUALITY and read.is_secondary is False \
-                        and read.is_supplementary is False and read.is_unmapped is False and read.is_qcfail is False:
-                    filtered_reads.append(Read(read))
 
             bounds = (min_k, max_k, DeBruijnGraphOptions.STEP_K)
 
-            haplotypes = graph.find_haplotypes_through_linear_search_over_kmer(ref_sequence, filtered_reads, bounds)
+            haplotypes = graph.find_haplotypes_through_linear_search_over_kmer(ref_sequence, all_reads, bounds)
 
             if not haplotypes:
                 haplotypes = [ref_sequence]
@@ -153,4 +161,5 @@ class LocalAssembler:
         for active_region in assembly_active_regions:
             realigned_reads.extend(self.perform_local_alignment(active_region))
 
+        print(len(realigned_reads))
         return realigned_reads
