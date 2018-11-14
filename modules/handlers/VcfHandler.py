@@ -340,6 +340,8 @@ class VCFFileProcessor:
         """
         start_pos -= VCF_OFFSET
         end_pos += VCF_OFFSET
+
+        start_pos = max(0, start_pos)
         if start_pos is not None:
             try:
                 self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig, start_pos, end_pos)
@@ -373,9 +375,10 @@ class VCFFileProcessor:
         :param site: Site (:100000-200000)
         :return:
         """
+
         if start_pos is not None:
             try:
-                self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig, start_pos, end_pos)
+                self.vcf_records = pysam.VariantFile(self.file_path).fetch(contig, max(0, start_pos), end_pos)
             except IOError:
                 sys.stderr.write("VCF FILE READ ERROR")
         elif contig is not None:
