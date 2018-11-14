@@ -6,6 +6,7 @@ import sys
 import h5py
 import numpy as np
 
+from modules.handlers.IntervalTree import IntervalTree
 from modules.core.CandidateFinder import CandidateFinder
 from modules.handlers.BamHandler import BamHandler
 from modules.handlers.FastaHandler import FastaHandler
@@ -59,6 +60,7 @@ class View:
         self.bam_handler = BamHandler(bam_file_path)
         self.fasta_handler = FastaHandler(reference_file_path)
         self.confident_tree = confident_tree[chromosome_name] if confident_tree else None
+        self.interval_tree = IntervalTree(self.confident_tree)
         self.vcf_handler = VCFFileProcessor(file_path=vcf_path) if train_mode else None
 
         # --- initialize names ---
@@ -98,6 +100,10 @@ class View:
 
         return labeled_sites
 
+    @staticmethod
+    def overlap_length_between_ranges(range_a, range_b):
+        return max(0, (min(range_a[1], range_b[1]) - max(range_a[0], range_b[0])))
+
     def parse_region(self, start_position, end_position, label_candidates):
         """
         Generate labeled images of a given region of the genome
@@ -126,9 +132,21 @@ class View:
 
         # get all labeled candidate sites
         if label_candidates:
-            labeled_sites = self.get_labeled_candidate_sites(selected_candidates,
-                                                             start_position,
-                                                             end_position)
+            confident_intervals_in_region = self.interval_tree.find(start_position, end_position)
+            if not confident_intervals_in_region:
+                return None, None, None
+
+            confident_candidates = []
+            for candidate in selected_candidates:
+                for interval in confident_intervals_in_region:
+                    if self.overlap_length_between_ranges((candidate[1], candidate[2]), interval) > 0:
+                        confident_candidates.append(candidate)
+                        break
+
+            if not confident_candidates:
+                return None, None, None
+
+            labeled_sites = self.get_labeled_candidate_sites(confident_candidates, start_position, end_position)
         else:
             labeled_sites = selected_candidates
 
@@ -188,8 +206,8 @@ def chromosome_level_parallelization(chr_list,
     fasta_handler = FastaHandler(ref_file)
 
     for chr_name in chr_list:
-        interval_start, interval_end = (0, fasta_handler.get_chr_sequence_length(chr_name) + 1)
-        # interval_start, interval_end = (2005000, 2010000)
+        # interval_start, interval_end = (0, fasta_handler.get_chr_sequence_length(chr_name) + 1)
+        interval_start, interval_end = (2005000, 2010000)
         # interval_start, interval_end = (269856, 269996)
         # interval_start, interval_end = (1413980, 1413995)
         # interval_start, interval_end = (260000, 260999)
